@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { chooseMode, chooseSubTab, closePreview, evalInPrintDoc, newDirs, openApp, printSummary } from './helpers';
+import { chooseMode, chooseSubTab, closePreview, evalInPrintDoc, newDirs, openApp, printSummary, watchPrintBuild } from './helpers';
 
 test('Số bắt đầu, số lượng và công tắc tự nhảy số', async () => {
   const s = await openApp();
@@ -77,26 +77,19 @@ test('4.000 phiếu: màn chờ hiện ngay, app vẫn phản hồi trong lúc d
   const { win } = s;
   await chooseMode(win, 'Phiếu');
   const t0 = Date.now();
-  await win.getByRole('button', { name: /Bấm để in \(1000\)/ }).click();
-  await expect(win.getByText('Đang dựng bản in...')).toBeVisible();
-  const spinnerMs = Date.now() - t0;
+  // Nút này không chuyển trang. Bỏ bước chờ sau khi bấm của Playwright: trên Windows bước đó treo mà không cho biết
+  // vì sao, còn bên dưới tự đo được giao diện và main process có trả lời trong suốt lượt dựng hay không.
+  await win.getByRole('button', { name: /Bấm để in \(1000\)/ }).click({ noWaitAfter: true });
+  const { spinnerMs, readyMs, rendererStallMs, mainStallMs, peakMb } = await watchPrintBuild(s, t0);
+  console.log(`4.000 phiếu: màn chờ sau ${spinnerMs} ms, xem trước sau ${(readyMs / 1000).toFixed(1)} giây, giao diện đứng lâu nhất ${rendererStallMs} ms, main đứng lâu nhất ${mainStallMs} ms, tổng bộ nhớ đỉnh ${peakMb} MB`);
+  expect(spinnerMs, 'Màn chờ phải hiện').toBeDefined();
+  expect(rendererStallMs, 'Giao diện không được đơ').toBeLessThan(5000);
+  expect(mainStallMs, 'Main process không được đơ').toBeLessThan(5000);
 
   // Cửa sổ dựng bản in phải chạy ở tiến trình riêng
   const processes = await s.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map((w) => w.webContents.getOSProcessId()));
-  expect(new Set(processes).size, 'Tiến trình riêng').toBe(processes.length);
-
-  // Giao diện vẫn trả lời trong suốt thời gian dựng
-  const summary = win.locator('[data-testid="print-summary"]');
-  let maxStallMs = 0;
-  while (!(await summary.isVisible())) {
-    const started = Date.now();
-    await win.evaluate(() => 1);
-    maxStallMs = Math.max(maxStallMs, Date.now() - started);
-    await win.waitForTimeout(100);
-  }
-  const readyMs = Date.now() - t0;
-  console.log(`4.000 phiếu: màn chờ sau ${spinnerMs} ms, xem trước sau ${(readyMs / 1000).toFixed(1)} giây, giao diện đứng lâu nhất ${maxStallMs} ms`);
-  expect(maxStallMs, 'Giao diện không được đơ').toBeLessThan(5000);
+  expect(processes.length, 'Có cả cửa sổ chính và cửa sổ in').toBe(2);
+  expect(new Set(processes).size, 'Tiến trình riêng').toBe(2);
 
   expect(await printSummary(win)).toContain('Số trang | 1.000');
   const last = await evalInPrintDoc<string>(s, `[...document.querySelectorAll('.display-code-right')].pop().textContent`);

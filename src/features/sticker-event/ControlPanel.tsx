@@ -150,31 +150,6 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                         )}
                     </div>
 
-                    {/* 3. NHÓM HÀNH ĐỘNG IN ẤN CHÍNH (LUÔN NỔI BẬT & DỄ THAO TÁC) */}
-                    {!props.isLoading && (
-                        <div className="bg-gradient-to-b from-sky-50/60 to-slate-50/60 dark:from-sky-950/20 dark:to-slate-900/40 p-2.5 rounded-popup border border-sky-100 dark:border-sky-900/40 space-y-1.5 shadow-2xs">
-                            <Button
-                                variant="primary"
-                                size="none"
-                                onClick={props.onPrintSelected}
-                                disabled={selectedCount === 0}
-                                className="w-full h-10 rounded-popup text-xs font-bold gap-2 bg-gradient-to-r from-sky-600 to-sky-600 hover:from-sky-700 hover:to-sky-700 text-white shadow-xs transition-all disabled:opacity-40"
-                            >
-                                <AppIcon name="print" size="md" />
-                                <span>In đã chọn ({selectedCount})</span>
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="none"
-                                onClick={props.onPrintAll}
-                                disabled={props.displayedProducts.length === 0}
-                                className="w-full h-8.5 rounded-popup text-xs font-semibold border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-40"
-                            >
-                                <span>In tất cả ({props.displayedProducts.length})</span>
-                            </Button>
-                        </div>
-                    )}
-
                     {/* 4. DỮ LIỆU NGUỒN: BẢNG GIÁ */}
                     {isAdmin && (
                         <div className="bg-slate-50/70 dark:bg-slate-850/60 p-2.5 rounded-popup border border-slate-200/80 dark:border-slate-800 space-y-2">
@@ -339,6 +314,31 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                                     <span>Xóa</span>
                                 </Button>
                             </div>
+                        </div>
+                    )}
+
+                    {/* NHÓM HÀNH ĐỘNG IN: đặt cuối cột theo yêu cầu */}
+                    {!props.isLoading && (
+                        <div className="bg-gradient-to-b from-sky-50/60 to-slate-50/60 dark:from-sky-950/20 dark:to-slate-900/40 p-2.5 rounded-popup border border-sky-100 dark:border-sky-900/40 space-y-1.5 shadow-2xs">
+                            <Button
+                                variant="primary"
+                                size="none"
+                                onClick={props.onPrintSelected}
+                                disabled={selectedCount === 0}
+                                className="w-full h-10 rounded-popup text-xs font-bold gap-2 bg-gradient-to-r from-sky-600 to-sky-600 hover:from-sky-700 hover:to-sky-700 text-white shadow-xs transition-all disabled:opacity-40"
+                            >
+                                <AppIcon name="print" size="md" />
+                                <span>In đã chọn ({selectedCount})</span>
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="none"
+                                onClick={props.onPrintAll}
+                                disabled={props.displayedProducts.length === 0}
+                                className="w-full h-8.5 rounded-popup text-xs font-semibold border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-40"
+                            >
+                                <span>In tất cả ({props.displayedProducts.length})</span>
+                            </Button>
                         </div>
                     )}
                 </div>

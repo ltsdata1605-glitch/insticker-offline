@@ -57,6 +57,13 @@ const READY_SCRIPT = `(async () => {
   return { pages, maxHeightPx };
 })()`;
 
+/** Ghi mốc của lượt dựng gần nhất, để khi lượt in bị kẹt còn biết nó dừng ở bước nào. */
+const markPhase = (phase: string, startOver = false): void => {
+  const holder = globalThis as { __printTrace?: { phase: string; at: number }[] };
+  if (startOver || !holder.__printTrace) holder.__printTrace = [];
+  holder.__printTrace.push({ phase, at: Date.now() });
+};
+
 interface Job {
   id: string;
   title: string;
@@ -100,6 +107,7 @@ export class PrintJobs {
 
   async create(request: PrintJobRequest): Promise<PrintJobInfo> {
     const startedAt = Date.now();
+    markPhase('nhận yêu cầu', true);
     this.closeAll();
 
     const id = randomUUID();
@@ -125,7 +133,9 @@ export class PrintJobs {
 
     try {
       await win.loadURL(`${this.origin}/__print/${id}/doc.html`);
+      markPhase('nạp xong tài liệu');
       const { pages, maxHeightPx } = await win.webContents.executeJavaScript(READY_SCRIPT) as { pages: number; maxHeightPx: number };
+      markPhase('phông và ảnh sẵn sàng');
       job.totalPages = pages;
 
       if (request.paper.kind === 'roll') {
@@ -140,6 +150,7 @@ export class PrintJobs {
 
       const previewPages = pages > PREVIEW_ALL_PAGES_UP_TO ? PREVIEW_PAGES_FOR_LARGE_JOB : pages;
       job.previewPdf = await this.renderPdf(job, previewPages < pages ? `1-${previewPages}` : undefined);
+      markPhase('có PDF xem trước');
 
       return {
         jobId: id,

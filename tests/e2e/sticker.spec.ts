@@ -50,6 +50,13 @@ test('Lần đầu mở: có hướng dẫn, nội dung offline, không còn ph�
   await expect(win.locator('#price-file-input')).toHaveCount(1);
   await expect(win.getByText(/tồn kho/i)).toHaveCount(0);
 
+  // Nút in nằm cuối cột trái, dưới Thao tác danh sách
+  const printAllBox = await win.getByRole('button', { name: /In tất cả/ }).boundingBox();
+  const printSelectedBox = await win.getByRole('button', { name: /In đã chọn/ }).boundingBox();
+  const lastActionBox = await win.getByRole('button', { name: 'Cài đặt' }).boundingBox();
+  expect(printSelectedBox!.y).toBeGreaterThan(lastActionBox!.y + lastActionBox!.height);
+  expect(printAllBox!.y).toBeGreaterThan(printSelectedBox!.y);
+
   await win.getByRole('button', { name: 'Hướng dẫn sử dụng' }).first().click();
   const dialog = win.getByRole('dialog');
   await expect(dialog).toContainText('không cần mạng');

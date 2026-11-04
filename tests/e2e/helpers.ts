@@ -25,10 +25,91 @@ export interface Dirs {
 
 // Test lỗi giữa chừng không gọi được close(): vẫn phải đóng app để không để lại cửa sổ và không làm treo lượt sau.
 const runningApps = new Set<ElectronApplication>();
-test.afterEach(async () => {
-  for (const app of runningApps) await app.close().catch(() => undefined);
+test.afterEach(async ({}, testInfo) => {
+  for (const app of runningApps) {
+    if (testInfo.status !== testInfo.expectedStatus) console.log(`[lúc test lỗi] ${await describeApp(app)}`);
+    await app.close().catch(() => undefined);
+  }
   runningApps.clear();
 });
+
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Hết hạn hoặc lỗi thì trả undefined: dùng để hỏi app đang có thể bị treo mà không làm treo theo. */
+const within = <T>(work: Promise<T>, ms: number): Promise<T | undefined> =>
+  Promise.race([work.catch(() => undefined), delay(ms).then(() => undefined)]);
+
+/** Tiến trình nào đang ăn bao nhiêu bộ nhớ, CPU và lượt in đang dừng ở bước nào. */
+const describeApp = async (app: ElectronApplication): Promise<string> => {
+  const main = await within(app.evaluate(({ app: electronApp }) => ({
+    trace: (globalThis as { __printTrace?: { phase: string; at: number }[] }).__printTrace ?? [],
+    processes: electronApp.getAppMetrics().map((m) => `${m.type} ${Math.round(m.memory.workingSetSize / 1024)}MB ${Math.round(m.cpu.percentCPUUsage)}%`),
+  })), 3000);
+  const [win] = app.windows();
+  const marks = win
+    ? await within(win.evaluate(() => performance.getEntriesByType('mark').filter((m) => m.name.startsWith('in:')).map((m) => m.name)), 3000)
+    : undefined;
+  const steps = main?.trace.map((t) => `${t.phase} +${t.at - main.trace[0].at}ms`).join(', ') ?? '';
+  return [
+    `main ${main ? 'trả lời' : 'KHÔNG trả lời'}`,
+    `giao diện ${marks ? `trả lời, mốc: ${marks.join(', ') || 'chưa có'}` : 'KHÔNG trả lời'}`,
+    `bước in: ${steps || 'chưa có'}`,
+    `tiến trình: ${main?.processes.join(' | ') ?? '?'}`,
+    `RAM còn trống ${Math.round(os.freemem() / 1024 / 1024)}MB`,
+  ].join('; ');
+};
+
+/** Đo thời gian lâu nhất một tiến trình không trả lời, kể cả khi nó không trả lời tới cùng. */
+const stallMeter = (since: number) => {
+  let lastReply = since;
+  let longest = 0;
+  return {
+    ping: async <T>(work: () => Promise<T>): Promise<T | undefined> => {
+      const started = Date.now();
+      const reply = await within(work(), 1000);
+      const now = Date.now();
+      longest = Math.max(longest, reply === undefined ? now - lastReply : now - started);
+      if (reply !== undefined) lastReply = now;
+      return reply;
+    },
+    longest: () => longest,
+  };
+};
+
+/**
+ * Theo dõi một lượt dựng bản in tới khi hiện xem trước, song song hỏi giao diện và main process
+ * để biết tiến trình nào bị đứng. Mọi lời hỏi đều có hạn nên app treo vẫn có đủ nhật ký.
+ */
+export const watchPrintBuild = async ({ app, win }: AppSession, startedAt: number) => {
+  const summary = win.locator('[data-testid="print-summary"]');
+  const spinner = win.getByText('Đang dựng bản in...');
+  const renderer = stallMeter(startedAt);
+  const main = stallMeter(startedAt);
+  let spinnerMs: number | undefined;
+  let peakMb = 0;
+  let nextLogAt = startedAt + 5000;
+  const report = async (label: string) => console.log(`[dựng bản in +${((Date.now() - startedAt) / 1000).toFixed(1)}s, ${label}] ${await describeApp(app)}`);
+
+  while (Date.now() - startedAt < 150_000) {
+    const [, bytes] = await Promise.all([
+      renderer.ping(() => win.evaluate(() => 1)),
+      main.ping(() => app.evaluate(({ app: electronApp }) => electronApp.getAppMetrics().reduce((sum, m) => sum + m.memory.workingSetSize, 0))),
+    ]);
+    if (bytes) peakMb = Math.max(peakMb, Math.round(bytes / 1024));
+    if (spinnerMs === undefined && await within(spinner.isVisible(), 1000)) spinnerMs = Date.now() - startedAt;
+    if (await within(summary.isVisible(), 1000)) {
+      await report('xong');
+      return { spinnerMs, readyMs: Date.now() - startedAt, rendererStallMs: renderer.longest(), mainStallMs: main.longest(), peakMb };
+    }
+    if (Date.now() >= nextLogAt) {
+      await report('đang dựng');
+      nextLogAt = Date.now() + 5000;
+    }
+    await delay(100);
+  }
+  await report('quá hạn');
+  throw new Error(`Quá 150 giây chưa dựng xong; giao diện đứng lâu nhất ${renderer.longest()} ms, main ${main.longest()} ms`);
+};
 
 export const newDirs = (): Dirs => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'in-sticker-e2e-'));

@@ -62,7 +62,11 @@ export const PrintPreviewHost: React.FC = () => {
     const build = async () => {
       await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
       if (cancelled) return;
-      const info = await window.stickerDesktop.print.createJob({ html: request.buildHtml(), title: request.title, paper: request.paper });
+      // Các mốc này để biết lượt in dừng ở bước nào khi bị kẹt
+      performance.mark('in:sau-khung-hinh');
+      const html = request.buildHtml();
+      performance.mark('in:xong-html');
+      const info = await window.stickerDesktop.print.createJob({ html, title: request.title, paper: request.paper });
       if (cancelled) {
         void window.stickerDesktop.print.closeJob(info.jobId);
         return;
