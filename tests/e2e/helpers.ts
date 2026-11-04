@@ -1,0 +1,132 @@
+import { _electron as electron, expect, test } from '@playwright/test';
+import type { ElectronApplication, Page } from '@playwright/test';
+import { createRequire } from 'node:module';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+const require = createRequire(import.meta.url);
+export const XLSX = require('xlsx') as typeof import('xlsx');
+
+export interface AppSession {
+  app: ElectronApplication;
+  win: Page;
+  dirs: Dirs;
+  errors: string[];
+  close(): Promise<void>;
+}
+
+export interface Dirs {
+  root: string;
+  userData: string;
+  downloads: string;
+  inputs: string;
+}
+
+// Test lỗi giữa chừng không gọi được close(): vẫn phải đóng app để không để lại cửa sổ và không làm treo lượt sau.
+const runningApps = new Set<ElectronApplication>();
+test.afterEach(async () => {
+  for (const app of runningApps) await app.close().catch(() => undefined);
+  runningApps.clear();
+});
+
+export const newDirs = (): Dirs => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'in-sticker-e2e-'));
+  const dirs = { root, userData: path.join(root, 'data'), downloads: path.join(root, 'downloads'), inputs: path.join(root, 'inputs') };
+  for (const dir of [dirs.userData, dirs.downloads, dirs.inputs]) fs.mkdirSync(dir, { recursive: true });
+  return dirs;
+};
+
+/** Mở app với dữ liệu tạm. Gọi lại với cùng `dirs` để kiểm tra dữ liệu còn sau khi đóng và mở lại. */
+export const openApp = async (dirs: Dirs = newDirs(), extraArgs: string[] = []): Promise<AppSession> => {
+  const app = await electron.launch({
+    args: ['.', ...extraArgs],
+    env: { ...process.env, STICKER_USER_DATA: dirs.userData, STICKER_DOWNLOAD_DIR: dirs.downloads },
+  });
+  runningApps.add(app);
+  // Máy đang bận có thể mở app chậm hơn hạn mặc định 30 giây
+  const win = await app.firstWindow({ timeout: 120_000 });
+  const errors: string[] = [];
+  win.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  win.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()} @ ${m.location().url}`); });
+  await win.waitForSelector('#global-header-actions button', { timeout: 120_000 });
+  await win.waitForTimeout(800);
+
+  return {
+    app, win, dirs, errors,
+    close: async () => {
+      // App offline: không được có yêu cầu nào ra mạng
+      const blocked = await app.evaluate(() => (globalThis as { __blockedRequests?: string[] }).__blockedRequests ?? []);
+      await app.close();
+      runningApps.delete(app);
+      expect(blocked, 'Yêu cầu ra mạng').toEqual([]);
+      expect(errors, 'Lỗi trong trang').toEqual([]);
+    },
+  };
+};
+
+export const chooseMode = async (win: Page, name: 'Giá Sốc' | 'Giờ Vàng' | 'Phiếu' | 'Sticker') => {
+  await win.locator('#global-header-actions').getByRole('button', { name, exact: true }).click();
+  await win.waitForTimeout(500);
+};
+
+/** Các tab và nút phân đoạn của app là nút bấm có aria-pressed, không phải role tab. */
+export const chooseSubTab = (win: Page, name: RegExp) => win.getByRole('button', { name }).first().click();
+
+export const writeWorkbook = (dirs: Dirs, fileName: string, rows: unknown[][]): string => {
+  const file = path.join(dirs.inputs, fileName);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Sheet1');
+  XLSX.writeFile(wb, file);
+  return file;
+};
+
+/** Một dòng có đúng các cột theo chỉ số. */
+export const rowWith = (cells: Record<number, unknown>): unknown[] => {
+  const max = Math.max(...Object.keys(cells).map(Number));
+  return Array.from({ length: max + 1 }, (_, i) => cells[i] ?? '');
+};
+
+export const printSummary = async (win: Page): Promise<string> => {
+  const summary = win.locator('[data-testid="print-summary"]');
+  await summary.waitFor({ timeout: 170_000 });
+  return (await summary.innerText()).replace(/\s*\n\s*/g, ' | ');
+};
+
+export const closePreview = async (win: Page) => {
+  await win.getByTestId('print-preview').waitFor();
+  await win.keyboard.press('Escape');
+  await win.getByTestId('print-preview').waitFor({ state: 'detached', timeout: 10_000 });
+  await win.waitForTimeout(200);
+};
+
+/** Chạy biểu thức trong tài liệu in đang mở ở cửa sổ ẩn. */
+export const evalInPrintDoc = <T>(session: AppSession, expression: string): Promise<T> =>
+  session.app.evaluate(({ BrowserWindow }, code) => {
+    const hidden = BrowserWindow.getAllWindows().find((w) => !w.isVisible());
+    if (!hidden) throw new Error('Không có cửa sổ in ẩn');
+    return hidden.webContents.executeJavaScript(code);
+  }, expression) as Promise<T>;
+
+/** Đo ảnh bằng chính Electron: kích thước và tỉ lệ điểm ảnh khác nền trắng. */
+export const inspectImage = (session: AppSession, file: string) =>
+  session.app.evaluate(({ nativeImage }, imagePath) => {
+    const image = nativeImage.createFromPath(imagePath);
+    const { width, height } = image.getSize();
+    const bitmap = image.toBitmap();
+    let inked = 0;
+    let inkedAtRightEdge = 0;
+    const edgeStart = width - Math.round(width * 0.01);
+    for (let i = 0; i < bitmap.length; i += 4) {
+      const pixel = i / 4;
+      if (bitmap[i] < 200 || bitmap[i + 1] < 200 || bitmap[i + 2] < 200) inked += 1;
+      if (pixel % width >= edgeStart && (bitmap[i] < 245 || bitmap[i + 1] < 245 || bitmap[i + 2] < 245)) inkedAtRightEdge += 1;
+    }
+    return { width, height, inkRatio: inked / (bitmap.length / 4), inkedAtRightEdge };
+  }, file);
+
+export const downloadedFiles = (dirs: Dirs): string[] => fs.readdirSync(dirs.downloads).sort();
+
+export const waitForDownloads = async (dirs: Dirs, count: number) => {
+  await expect.poll(() => downloadedFiles(dirs).filter((f) => !f.endsWith('.crdownload')).length, { timeout: 30_000 }).toBeGreaterThanOrEqual(count);
+};

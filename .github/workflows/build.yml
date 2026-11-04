@@ -1,0 +1,63 @@
+# Build và kiểm thử trên máy thật. Chạy tay: chỉ Windows. Đẩy tag v*: cả Windows và Mac.
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright test
+      - run: npx electron-builder --win nsis zip --x64 -c.win.signAndEditExecutable=true --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: in-sticker-windows
+          path: |
+            release/*.exe
+            release/*.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ket-qua-test-windows
+          path: tests/output/
+
+  mac:
+    if: github.event_name == 'push'
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright test
+      - run: npx electron-builder --mac zip --arm64 --x64 --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: in-sticker-mac
+          path: release/*.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ket-qua-test-mac
+          path: tests/output/

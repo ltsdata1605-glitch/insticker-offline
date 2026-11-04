@@ -1,0 +1,94 @@
+{
+  "name": "insticker-offline",
+  "productName": "In Sticker",
+  "version": "1.0.0-beta.2",
+  "description": "In Sticker offline cho macOS và Windows",
+  "private": true,
+  "type": "module",
+  "main": "dist-electron/main.cjs",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build:main": "node scripts/build-main.mjs",
+    "build:renderer": "vite build",
+    "build": "npm run build:renderer && npm run build:main",
+    "start": "npm run build && electron .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "baseline:web": "node scripts/tao-doi-chung-print-that.mjs tests/output/web-print-that",
+    "test:parity": "npm run build && node scripts/so-sanh-ban-in.mjs",
+    "fonts": "node scripts/sao-chep-phong.mjs",
+    "pack:mac": "npm run build && electron-builder --mac dir --publish never",
+    "pack:win": "npm run build && electron-builder --win zip --x64 --publish never",
+    "pack:mac:zip": "npm run build && electron-builder --mac zip --arm64 --x64 --publish never",
+    "test:e2e": "npm run build && playwright test"
+  },
+  "devDependencies": {
+    "@fontsource/fjalla-one": "^5.2.5",
+    "@fontsource/inter": "^5.2.5",
+    "@fontsource/josefin-sans": "^5.2.5",
+    "@fontsource/jost": "^5.2.5",
+    "@fontsource/oswald": "^5.2.5",
+    "@fontsource/plus-jakarta-sans": "^5.2.5",
+    "@fontsource/roboto-condensed": "^5.2.5",
+    "@playwright/test": "1.63.0",
+    "@tailwindcss/vite": "4.2.1",
+    "@types/node": "22.19.15",
+    "@types/qrcode": "1.5.6",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.1.4",
+    "clsx": "2.1.1",
+    "dompurify": "3.4.15",
+    "electron": "45.2.2",
+    "electron-builder": "26.18.0",
+    "esbuild": "^0.25.0",
+    "html-to-image": "1.11.13",
+    "html5-qrcode": "^2.3.8",
+    "lucide-react": "0.577.0",
+    "qrcode": "1.5.4",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-hot-toast": "2.6.0",
+    "tailwind-merge": "3.5.0",
+    "tailwindcss": "4.2.1",
+    "typescript": "5.8.3",
+    "vite": "6.4.3",
+    "vitest": "4.1.11",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "build": {
+    "appId": "vn.insticker.offline",
+    "productName": "In Sticker",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "mac": {
+      "category": "public.app-category.business",
+      "target": [
+        {
+          "target": "dir"
+        }
+      ],
+      "identity": "-",
+      "extendInfo": {
+        "NSCameraUsageDescription": "In Sticker dùng camera để quét mã vạch sản phẩm."
+      },
+      "hardenedRuntime": false
+    },
+    "win": {
+      "target": [
+        "zip"
+      ],
+      "signAndEditExecutable": false
+    },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
+  }
+}
