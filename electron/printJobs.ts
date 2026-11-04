@@ -1,4 +1,5 @@
 import { BrowserWindow, app, dialog } from 'electron';
+import type { Session } from 'electron';
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -75,7 +76,11 @@ const paperLabel = (paper: PrintPaper, rollHeightMm?: number): string => {
 export class PrintJobs {
   private readonly jobs = new Map<string, Job>();
 
-  constructor(private readonly origin: string, private readonly getOwner: () => BrowserWindow | null) {}
+  constructor(
+    private readonly origin: string,
+    private readonly getOwner: () => BrowserWindow | null,
+    private readonly getPrintSession: () => Session,
+  ) {}
 
   /** Trả nội dung cho app://…/__print/<id>/<tệp>, null nếu không có. */
   respond(pathname: string): Response | null {
@@ -103,6 +108,9 @@ export class PrintJobs {
       width: 1280,
       height: 900,
       webPreferences: {
+        // Phiên riêng buộc cửa sổ in chạy ở tiến trình riêng. Nếu chung tiến trình với cửa sổ chính, dựng 1.000 trang
+        // sẽ làm giao diện đơ (đo thấy trên máy Windows yếu). Phiên riêng cũng không đọc được dữ liệu của app.
+        session: this.getPrintSession(),
         sandbox: true,
         contextIsolation: true,
         nodeIntegration: false,

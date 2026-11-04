@@ -21,8 +21,6 @@ interface ControlPanelProps {
     fileName: string | null;
     isMobile: boolean;
     uploadTimestamp: Date | null;
-    inventoryUploadTimestamp: Date | null;
-    hasInventory: boolean;
     userRole?: 'admin' | 'staff';
     activeTab?: 'home' | 'tools';
 
@@ -34,10 +32,6 @@ interface ControlPanelProps {
     onOpenScanner: () => void;
     onSuggestionClick: (product: Product) => void;
     onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
-    onInventoryFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
-    onDownloadSampleInventory: () => void;
-    onShowTopBonus: () => void;
-    onShowTopDiscount: () => void;
     onOpenManualInput: () => void;
     onReset: () => void;
     onClearAll: () => void;
@@ -144,7 +138,7 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                                     variant="ghost" size="xs"
                                     onClick={props.onClearAll}
                                     className="flex gap-1 font-semibold text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 shrink-0"
-                                    title="Xóa toàn bộ dữ liệu tồn kho và giá trên máy này"
+                                    title="Xóa toàn bộ dữ liệu bảng giá trên máy này"
                                 >
                                     <AppIcon name="delete" size="xs" />
                                     <span>Xóa DL</span>
@@ -181,7 +175,7 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                         </div>
                     )}
 
-                    {/* 4. ADMIN: DỮ LIỆU TỒN KHO & BẢNG GIÁ (GỌN GÀNG, HIỆN ĐẠI) */}
+                    {/* 4. DỮ LIỆU NGUỒN: BẢNG GIÁ */}
                     {isAdmin && (
                         <div className="bg-slate-50/70 dark:bg-slate-850/60 p-2.5 rounded-popup border border-slate-200/80 dark:border-slate-800 space-y-2">
                             <div className="flex items-center justify-between">
@@ -190,16 +184,6 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                                     Dữ liệu nguồn
                                 </span>
                                 <div className="flex items-center gap-1.5">
-                                    <a 
-                                        href="https://report.mwgroup.vn/home/dashboard/4286" 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-0.5"
-                                        title="Mở báo cáo tồn kho MWG để tải file"
-                                    >
-                                        <span>Lấy File Tồn Kho</span>
-                                        <AppIcon name="externalLink" size="xs" />
-                                    </a>
                                     <Button
                                         variant="ghost" size="icon-inline"
                                         onClick={props.onOpenUserGuide}
@@ -211,39 +195,7 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                                 </div>
                             </div>
 
-                            {/* 2 Thẻ nạp file Tồn kho & Bảng giá */}
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="relative group">
-                                    <input 
-                                        type="file" 
-                                        id="inventory-file-input" 
-                                        onChange={props.onInventoryFileChange} 
-                                        accept=".xlsx, .xls" 
-                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
-                                        disabled={props.isLoading} 
-                                    />
-                                    <label
-                                        htmlFor="inventory-file-input"
-                                        className={`flex items-center gap-2 py-2 px-2.5 rounded-popup border transition-all cursor-pointer ${
-                                            props.isLoading 
-                                                ? 'bg-slate-100 border-slate-200 opacity-50' 
-                                                : props.inventoryUploadTimestamp
-                                                    ? 'bg-white dark:bg-slate-800 border-sky-300 dark:border-sky-700/80 shadow-2xs hover:border-sky-500 text-sky-800 dark:text-sky-200'
-                                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-sky-300 text-slate-700 dark:text-slate-300'
-                                        }`}
-                                    >
-                                        <div className="w-6 h-6 rounded-control bg-sky-100 dark:bg-sky-950/80 text-sky-600 flex items-center justify-center shrink-0">
-                                            <AppIcon name="warehouse" size="sm" />
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <span className="text-xs font-bold block leading-tight truncate">Tồn Kho</span>
-                                            <span className="text-[11px] text-slate-400 dark:text-slate-500 block leading-tight truncate mt-0.5">
-                                                {props.inventoryUploadTimestamp ? props.inventoryUploadTimestamp.toLocaleTimeString('vi-VN') : 'Chưa tải'}
-                                            </span>
-                                        </div>
-                                    </label>
-                                </div>
-
+                            <div>
                                 <div className="relative group">
                                     <input 
                                         type="file" 
@@ -287,13 +239,12 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                                 <AppIcon name="delete" size="sm" />
                             </Button>
                             <h3 className="text-xs font-bold text-sky-900 dark:text-sky-200 mb-1.5 flex items-center gap-1.5">
-                                <AppIcon name="securityAlert" size="sm" />
-                                Hướng dẫn Quản lý
+                                <AppIcon name="info" size="sm" />
+                                Hướng dẫn nạp dữ liệu
                             </h3>
                             <div className="space-y-1 text-[11px] leading-relaxed text-sky-800 dark:text-sky-300">
-                                <p><strong>B1:</strong> Bấm <span className="text-rose-600 dark:text-rose-400 font-bold">&quot;Lấy file tồn kho&quot;</span> &gt; Chọn nhóm ĐGD, DCNB, Phụ Kiện &gt; Tải file.</p>
-                                <p><strong>B2:</strong> Tải file vào <strong>&quot;Tồn Kho&quot;</strong> &gt; Nhận file mẫu tự động.</p>
-                                <p><strong>B3:</strong> Vào ERP &gt; In giá &gt; Mẫu in 81 &gt; Xuất Data-only(*.xlsx) &gt; Tải vào <strong>&quot;Bảng Giá&quot;</strong>.</p>
+                                <p><strong>B1:</strong> Vào ERP &gt; In giá &gt; Mẫu in 81 &gt; Xuất Data-only(*.xlsx).</p>
+                                <p><strong>B2:</strong> Tải file vào <strong>&quot;Bảng Giá&quot;</strong>. Có thể chọn nhiều file cùng lúc.</p>
                             </div>
                         </div>
                     )}

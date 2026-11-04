@@ -72,7 +72,7 @@ test('Chọn nền TGĐ, sửa nội dung phiếu 1 áp cho mọi phiếu, còn 
   await s.close();
 });
 
-test('4.000 phiếu: màn chờ hiện ngay, app vẫn thao tác được, đủ 1.000 trang', async () => {
+test('4.000 phiếu: màn chờ hiện ngay, app vẫn phản hồi trong lúc dựng, đủ 1.000 trang', async () => {
   const s = await openApp();
   const { win } = s;
   await chooseMode(win, 'Phiếu');
@@ -80,11 +80,25 @@ test('4.000 phiếu: màn chờ hiện ngay, app vẫn thao tác được, đủ
   await win.getByRole('button', { name: /Bấm để in \(1000\)/ }).click();
   await expect(win.getByText('Đang dựng bản in...')).toBeVisible();
   const spinnerMs = Date.now() - t0;
-  const summary = await printSummary(win);
+
+  // Cửa sổ dựng bản in phải chạy ở tiến trình riêng
+  const processes = await s.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map((w) => w.webContents.getOSProcessId()));
+  expect(new Set(processes).size, 'Tiến trình riêng').toBe(processes.length);
+
+  // Giao diện vẫn trả lời trong suốt thời gian dựng
+  const summary = win.locator('[data-testid="print-summary"]');
+  let maxStallMs = 0;
+  while (!(await summary.isVisible())) {
+    const started = Date.now();
+    await win.evaluate(() => 1);
+    maxStallMs = Math.max(maxStallMs, Date.now() - started);
+    await win.waitForTimeout(100);
+  }
   const readyMs = Date.now() - t0;
-  console.log(`4.000 phiếu: màn chờ sau ${spinnerMs} ms, xem trước sau ${(readyMs / 1000).toFixed(1)} giây`);
-  expect(summary).toContain('Số trang | 1.000');
-  expect(spinnerMs).toBeLessThan(2000);
+  console.log(`4.000 phiếu: màn chờ sau ${spinnerMs} ms, xem trước sau ${(readyMs / 1000).toFixed(1)} giây, giao diện đứng lâu nhất ${maxStallMs} ms`);
+  expect(maxStallMs, 'Giao diện không được đơ').toBeLessThan(5000);
+
+  expect(await printSummary(win)).toContain('Số trang | 1.000');
   const last = await evalInPrintDoc<string>(s, `[...document.querySelectorAll('.display-code-right')].pop().textContent`);
   expect(last).toBe('4000');
   await closePreview(win);

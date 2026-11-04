@@ -6,14 +6,11 @@ export const BACKUP_VERSION = 1;
 /** Chỉ các khoá này được sao lưu và khôi phục. Khoá lạ trong file bị bỏ qua. */
 export const APP_DATA_KEYS = [
   'products',
-  'inventory',
   'fileInfo',
-  'inventoryUploadTimestamp',
   'displayedProducts',
   'displayedProductsLastModified',
   'employeeName',
   'manualProducts',
-  'inventoryFilters',
 ] as const;
 
 export const SETTING_KEYS = [

@@ -68,7 +68,6 @@ export interface DesktopApi {
     savePdf(request: SavePdfRequest): Promise<SavePdfResult>;
     closeJob(jobId: string): Promise<void>;
   };
-  openExternal(url: string): Promise<void>;
   /** Báo khi một tệp đã lưu xong vào thư mục Tải về. Trả về hàm huỷ theo dõi. */
   onDownloadDone(listener: (item: DownloadDone) => void): () => void;
   showInFolder(filePath: string): Promise<void>;

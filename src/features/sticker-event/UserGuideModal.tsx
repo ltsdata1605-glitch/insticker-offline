@@ -11,7 +11,7 @@ interface UserGuideModalProps {
 const FEATURES = [
   'Tìm kiếm sản phẩm theo mã hoặc tên.',
   'Quét mã vạch bằng camera để chọn nhanh.',
-  'Lọc sản phẩm theo ngành hàng, nhóm hàng.',
+  'Sắp xếp theo giá, % giảm, thưởng hoặc tên sản phẩm.',
   'Tùy chỉnh số lượng sticker cần in.',
   'Lưu danh sách in để dùng lại sau này.',
   'Bố cục 1, 2, 4, 8, 16, 24 sticker/trang hoặc máy in bill K80.',
@@ -19,32 +19,28 @@ const FEATURES = [
 
 const STEPS: { title: string; body: React.ReactNode }[] = [
   {
-    title: 'Lấy dữ liệu từ Report',
+    title: 'Mở In bảng giá trên ERP',
     body: (
       <>
-        Bấm <a href="https://report.mwgroup.vn/home/dashboard/4286" target="_blank" rel="noopener noreferrer" className="text-rose-600 font-bold underline hover:text-rose-800">"Lấy File Tồn Kho"</a> (cần mạng công ty, mở bằng trình duyệt của máy).
-        Chọn các nhóm cần in giá: <span className="font-medium">ĐGD, DCNB, Phụ Kiện</span>. Chọn siêu thị và trạng thái <span className="font-medium">MỚI</span>. Xem báo cáo và tải file về máy.
+        Vào <span className="font-medium">ERP &gt; In bảng giá</span>. Chọn ngành hàng (<span className="font-medium">ĐGD, DCNB, Phụ kiện</span>), nhóm hàng chọn <span className="font-medium">Tất cả</span>, vị trí trưng bày chọn <span className="font-medium">2 - Kệ trưng bày</span>.
       </>
     ),
   },
   {
-    title: 'Nạp tồn kho',
-    body: <>Chọn file vừa tải ở bước 1 tại ô <span className="font-bold text-sky-600">"Tồn Kho"</span>.</>,
-  },
-  {
-    title: 'Nhận file mẫu',
-    body: <>Chờ trong giây lát. <span className="font-medium text-emerald-600">File mẫu in giá theo từng ngành hàng sẽ tự lưu vào thư mục Tải về của máy.</span></>,
-  },
-  {
-    title: 'Xuất file giá từ ERP và nạp vào app',
+    title: 'Xuất file giá',
     body: (
       <>
-        Vào ERP &gt; In giá. Chọn lần lượt từng ngành hàng (<span className="font-medium">ĐGD, DCNB, Phụ kiện</span>), nhóm hàng chọn <span className="font-medium">Tất cả</span>.
-        Chọn <span className="font-medium">"Thêm sản phẩm"</span> &gt; <span className="font-medium">"Nhập Excel"</span> &gt; chọn file mẫu ở bước 3.
-        Chọn mẫu in <span className="font-bold">81</span> &gt; In bảng giá &gt; Xuất file định dạng <span className="font-medium">"Data-only(*.xlsx)"</span>.
-        Làm lần lượt cho từng ngành hàng, cuối cùng chọn tất cả các file giá vừa xuất tại ô <span className="font-bold text-emerald-600">"Bảng Giá"</span>.
+        Chọn mẫu in <span className="font-bold">81</span> &gt; In &gt; xuất định dạng <span className="font-medium">"Excel Workbook Data-only (*.xlsx)"</span>. Mỗi lần chỉ xuất được một ngành hàng, nên làm lần lượt cho từng ngành.
       </>
     ),
+  },
+  {
+    title: 'Nạp vào app',
+    body: <>Bấm ô <span className="font-bold text-emerald-600">"Bảng Giá"</span> và chọn tất cả các file vừa xuất. App gộp lại thành một bảng giá.</>,
+  },
+  {
+    title: 'Chọn sản phẩm và in',
+    body: <>Tìm theo mã, tên hoặc quét mã để thêm sản phẩm vào danh sách, chỉnh số tem rồi bấm <span className="font-medium">In đã chọn</span> hoặc <span className="font-medium">In tất cả</span>.</>,
   },
 ];
 
@@ -77,7 +73,7 @@ const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose }) => (
         </div>
         <div className="bg-slate-50 rounded-popup p-4 border border-slate-100">
           <p className="text-sm text-slate-600 leading-relaxed">
-            App chạy không cần mạng và không cần đăng nhập. Bảng giá, tồn kho, danh sách đã lưu và sản phẩm nhập tay đều nằm trên máy này.
+            App chạy không cần mạng và không cần đăng nhập. Bảng giá, danh sách đã lưu và sản phẩm nhập tay đều nằm trên máy này.
             Muốn chuyển dữ liệu sang máy khác, dùng nút <span className="font-semibold">Sao lưu</span> ở thanh trên cùng để tạo file, rồi khôi phục từ file đó ở máy kia.
           </p>
         </div>

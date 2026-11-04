@@ -43,6 +43,7 @@ Những file đã thay hoặc sửa:
 - `features/sticker-event/stickerprinter/StickerPrintControls.tsx`: đổi hướng dẫn in.
 - `features/sticker-event/StickerPrinterView.tsx`: bỏ đăng nhập app gốc, nạp tab Sticker trực tiếp.
 - `features/sticker-event/StickerEventApp.tsx`, `hooks/useStickerEventDb.ts`, `hooks/useStickerEventFile.ts`, `hooks/useStickerEventState.ts`, `hooks/useStickerEventPrint.ts`, `services/fileParser.ts`, `SavedListsModal.tsx`, `ManualInputModal.tsx`, `ControlPanel.tsx`, `UserGuideModal.tsx`: bỏ Firebase, đăng nhập và phân quyền, lưu trên máy.
+- Bỏ theo yêu cầu: nạp tồn kho, link lấy file tồn, file mẫu theo ngành hàng, bộ lọc ngành/nhóm hàng, số tem và sắp xếp theo tồn. `InventoryToolbar.tsx` đổi thành `ProductToolbar.tsx`, `FilterModal.tsx` chỉ còn sắp xếp.
 - Mới: `services/localDataService.ts`, thư mục `platform/` (xem trước bản in, sao lưu, thông báo tệp tải về).
 - Không chép: `Login.tsx`, `UserManagementModal.tsx`, `SuperAdminModal.tsx`, `ChangePasswordModal.tsx`, `PdfPreviewModal.tsx`, `firebase.ts`, `services/firebaseService.ts`, `services/sessionService.ts`, `services/adminUserService.ts`, `services/sessionSyncPolicy.ts`, `hooks/useStickerEventAuth.ts`.
 

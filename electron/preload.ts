@@ -9,7 +9,6 @@ const api: DesktopApi = {
     savePdf: (request) => ipcRenderer.invoke('print:save-pdf', request),
     closeJob: (jobId) => ipcRenderer.invoke('print:close', jobId),
   },
-  openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
   onDownloadDone: (listener) => {
     const handler = (_event: unknown, item: DownloadDone) => listener(item);
     ipcRenderer.on('download:done', handler);

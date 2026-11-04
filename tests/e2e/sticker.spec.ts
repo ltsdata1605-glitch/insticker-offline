@@ -14,13 +14,6 @@ const writePriceFile = (dirs: Dirs) => writeWorkbook(dirs, 'bang-gia.xlsx', [
   priceRow('2001236', 'Máy sấy tóc Panasonic', '590000', '450000', '', '30A'),
 ]);
 
-const writeInventoryFile = (dirs: Dirs) => writeWorkbook(dirs, 'ton-kho.xlsx', [
-  rowWith({ 0: 'Mã siêu thị', 1: 'Tên siêu thị', 3: 'Ngành hàng', 4: 'Nhóm hàng', 5: 'Nhà sản xuất', 6: 'Mã sản phẩm', 7: 'Tên sản phẩm', 16: 'Số lượng' }),
-  rowWith({ 0: '910', 1: 'ST A', 3: 'Điện gia dụng', 4: 'Nồi cơm', 5: 'Sharp', 6: '2001234', 7: 'Nồi cơm', 16: 5 }),
-  rowWith({ 0: '910', 1: 'ST A', 3: 'Điện gia dụng', 4: 'Quạt', 5: 'Daikiosan', 6: '2001235', 7: 'Quạt', 16: 3 }),
-  rowWith({ 0: '910', 1: 'ST A', 3: 'Dụng cụ nhà bếp', 4: 'Máy sấy', 5: 'Panasonic', 6: '2001236', 7: 'Máy sấy', 16: 2 }),
-]);
-
 const addBySearch = async (win: Page, query: string) => {
   await win.getByLabel('Tìm sản phẩm').first().fill(query);
   await win.locator('li', { hasText: query }).first().click();
@@ -51,10 +44,18 @@ test('Lần đầu mở: có hướng dẫn, nội dung offline, không còn ph�
     await expect(win.getByRole('button', { name: text, exact: true })).toHaveCount(0);
   }
 
+  // Đã bỏ lấy tồn và nhập tồn theo yêu cầu, hướng dẫn không còn nhắc tới
+  await expect(win.locator('#inventory-file-input')).toHaveCount(0);
+  await expect(win.getByRole('link', { name: 'Lấy File Tồn Kho' })).toHaveCount(0);
+  await expect(win.locator('#price-file-input')).toHaveCount(1);
+  await expect(win.getByText(/tồn kho/i)).toHaveCount(0);
+
   await win.getByRole('button', { name: 'Hướng dẫn sử dụng' }).first().click();
   const dialog = win.getByRole('dialog');
   await expect(dialog).toContainText('không cần mạng');
   await expect(dialog).not.toContainText('Firebase');
+  await expect(dialog).not.toContainText(/tồn kho/i);
+  await expect(dialog).not.toContainText('file mẫu');
   await dialog.getByRole('button', { name: 'Đã hiểu' }).click();
   await s.close();
 });
@@ -147,32 +148,26 @@ test('Cài đặt tem: tắt QR và tên nhân viên thì bản in không còn, 
   await s.close();
 });
 
-test('Nạp tồn kho: tự lưu file mẫu theo ngành hàng, lọc, dùng số lượng tồn, sắp xếp', async () => {
+test('Sắp xếp danh sách theo giá, % giảm, tên và bỏ sắp xếp', async () => {
   const dirs = newDirs();
   const s = await openApp(dirs);
   const { win } = s;
   await setupProducts(win, dirs);
+  const order = () => win.locator('[data-msp]').evaluateAll((els) => els.map((el) => el.getAttribute('data-msp')));
 
-  await win.locator('#inventory-file-input').setInputFiles(writeInventoryFile(dirs));
-  await waitForDownloads(dirs, 2);
-  expect(downloadedFiles(dirs)).toEqual(['Dụng cụ nhà bếp.xls', 'Điện gia dụng.xls']);
+  await expect(win.getByLabel('Sắp xếp theo').locator('option')).toHaveText(['Mặc định', 'Giá Gốc', 'Giá Đã Giảm', 'Thưởng', '% Giảm giá', 'Tên sản phẩm']);
 
-  // Dùng số lượng tồn kho làm số tem
-  await win.getByRole('checkbox', { name: 'Tồn kho' }).click();
-  await expect(win.getByLabel('Số lượng tem 2001234')).toHaveValue('5');
-  await expect(win.getByLabel('Số lượng tem 2001235')).toHaveValue('3');
-
-  // Sắp xếp theo giá giảm dần
   await win.getByLabel('Sắp xếp theo').selectOption('giaGiam');
-  await expect(win.locator('[data-msp]').first()).toHaveAttribute('data-msp', '2001235');
+  await expect.poll(order).toEqual(['2001235', '2001234', '2001236']);
 
-  // Lọc theo ngành hàng: chỉ còn sản phẩm thuộc ngành đó
-  await win.getByRole('button', { name: /Bộ lọc/ }).click();
-  await win.getByRole('button', { name: /Ngành hàng/ }).first().click();
-  await win.getByText('Dụng cụ nhà bếp', { exact: true }).first().click();
-  await win.keyboard.press('Escape');
-  await expect(win.locator('[data-msp]')).toHaveCount(1);
-  await expect(win.locator('[data-msp]').first()).toHaveAttribute('data-msp', '2001236');
+  await win.getByLabel('Sắp xếp theo').selectOption('discount');
+  await expect.poll(order).toEqual(['2001235', '2001236', '2001234']);
+
+  await win.getByLabel('Sắp xếp theo').selectOption('sanPham');
+  await expect.poll(order).toEqual(['2001236', '2001234', '2001235']);
+
+  await win.getByRole('button', { name: 'Bỏ sắp xếp' }).click();
+  await expect.poll(order).toEqual(['2001236', '2001235', '2001234']);
   await s.close();
 });
 
@@ -224,7 +219,7 @@ test('Sản phẩm nhập tay: thêm, sửa, in, xoá; còn sau khi mở lại v
   // Xóa DL: mất bảng giá, còn sản phẩm nhập tay và tên người in
   await win.getByRole('button', { name: 'Xóa DL' }).click();
   await win.getByRole('dialog').getByRole('button', { name: 'Xác nhận Xóa' }).click();
-  await expect(win.getByRole('dialog').getByText('Đã xóa toàn bộ dữ liệu tồn kho và giá.')).toBeVisible();
+  await expect(win.getByRole('dialog').getByText('Đã xóa toàn bộ dữ liệu bảng giá.')).toBeVisible();
   await win.getByRole('dialog').getByRole('button').first().click();
   await win.waitForTimeout(400);
   await win.getByLabel('Tìm sản phẩm').first().fill('2001234');
@@ -323,19 +318,5 @@ test('Quét mã bằng camera giả: mở được máy quét, không báo lỗi
   await expect(win.getByText(/cấp quyền|Không tìm thấy máy ảnh|Không thể khởi động/)).toHaveCount(0);
   await win.keyboard.press('Escape');
   await s.app.evaluate(() => undefined);
-  await s.close();
-});
-
-test('Link Lấy File Tồn Kho mở bằng trình duyệt của máy, app không chuyển trang', async () => {
-  const s = await openApp();
-  const { app, win } = s;
-  await chooseMode(win, 'Sticker');
-  await app.evaluate(({ shell }) => {
-    (globalThis as { __opened?: string[] }).__opened = [];
-    shell.openExternal = async (url: string) => { (globalThis as { __opened?: string[] }).__opened?.push(url); };
-  });
-  await win.getByRole('link', { name: 'Lấy File Tồn Kho' }).click();
-  await expect.poll(() => app.evaluate(() => (globalThis as { __opened?: string[] }).__opened)).toEqual(['https://report.mwgroup.vn/home/dashboard/4286']);
-  expect(win.url()).toContain('app://sticker/');
   await s.close();
 });

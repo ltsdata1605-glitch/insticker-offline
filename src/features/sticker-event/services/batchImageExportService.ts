@@ -123,7 +123,7 @@ export function createBatchExportElement(
             box-sizing: border-box;
         `;
 
-        // Left info: STT + MSP + Tên + KM + Tồn kho
+        // Left info: STT + MSP + Tên + KM
         const leftHtml = `
             <div style="display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 0;">
                 <div style="width: 26px; height: 26px; border-radius: 8px; background: #f1f5f9; color: #475569; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 2px;">
@@ -134,11 +134,6 @@ export function createBatchExportElement(
                         <span style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; font-weight: 800; color: #0369a1; background: #f0f9ff; padding: 2px 6px; border-radius: 4px; border: 1px solid #bae6fd;">
                             ${escapeHtml(product.msp)}
                         </span>
-                        ${(product.tonKho !== undefined && product.tonKho !== null && product.tonKho !== '') ? `
-                            <span style="font-size: 11px; font-weight: 700; color: #047857; background: #ecfdf5; padding: 2px 6px; border-radius: 4px; border: 1px solid #a7f3d0;">
-                                Tồn: ${escapeHtml(product.tonKho)}
-                            </span>
-                        ` : ''}
                     </div>
                     <div style="font-size: 13px; font-weight: 700; color: #0f172a; margin-top: 3px; line-height: 1.35; word-break: break-word;">
                         ${escapeHtml(product.sanPham)}

@@ -115,7 +115,7 @@ export const BackupButton: React.FC<{ className?: string }> = ({ className }) =>
           ) : (
             <div className="space-y-4">
               <p className="text-sm text-slate-600 leading-relaxed">
-                Dữ liệu của app nằm trên máy này. Để chuyển sang máy khác, tạo file sao lưu rồi mở file đó ở máy kia. File gồm bảng giá, tồn kho, sản phẩm nhập tay, danh sách đã lưu, lịch sử in và cài đặt.
+                Dữ liệu của app nằm trên máy này. Để chuyển sang máy khác, tạo file sao lưu rồi mở file đó ở máy kia. File gồm bảng giá, sản phẩm nhập tay, danh sách đã lưu, lịch sử in và cài đặt.
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <Button variant="primary" icon="download" onClick={() => void handleBackup()} disabled={busy}>Sao lưu ra file</Button>

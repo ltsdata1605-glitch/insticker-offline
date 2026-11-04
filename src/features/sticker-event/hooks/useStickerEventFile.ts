@@ -1,12 +1,9 @@
 import { useState, useCallback } from 'react';
 import { normalizeTagQuantity } from '../utils/format';
-import { Product, InventoryItem } from '../types';
+import { Product } from '../types';
 import { 
   parseProductFile, 
   saveData, 
-  saveDisplayedProducts, 
-  parseInventoryFile, 
-  saveInventoryData,
   saveEmployeeName
 } from '../services/fileParser';
 
@@ -16,8 +13,6 @@ interface UseStickerEventFileProps {
   setIsEditingEmployeeName: (val: boolean) => void;
   allProducts: Product[];
   setAllProducts: React.Dispatch<React.SetStateAction<Product[]>>;
-  inventory: InventoryItem[];
-  setInventory: React.Dispatch<React.SetStateAction<InventoryItem[]>>;
   displayedProducts: Product[];
   setDisplayedProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   setIsLoading: (val: boolean) => void;
@@ -27,8 +22,6 @@ interface UseStickerEventFileProps {
   setFileName: (val: string | null) => void;
   uploadTimestamp: Date | null;
   setUploadTimestamp: (val: Date | null) => void;
-  inventoryUploadTimestamp: Date | null;
-  setInventoryUploadTimestamp: (val: Date | null) => void;
   fileExportDate: string | null;
   setFileExportDate: (val: string | null) => void;
   manualProducts: Product[];
@@ -41,8 +34,6 @@ export function useStickerEventFile({
   setIsEditingEmployeeName,
   allProducts,
   setAllProducts,
-  inventory,
-  setInventory,
   displayedProducts,
   setDisplayedProducts,
   setIsLoading,
@@ -52,8 +43,6 @@ export function useStickerEventFile({
   setFileName,
   uploadTimestamp,
   setUploadTimestamp,
-  inventoryUploadTimestamp,
-  setInventoryUploadTimestamp,
   fileExportDate,
   setFileExportDate,
   manualProducts,
@@ -136,82 +125,6 @@ export function useStickerEventFile({
       }
     }
   }, [setIsLoading, setError, setDisplayedProducts, setAllProducts, fileName, fileExportDate, manualProducts]);
-
-  const handleDownloadSampleInventory = useCallback((itemsToUse?: InventoryItem[]) => {
-    const targetInventory = itemsToUse || inventory;
-    if (targetInventory.length === 0) return;
-
-    const groupedByNganhHang = targetInventory.reduce((acc, item) => {
-      const nganhHang = item.nganhHang || 'Khong_xac_dinh';
-      if (!acc[nganhHang]) acc[nganhHang] = [];
-      if (item.maSanPham) acc[nganhHang].push(item.maSanPham);
-      return acc;
-    }, {} as Record<string, string[]>);
-
-    const downloadFiles = async () => {
-      const XLSX = await import('xlsx');
-      const entries = Object.entries(groupedByNganhHang) as [string, string[]][];
-      for (let i = 0; i < entries.length; i++) {
-        const [nganhHang, maSanPhams] = entries[i];
-        if (maSanPhams.length === 0) continue;
-
-        const uniqueMaSanPhams = Array.from(new Set(maSanPhams));
-        const wb = XLSX.utils.book_new();
-        const data = [['Mã sản phẩm']];
-        uniqueMaSanPhams.forEach(msp => {
-          data.push([msp]);
-        });
-
-        const ws = XLSX.utils.aoa_to_sheet(data);
-        const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
-        for (let R = range.s.r; R <= range.e.r; ++R) {
-          const cellAddress = XLSX.utils.encode_cell({ c: 0, r: R });
-          if (!ws[cellAddress]) continue;
-          ws[cellAddress].t = 's';
-          ws[cellAddress].z = '@';
-        }
-
-        XLSX.utils.book_append_sheet(wb, ws, 'Sample');
-        const safeFileName = nganhHang.replace(/[/\\?%*:|"<>]/g, '-');
-        XLSX.writeFile(wb, `${safeFileName}.xls`, { bookType: 'biff8' });
-
-        if (i < entries.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 300));
-        }
-      }
-    };
-
-    downloadFiles();
-  }, [inventory]);
-
-  const handleInventoryFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const items = await parseInventoryFile(file);
-        const newTimestamp = new Date();
-        setInventory(items);
-        setInventoryUploadTimestamp(newTimestamp);
-
-        await saveInventoryData(items, newTimestamp);
-
-        setError(null);
-        
-        setTimeout(() => {
-            handleDownloadSampleInventory(items);
-        }, 500);
-
-      } catch (err) {
-        setError('Lỗi khi xử lý file tồn kho. Vui lòng kiểm tra định dạng file.');
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-        if (event.target) event.target.value = '';
-      }
-    }
-  }, [setIsLoading, setError, setInventory, handleDownloadSampleInventory]);
 
   const handleExport = useCallback(() => {
     if (displayedProducts.length === 0) return;
@@ -331,13 +244,9 @@ export function useStickerEventFile({
     setFileName,
     uploadTimestamp,
     setUploadTimestamp,
-    inventoryUploadTimestamp,
-    setInventoryUploadTimestamp,
     fileExportDate,
     setFileExportDate,
     handleFileChange,
-    handleDownloadSampleInventory,
-    handleInventoryFileChange,
     handleExport,
     handleImport,
   };

@@ -1,8 +1,8 @@
 import { useCallback, useRef } from 'react';
-import { Product, InventoryItem, ManualProductDoc } from '../types';
+import { Product, ManualProductDoc } from '../types';
 import { ManualProductWithId } from '../ManualInputModal';
 import {
-  clearPriceAndInventoryData,
+  clearPriceData,
   loadManualProducts,
   saveDisplayedProducts,
   saveManualProducts,
@@ -17,9 +17,7 @@ interface UseStickerEventDbProps {
   setFileName: (val: string | null) => void;
   setFileExportDate: (val: string | null) => void;
   setUploadTimestamp: (val: Date | null) => void;
-  setInventoryUploadTimestamp: (val: Date | null) => void;
   setAllProducts: React.Dispatch<React.SetStateAction<Product[]>>;
-  setInventory: React.Dispatch<React.SetStateAction<InventoryItem[]>>;
   manualProducts: ManualProductWithId[];
   setManualProducts: React.Dispatch<React.SetStateAction<ManualProductWithId[]>>;
 }
@@ -73,9 +71,7 @@ export function useStickerEventDb({
   setFileName,
   setFileExportDate,
   setUploadTimestamp,
-  setInventoryUploadTimestamp,
   setAllProducts,
-  setInventory,
   manualProducts,
   setManualProducts,
 }: UseStickerEventDbProps) {
@@ -145,23 +141,21 @@ export function useStickerEventDb({
   const executeClearAll = useCallback(async () => {
     setIsLoading(true);
     try {
-      await clearPriceAndInventoryData();
+      await clearPriceData();
       // Sản phẩm nhập tay không thuộc bảng giá nên vẫn còn và vẫn tìm được
       setAllProducts(manualRef.current);
-      setInventory([]);
       setDisplayedProducts([]);
       setFileName(null);
       setUploadTimestamp(null);
-      setInventoryUploadTimestamp(null);
       setFileExportDate(null);
-      showAlert('Đã xóa toàn bộ dữ liệu tồn kho và giá.');
+      showAlert('Đã xóa toàn bộ dữ liệu bảng giá.');
     } catch (err) {
       console.error(err);
       setError('Lỗi khi xóa dữ liệu.');
     } finally {
       setIsLoading(false);
     }
-  }, [setAllProducts, setDisplayedProducts, setError, setFileExportDate, setFileName, setInventory, setInventoryUploadTimestamp, setIsLoading, setUploadTimestamp, showAlert]);
+  }, [setAllProducts, setDisplayedProducts, setError, setFileExportDate, setFileName, setIsLoading, setUploadTimestamp, showAlert]);
 
   return {
     loadStoredManualProducts,

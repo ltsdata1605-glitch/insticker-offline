@@ -10,7 +10,6 @@ export interface Product {
   ngayIn: string; // AI
   selected: boolean;
   quantity: number;
-  tonKho?: number | string;
 }
 
 // Khi lưu danh sách, chỉ lưu msp+quantity để tiết kiệm dung lượng Firestore (xem
@@ -41,32 +40,4 @@ export interface SavedList {
   createdAt: string;
   items: SavedListItem[];
   totalItems: number;
-}
-
-export interface InventoryFilters {
-  maSieuThi: string[];
-  nganhHang: string[];
-  nhomHang: string[];
-  keyword: string;
-}
-
-export interface InventoryItem {
-  maSieuThi: string;
-  tenSieuThi: string;
-  thuongHieu: string;
-  nhaSanXuat?: string;
-  nganhHang: string;
-  nhomHang: string;
-  maSanPham: string;
-  tenSanPham: string;
-  trangThaiKinhDoanh: string;
-  trangThaiSanPham: string;
-  tongSoLuong: number;
-  soLuongDiDuong: number;
-  soLuongThucTe: number;
-  soLuongDaDat: number;
-  soLuongCoTheBan: number;
-  sucBan: string;
-  saleAverage: number;
-  saleEstimate: number;
 }

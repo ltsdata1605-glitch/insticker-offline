@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Product, InventoryItem } from '../types';
-import { ManualProductWithId } from '../ManualInputModal';
-import { saveEmployeeName, parseCurrency, saveDisplayedProducts, saveInventoryFilters } from '../services/fileParser';
-import { SortField, SortDirection } from '../InventoryToolbar';
+import { Product } from '../types';
+import { saveEmployeeName, parseCurrency, saveDisplayedProducts } from '../services/fileParser';
+import { SortField, SortDirection } from '../ProductToolbar';
 
 /** Lưu danh sách đang hiển thị xuống máy sau khi người dùng ngừng thao tác. */
 const LOCAL_SAVE_DEBOUNCE_MS = 1000;
@@ -10,29 +9,13 @@ const LOCAL_SAVE_DEBOUNCE_MS = 1000;
 interface UseStickerEventStateProps {
   isInitializing: boolean;
   allProducts: Product[];
-  inventory: InventoryItem[];
-  manualProducts: ManualProductWithId[];
 }
 
 export function useStickerEventState({
   isInitializing,
   allProducts,
-  inventory,
-  manualProducts,
 }: UseStickerEventStateProps) {
   const [displayedProducts, setDisplayedProducts] = useState<Product[]>([]);
-  const [inventoryFilters, setInventoryFilters] = useState<{
-    maSieuThi: string[];
-    nganhHang: string[];
-    nhomHang: string[];
-    keyword: string;
-  }>({
-    maSieuThi: [],
-    nganhHang: [],
-    nhomHang: [],
-    keyword: ''
-  });
-  const [useInventoryQuantity, setUseInventoryQuantity] = useState(false);
   const [sortField, setSortField] = useState<SortField>('none');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -154,9 +137,7 @@ export function useStickerEventState({
             setHighlightedMsp(null);
         }, 2000);
     } else {
-        const inventoryItem = inventory.find(item => item.maSanPham === product.msp);
-        const qty = useInventoryQuantity && inventoryItem ? inventoryItem.tongSoLuong : 1;
-        setDisplayedProducts(prevProducts => [{...product, selected: false, quantity: qty}, ...prevProducts]);
+        setDisplayedProducts(prevProducts => [{...product, selected: false, quantity: 1}, ...prevProducts]);
     }
     setSearchQuery('');
     setSuggestions([]);
@@ -179,14 +160,12 @@ export function useStickerEventState({
         newProducts[existingProductIndex] = { ...existingProduct, quantity: existingProduct.quantity + 1 };
         return newProducts;
       } else {
-        const inventoryItem = inventory.find(item => item.maSanPham === product.msp);
-        const qty = useInventoryQuantity && inventoryItem ? inventoryItem.tongSoLuong : 1;
-        return [{ ...product, selected: false, quantity: qty }, ...prevProducts];
+        return [{ ...product, selected: false, quantity: 1 }, ...prevProducts];
       }
     });
     
     return true;
-  }, [allProducts, inventory, useInventoryQuantity]);
+  }, [allProducts]);
 
   const handleToggleSelect = useCallback((msp: string) => {
     setDisplayedProducts(prev =>
@@ -219,28 +198,6 @@ export function useStickerEventState({
     setDisplayedProducts(prev => prev.filter(p => p.msp !== msp));
   }, []);
 
-  const handleShowTopBonus = useCallback(() => {
-    const inventoryMap = new Map(inventory.map(item => [item.maSanPham, item.tongSoLuong]));
-    const sortedProductsList = allProducts.slice()
-        .filter((p): p is Product => !!(p && p.msp))
-        .sort((a, b) => b.tongThuong - a.tongThuong)
-        .map((p): Product => ({...p, selected: false, quantity: useInventoryQuantity ? (inventoryMap.get(p.msp) || 1) : 1}));
-    setDisplayedProducts(sortedProductsList);
-  }, [allProducts, inventory, useInventoryQuantity]);
-
-  const handleShowTopDiscount = useCallback(() => {
-      const inventoryMap = new Map(inventory.map(item => [item.maSanPham, item.tongSoLuong]));
-      const sortedProductsList = allProducts.slice()
-        .filter((p): p is Product => !!(p && p.msp))
-        .sort((a, b) => {
-            const discountA = parseCurrency(a.giaGoc) - parseCurrency(a.giaGiam);
-            const discountB = parseCurrency(b.giaGoc) - parseCurrency(b.giaGiam);
-            return discountB - discountA;
-        })
-        .map((p): Product => ({...p, selected: false, quantity: useInventoryQuantity ? (inventoryMap.get(p.msp) || 1) : 1}));
-      setDisplayedProducts(sortedProductsList);
-  }, [allProducts, inventory, useInventoryQuantity]);
-
   const executeReset = useCallback(async () => {
     setDisplayedProducts([]);
     saveDisplayedProducts([]);
@@ -249,30 +206,6 @@ export function useStickerEventState({
     setShowNoResults(false);
     setDuplicateError(false);
     setError(null);
-  }, []);
-
-  const handleUseInventoryQuantityChange = useCallback((checked: boolean) => {
-    setUseInventoryQuantity(checked);
-    setDisplayedProducts(prev => {
-      const inventoryMap = new Map(inventory.map(item => [item.maSanPham, item.tongSoLuong]));
-      return prev.map(p => ({
-        ...p,
-        quantity: checked ? (inventoryMap.get(p.msp) || 1) : 1
-      }));
-    });
-  }, [inventory]);
-
-  const handleInventoryFilterChange = useCallback((key: string, value: string | string[]) => {
-    setInventoryFilters(prev => ({ ...prev, [key]: value }));
-  }, []);
-
-  const handleClearInventoryFilters = useCallback(() => {
-    setInventoryFilters({
-      maSieuThi: [],
-      nganhHang: [],
-      nhomHang: [],
-      keyword: ''
-    });
   }, []);
 
   const handleSortChange = useCallback((field: SortField, direction: SortDirection) => {
@@ -306,69 +239,9 @@ export function useStickerEventState({
     };
   }, [displayedProducts, isInitializing]);
 
-  useEffect(() => {
-    if (!isInitializing) saveInventoryFilters(inventoryFilters).catch(console.error);
-  }, [inventoryFilters, isInitializing]);
-
-  // Apply inventory filters
-  useEffect(() => {
-    const { maSieuThi, nganhHang, nhomHang, keyword } = inventoryFilters;
-    
-    if (maSieuThi.length === 0 && nganhHang.length === 0 && nhomHang.length === 0 && !keyword) {
-      return;
-    }
-
-    const includeManual = nganhHang.includes('Nhóm thủ công');
-    const otherNganhHang = nganhHang.filter(n => n !== 'Nhóm thủ công');
-
-    const filteredInventory = inventory.filter(item => {
-      const keywordLower = keyword.toLowerCase();
-      return (
-        (maSieuThi.length === 0 || maSieuThi.includes(item.maSieuThi)) &&
-        (otherNganhHang.length === 0 || otherNganhHang.includes(item.nganhHang)) &&
-        (nhomHang.length === 0 || nhomHang.includes(item.nhomHang)) &&
-        (!keyword || 
-          item.maSanPham.toLowerCase().includes(keywordLower) || 
-          item.tenSanPham.toLowerCase().includes(keywordLower)
-        )
-      );
-    });
-
-    const inventoryMap = new Map(filteredInventory.map(item => [item.maSanPham, item.tongSoLuong]));
-    const matchingMsps = new Set(filteredInventory.map(item => item.maSanPham));
-    
-    let matchingProducts = allProducts
-      .filter(p => matchingMsps.has(p.msp) && !(p as ManualProductWithId).firebaseId)
-      .map(p => ({ 
-          ...p, 
-          selected: false, 
-          quantity: useInventoryQuantity ? (inventoryMap.get(p.msp) || 1) : 1 
-      }));
-
-    if (includeManual) {
-      const manualProds = manualProducts
-        .filter(p => {
-          if (!keyword) return true;
-          const kw = keyword.toLowerCase();
-          return p.msp.toLowerCase().includes(kw) || p.sanPham.toLowerCase().includes(kw);
-        })
-        .map(p => ({ ...p, selected: false, quantity: p.quantity || 1 }));
-      
-      if (otherNganhHang.length === 0 && maSieuThi.length === 0 && nhomHang.length === 0) {
-        matchingProducts = manualProds;
-      } else {
-        matchingProducts = [...matchingProducts, ...manualProds];
-      }
-    }
-
-    setDisplayedProducts(matchingProducts);
-  }, [inventoryFilters, inventory, allProducts, manualProducts, useInventoryQuantity]);
-
   // Sorted Products Memo
   const sortedProducts = useMemo(() => {
     if (sortField === 'none') return displayedProducts;
-
-    const inventoryMap = new Map(inventory.map(item => [item.maSanPham, item.tongSoLuong]));
 
     return [...displayedProducts].sort((a, b) => {
       let valA: number | string = 0;
@@ -396,10 +269,6 @@ export function useStickerEventState({
           valB = gocB > 0 ? ((gocB - giamB) / gocB) * 100 : 0;
           break;
         }
-        case 'tonKho':
-          valA = inventoryMap.get(a.msp) ?? 0;
-          valB = inventoryMap.get(b.msp) ?? 0;
-          break;
         case 'sanPham':
           valA = a.sanPham.toLowerCase();
           valB = b.sanPham.toLowerCase();
@@ -411,15 +280,11 @@ export function useStickerEventState({
       }
       return sortDirection === 'asc' ? (valA as number) - (valB as number) : (valB as number) - (valA as number);
     });
-  }, [displayedProducts, sortField, sortDirection, inventory]);
+  }, [displayedProducts, sortField, sortDirection]);
 
   return {
     displayedProducts,
     setDisplayedProducts,
-    inventoryFilters,
-    setInventoryFilters,
-    useInventoryQuantity,
-    setUseInventoryQuantity,
     sortField,
     setSortField,
     sortDirection,
@@ -458,13 +323,8 @@ export function useStickerEventState({
     handleQuantityChange,
     handleSetQuantity,
     handleDeleteProduct,
-    handleShowTopBonus,
-    handleShowTopDiscount,
     executeReset,
-    handleUseInventoryQuantityChange,
     handleSortChange,
-    handleInventoryFilterChange,
-    handleClearInventoryFilters,
     sortedProducts,
   };
 }

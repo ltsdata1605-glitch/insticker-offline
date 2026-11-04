@@ -6,7 +6,7 @@ describe('File sao lưu', () => {
     const uploadTimestamp = new Date('2026-11-04T08:00:00.000Z');
     const text = encodeBackup(
       {
-        appData: { products: [{ msp: '123' }], fileInfo: { fileName: 'gia.xlsx', uploadTimestamp }, inventoryUploadTimestamp: uploadTimestamp },
+        appData: { products: [{ msp: '123' }], fileInfo: { fileName: 'gia.xlsx', uploadTimestamp } },
         settings: { printSettings: { tagsPerPage: 4 } },
       },
       new Date('2026-11-04T09:00:00.000Z'),
@@ -15,7 +15,6 @@ describe('File sao lưu', () => {
     expect(data.createdAt).toBe('2026-11-04T09:00:00.000Z');
     expect(data.appData.products).toEqual([{ msp: '123' }]);
     expect((data.appData.fileInfo as { uploadTimestamp: Date }).uploadTimestamp).toEqual(uploadTimestamp);
-    expect(data.appData.inventoryUploadTimestamp).toEqual(uploadTimestamp);
     expect(data.settings.printSettings).toEqual({ tagsPerPage: 4 });
   });
 

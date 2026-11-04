@@ -1,5 +1,5 @@
 import { BrowserWindow, Menu, app, ipcMain, net, protocol, session, shell, systemPreferences } from 'electron';
-import type { IpcMainInvokeEvent, MenuItemConstructorOptions } from 'electron';
+import type { IpcMainInvokeEvent, MenuItemConstructorOptions, Session } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -9,8 +9,6 @@ import { PrintJobs } from './printJobs';
 const SCHEME = 'app';
 const HOST = 'sticker';
 const ORIGIN = `${SCHEME}://${HOST}`;
-/** Chỉ mở ra trình duyệt của máy với đúng các địa chỉ này. */
-const EXTERNAL_ALLOWLIST = new Set(['report.mwgroup.vn']);
 /** Thư mục dữ liệu riêng cho bài kiểm thử tự động, để không đụng dữ liệu thật. */
 const TEST_USER_DATA = process.env.STICKER_USER_DATA;
 const TEST_DOWNLOAD_DIR = process.env.STICKER_DOWNLOAD_DIR;
@@ -24,7 +22,8 @@ protocol.registerSchemesAsPrivileged([
 if (TEST_USER_DATA) app.setPath('userData', TEST_USER_DATA);
 
 let mainWindow: BrowserWindow | null = null;
-const printJobs = new PrintJobs(ORIGIN, () => mainWindow);
+const PRINT_PARTITION = 'in-sticker-ban-in';
+const printJobs = new PrintJobs(ORIGIN, () => mainWindow, () => session.fromPartition(PRINT_PARTITION));
 const blockedRequests: string[] = [];
 const savedDownloads = new Set<string>();
 const reservedDownloadPaths = new Set<string>();
@@ -117,24 +116,10 @@ const registerIpc = (): void => {
     assertTrustedSender(event);
     printJobs.close(jobId);
   });
-  ipcMain.handle('shell:open-external', async (event, target: string) => {
-    assertTrustedSender(event);
-    await openExternalIfAllowed(target);
-  });
   ipcMain.handle('shell:show-in-folder', (event, filePath: string) => {
     assertTrustedSender(event);
     if (savedDownloads.has(filePath)) shell.showItemInFolder(filePath);
   });
-};
-
-const openExternalIfAllowed = async (target: string): Promise<void> => {
-  let url: URL;
-  try {
-    url = new URL(target);
-  } catch {
-    return;
-  }
-  if (url.protocol === 'https:' && EXTERNAL_ALLOWLIST.has(url.hostname)) await shell.openExternal(url.toString());
 };
 
 const buildMenu = (): void => {
@@ -180,16 +165,11 @@ const createMainWindow = (): void => {
   });
 
   mainWindow.once('ready-to-show', () => mainWindow?.show());
+  // App offline: không mở địa chỉ nào ngoài chính nó
   mainWindow.webContents.on('will-navigate', (event, target) => {
-    if (!target.startsWith(`${ORIGIN}/`)) {
-      event.preventDefault();
-      void openExternalIfAllowed(target);
-    }
+    if (!target.startsWith(`${ORIGIN}/`)) event.preventDefault();
   });
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    void openExternalIfAllowed(url);
-    return { action: 'deny' };
-  });
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.on('closed', () => {
     mainWindow = null;
     printJobs.closeAll(); // cửa sổ in ẩn không được giữ app chạy sau khi đã đóng cửa sổ chính
@@ -198,17 +178,25 @@ const createMainWindow = (): void => {
   void mainWindow.loadURL(`${ORIGIN}/`);
 };
 
-app.whenReady().then(() => {
-  protocol.handle(SCHEME, handleAppRequest);
-
-  // App offline: chặn mọi yêu cầu ra mạng từ cả giao diện lẫn cửa sổ in.
-  session.defaultSession.webRequest.onBeforeRequest(
+/** App offline: chặn mọi yêu cầu ra mạng từ cả giao diện lẫn cửa sổ in. */
+const blockNetwork = (target: Session): void => {
+  target.webRequest.onBeforeRequest(
     { urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] },
     (details, callback) => {
       blockedRequests.push(details.url);
       callback({ cancel: true });
     },
   );
+};
+
+app.whenReady().then(() => {
+  protocol.handle(SCHEME, handleAppRequest);
+  blockNetwork(session.defaultSession);
+
+  const printSession = session.fromPartition(PRINT_PARTITION);
+  printSession.protocol.handle(SCHEME, handleAppRequest);
+  blockNetwork(printSession);
+  printSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   (globalThis as { __blockedRequests?: string[] }).__blockedRequests = blockedRequests;
 
   // Giao diện chỉ cần quyền camera (quét mã). Trên Mac phải xin thêm quyền của hệ điều hành.

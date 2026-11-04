@@ -15,7 +15,7 @@ App chạy không cần mạng và không cần đăng nhập. Dữ liệu nằm
 | **Giá Sốc** | Tem A4 giá sốc | File giá ĐSD - TBBM, file mẫu, file ERP mẫu 97 và 99, hoặc gõ trực tiếp trên tem |
 | **Giờ Vàng** | Tem A4 giờ vàng, có thời gian và số suất | Như Giá Sốc |
 | **Phiếu** | Phiếu rút thăm, 4 phiếu mỗi trang, tự nhảy số | Gõ trực tiếp vào phiếu 1, các phiếu còn lại tự theo |
-| **Sticker** | Tem giá 1 đến 24 tem mỗi trang hoặc máy in bill K80 | Bảng giá ERP mẫu 81, tồn kho, nhập tay, quét mã |
+| **Sticker** | Tem giá 1 đến 24 tem mỗi trang hoặc máy in bill K80 | Bảng giá ERP mẫu 81, nhập tay, quét mã |
 
 ## In
 
@@ -29,11 +29,14 @@ Lô lớn như 4.000 phiếu cần vài chục giây để dựng. Khung xem tr�
 
 ## Nạp dữ liệu cho tab Sticker
 
-Làm theo nút **i** (Hướng dẫn sử dụng) trong tab Sticker: lấy file tồn kho, nạp vào ô **Tồn Kho**, app tự lưu file mẫu theo ngành hàng vào thư mục Tải về; dùng file mẫu đó trên ERP để xuất bảng giá mẫu 81, rồi nạp vào ô **Bảng Giá**. Link **Lấy File Tồn Kho** cần mạng công ty và mở bằng trình duyệt của máy.
+1. Vào ERP > In bảng giá. Chọn ngành hàng, nhóm hàng **Tất cả**, vị trí trưng bày **2 - Kệ trưng bày**.
+2. Chọn mẫu in **81**, bấm In rồi xuất **Excel Workbook Data-only (*.xlsx)**. Mỗi lần chỉ xuất được một ngành hàng.
+3. Bấm ô **Bảng Giá** trong app và chọn tất cả các file vừa xuất. App gộp lại thành một bảng giá.
+4. Tìm theo mã, tên hoặc quét mã để thêm sản phẩm vào danh sách, chỉnh số tem rồi in.
 
 ## File tải về
 
-Mọi file app tạo ra (file mẫu, file JSON, ảnh xuất, file sao lưu) tự lưu vào thư mục Tải về của máy, không ghi đè tệp cũ. Thông báo góc màn hình có nút **Mở thư mục**.
+Mọi file app tạo ra (file mẫu Excel, file JSON, ảnh xuất, file sao lưu) tự lưu vào thư mục Tải về của máy, không ghi đè tệp cũ. Thông báo góc màn hình có nút **Mở thư mục**.
 
 ## Chuyển dữ liệu sang máy khác
 
@@ -43,7 +46,7 @@ Bấm nút hình trụ ở góc trên bên phải (Sao lưu và khôi phục):
 2. Chép file `in-sticker-sao-luu-….json` sang máy mới.
 3. Trên máy mới, bấm **Khôi phục từ file**. Thao tác này thay toàn bộ dữ liệu đang có trên máy mới.
 
-File gồm bảng giá, tồn kho, sản phẩm nhập tay, danh sách đã lưu, lịch sử in và cài đặt.
+File gồm bảng giá, sản phẩm nhập tay, danh sách đã lưu, lịch sử in và cài đặt.
 
 ## Quét mã
 
@@ -52,5 +55,6 @@ Bấm nút quét cạnh ô tìm kiếm. Lần đầu máy sẽ hỏi quyền cam
 ## Khác với bản web
 
 - Không có đăng nhập, phân quyền, kho và đồng bộ Cloud. Danh sách đã lưu không tự sang máy khác, hãy dùng Sao lưu.
-- Ai dùng máy cũng nạp được bảng giá, tồn kho và dùng nút **Xóa DL**.
+- Ai dùng máy cũng nạp được bảng giá và dùng nút **Xóa DL**.
+- Không có nạp tồn kho, nên cũng không có bộ lọc ngành hàng, nhóm hàng và số tem theo tồn.
 - Không có giao diện điện thoại.

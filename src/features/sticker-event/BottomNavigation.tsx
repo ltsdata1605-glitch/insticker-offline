@@ -79,7 +79,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
 
       <Button variant="cell" size="none" onClick={onFilterClick} className={navItemClass(false)}>
         <AppIcon name="filter" size="lg" />
-        <span className="text-[11px] leading-none">Lọc</span>
+        <span className="text-[11px] leading-none">Sắp xếp</span>
       </Button>
     </div>,
     document.body

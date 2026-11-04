@@ -1,4 +1,4 @@
-import { Product, InventoryItem, InventoryFilters, ManualProductDoc } from '../types';
+import { Product, ManualProductDoc } from '../types';
 import { areLocalWritesFrozen } from '../../../platform/localWriteGuard';
 
 function parseBonus(bonusCode: string | undefined | null): { thuongERP: number; thuongNong: number } {
@@ -40,7 +40,6 @@ export function parseCurrency(value: string | number | undefined | null): number
 
 
 import { formatCurrency } from '../utils/format';
-import { parseNumber } from '../../../utils/dataUtils';
 
 // Helper function to check if a value looks like a valid MSP (mostly digits, length > 3)
 const isValidMsp = (value: unknown): boolean => {
@@ -160,123 +159,6 @@ export const parseProductFile = (file: File): Promise<{ products: Product[], exp
   });
 };
 
-const getArrayBuffer = async (file: File): Promise<ArrayBuffer> => {
-  if (typeof file.arrayBuffer === 'function') {
-    return await file.arrayBuffer();
-  }
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => resolve(e.target?.result as ArrayBuffer);
-    reader.onerror = (e) => reject(e);
-    reader.readAsArrayBuffer(file);
-  });
-};
-
-export const parseInventoryFile = async (file: File): Promise<InventoryItem[]> => {
-  const data = await getArrayBuffer(file);
-  const XLSX = await import('xlsx');
-  const workbook = XLSX.read(data, { type: 'array' });
-  const sheetName = workbook.SheetNames[0];
-  const worksheet = workbook.Sheets[sheetName];
-  // any: dữ liệu Excel thô, mỗi ô có thể là string/number/Date/null tùy nội dung file
-  const json: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-  if (!json || json.length === 0) {
-    return [];
-  }
-
-  // Cấu trúc cột mặc định theo định dạng file tồn kho mới:
-  // Cột D (index 3): Ngành hàng
-  // Cột E (index 4): Nhóm hàng
-  // Cột F (index 5): Nhà sản xuất
-  // Cột G (index 6): Mã sản phẩm
-  // Cột H (index 7): Tên sản phẩm
-  // Cột Q (index 16): Số lượng
-  let colNganhHang = 3;
-  let colNhomHang = 4;
-  let colNhaSanXuat = 5;
-  let colMaSanPham = 6;
-  let colTenSanPham = 7;
-  let colSoLuong = 16;
-  let colMaSieuThi = 0;
-  let colTenSieuThi = 1;
-
-  let headerRowIndex = -1;
-
-  // Quét 10 dòng đầu để tự động nhận diện dòng tiêu đề nếu có
-  for (let i = 0; i < Math.min(json.length, 10); i++) {
-    const row = json[i];
-    if (!row || !Array.isArray(row)) continue;
-
-    let matchCount = 0;
-    row.forEach((cell, idx) => {
-      const str = String(cell || '').toLowerCase().trim();
-      if (str.includes('ngành hàng')) { colNganhHang = idx; matchCount++; }
-      else if (str.includes('nhóm hàng')) { colNhomHang = idx; matchCount++; }
-      else if (str.includes('nhà sản xuất') || str.includes('nha san xuat') || str.includes('hãng')) { colNhaSanXuat = idx; matchCount++; }
-      else if (str.includes('mã sản phẩm') || str.includes('mã sp') || str === 'msp') { colMaSanPham = idx; matchCount++; }
-      else if (str.includes('tên sản phẩm') || str.includes('tên sp')) { colTenSanPham = idx; matchCount++; }
-      else if (str.includes('số lượng') || str.includes('tồn') || str === 'sl') { colSoLuong = idx; matchCount++; }
-      else if (str.includes('mã siêu thị') || str.includes('mã kho')) { colMaSieuThi = idx; }
-      else if (str.includes('tên siêu thị') || str.includes('tên kho')) { colTenSieuThi = idx; }
-    });
-
-    if (matchCount >= 2) {
-      headerRowIndex = i;
-      break;
-    }
-  }
-
-    let dataStartIndex = 0;
-    if (headerRowIndex !== -1) {
-      dataStartIndex = headerRowIndex + 1;
-    } else if (json.length > 0 && !isValidMsp(json[0]?.[colMaSanPham])) {
-      dataStartIndex = 1;
-    }
-
-  return json.slice(dataStartIndex).map((row): InventoryItem | null => {
-    if (!row || !Array.isArray(row)) return null;
-
-    const maSanPham = String(row[colMaSanPham] || '').trim();
-    if (!maSanPham || !isValidMsp(maSanPham) || maSanPham.toLowerCase().includes('mã')) {
-      return null;
-    }
-
-    const rawQty = row[colSoLuong];
-    let qty = 0;
-    if (typeof rawQty === 'number') {
-      qty = isNaN(rawQty) ? 0 : rawQty;
-    } else if (rawQty) {
-      // Bộ đọc số dùng chung (utils/dataUtils — hiểu dấu chấm nghìn kiểu Việt). AUD-017 (2026-10-28): trước chỉ bỏ dấu phẩy rồi
-      // parseFloat → ô chữ "1.000" thành 1, "2.500" thành 2,5.
-      qty = parseNumber(rawQty);
-    }
-
-    const nhaSanXuat = String(row[colNhaSanXuat] || '').trim();
-
-    return {
-      maSieuThi: String(row[colMaSieuThi] || '').trim(),
-      tenSieuThi: String(row[colTenSieuThi] || '').trim(),
-      thuongHieu: nhaSanXuat,
-      nhaSanXuat,
-      nganhHang: String(row[colNganhHang] || '').trim(),
-      nhomHang: String(row[colNhomHang] || '').trim(),
-      maSanPham,
-      tenSanPham: String(row[colTenSanPham] || '').trim(),
-      trangThaiKinhDoanh: '',
-      trangThaiSanPham: '',
-      tongSoLuong: qty,
-      soLuongDiDuong: 0,
-      soLuongThucTe: qty,
-      soLuongDaDat: 0,
-      soLuongCoTheBan: qty,
-      sucBan: '',
-      saleAverage: 0,
-      saleEstimate: 0,
-    };
-  }).filter((item): item is InventoryItem => item !== null);
-};
-
 // --- IndexedDB Persistence ---
 
 const DB_NAME = 'ProductSearchDB';
@@ -318,18 +200,6 @@ export const saveData = async (products: Product[], fileInfo: FileInfo): Promise
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
   });
-};
-
-export const saveInventoryData = async (inventory: InventoryItem[], timestamp: Date): Promise<void> => {
-    if (areLocalWritesFrozen()) return;
-    const store = await getStore('readwrite');
-    return new Promise((resolve, reject) => {
-        const transaction = store.transaction;
-        store.put(inventory, 'inventory');
-        store.put(timestamp, 'inventoryUploadTimestamp');
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = () => reject(transaction.error);
-    });
 };
 
 export const saveDisplayedProducts = async (products: Product[], timestamp?: number): Promise<void> => {
@@ -381,31 +251,6 @@ export const loadManualProducts = async (): Promise<ManualProductDoc[]> => {
     }
 };
 
-/** Bộ lọc tồn kho. Bản web lưu cùng trạng thái phiên trên Cloud. */
-export const saveInventoryFilters = async (filters: InventoryFilters): Promise<void> => {
-    if (areLocalWritesFrozen()) return;
-    const store = await getStore('readwrite');
-    return new Promise((resolve, reject) => {
-        const transaction = store.transaction;
-        store.put(filters, 'inventoryFilters');
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = () => reject(transaction.error);
-    });
-};
-
-export const loadInventoryFilters = async (): Promise<InventoryFilters | null> => {
-    try {
-        const store = await getStore('readonly');
-        const request = store.get('inventoryFilters');
-        return new Promise((resolve) => {
-            request.onsuccess = () => resolve(request.result ?? null);
-            request.onerror = () => resolve(null);
-        });
-    } catch {
-        return null;
-    }
-};
-
 // Đọc và thay dữ liệu theo khoá, dùng cho Sao lưu và Khôi phục.
 export const readAppData = async (keys: readonly string[]): Promise<Record<string, unknown>> => {
     const store = await getStore('readonly');
@@ -437,10 +282,8 @@ export const replaceAppData = async (keys: readonly string[], values: Record<str
 interface LoadDataResult {
     products: Product[];
     displayedProducts: Product[];
-    inventory: InventoryItem[];
     fileInfo: FileInfo | null;
     employeeName: string;
-    inventoryUploadTimestamp: Date | null;
     displayedProductsLastModified: number | null;
 }
 
@@ -449,16 +292,14 @@ export const loadData = async (): Promise<LoadDataResult | null> => {
         const store = await getStore('readonly');
         const productsReq = store.get('products');
         const displayedProductsReq = store.get('displayedProducts');
-        const inventoryReq = store.get('inventory');
         const fileInfoReq = store.get('fileInfo');
         const employeeNameReq = store.get('employeeName');
-        const inventoryUploadTimestampReq = store.get('inventoryUploadTimestamp');
         const displayedProductsLastModifiedReq = store.get('displayedProductsLastModified');
 
         return new Promise((resolve) => {
-            const results: LoadDataResult = { products: [], displayedProducts: [], inventory: [], fileInfo: null, employeeName: '', inventoryUploadTimestamp: null, displayedProductsLastModified: null };
+            const results: LoadDataResult = { products: [], displayedProducts: [], fileInfo: null, employeeName: '', displayedProductsLastModified: null };
             let completed = 0;
-            const totalRequests = 7;
+            const totalRequests = 5;
 
             const checkCompletion = () => {
                 completed++;
@@ -479,20 +320,12 @@ export const loadData = async (): Promise<LoadDataResult | null> => {
                 results.displayedProducts = Array.isArray(displayedProductsReq.result) ? displayedProductsReq.result : [];
                 checkCompletion();
             };
-            inventoryReq.onsuccess = () => {
-                results.inventory = Array.isArray(inventoryReq.result) ? inventoryReq.result : [];
-                checkCompletion();
-            };
             fileInfoReq.onsuccess = () => {
                 results.fileInfo = fileInfoReq.result;
                 checkCompletion();
             };
              employeeNameReq.onsuccess = () => {
                 results.employeeName = employeeNameReq.result || '';
-                checkCompletion();
-            };
-            inventoryUploadTimestampReq.onsuccess = () => {
-                results.inventoryUploadTimestamp = inventoryUploadTimestampReq.result || null;
                 checkCompletion();
             };
             displayedProductsLastModifiedReq.onsuccess = () => {
@@ -502,10 +335,8 @@ export const loadData = async (): Promise<LoadDataResult | null> => {
             
             productsReq.onerror = onError;
             displayedProductsReq.onerror = onError;
-            inventoryReq.onerror = onError;
             fileInfoReq.onerror = onError;
             employeeNameReq.onerror = onError;
-            inventoryUploadTimestampReq.onerror = onError;
             displayedProductsLastModifiedReq.onerror = onError;
         });
     } catch (e) {
@@ -515,13 +346,13 @@ export const loadData = async (): Promise<LoadDataResult | null> => {
 };
 
 /**
- * Nút "Xóa DL": chỉ xoá bảng giá, tồn kho và danh sách đang hiển thị. Sản phẩm nhập tay, tên người in và
- * bộ lọc vẫn giữ, giống bản web (ở đó các dữ liệu này nằm trên Cloud nên không bị xoá theo).
+ * Nút "Xóa DL": chỉ xoá bảng giá và danh sách đang hiển thị. Sản phẩm nhập tay và tên người in vẫn giữ.
+ * Xoá luôn dữ liệu tồn kho còn sót từ bản trước, khi app còn chức năng nạp tồn.
  */
-export const clearPriceAndInventoryData = async (): Promise<void> => {
+export const clearPriceData = async (): Promise<void> => {
   const store = await getStore('readwrite');
   return new Promise((resolve, reject) => {
-    for (const key of ['products', 'inventory', 'fileInfo', 'inventoryUploadTimestamp', 'displayedProducts', 'displayedProductsLastModified']) {
+    for (const key of ['products', 'fileInfo', 'displayedProducts', 'displayedProductsLastModified', 'inventory', 'inventoryUploadTimestamp', 'inventoryFilters']) {
       store.delete(key);
     }
     store.transaction.oncomplete = () => resolve();
