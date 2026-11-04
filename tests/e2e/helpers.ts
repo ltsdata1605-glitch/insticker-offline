@@ -77,6 +77,40 @@ const stallMeter = (since: number) => {
 };
 
 /**
+ * Đồng hồ nằm ngay trong main process, giao diện và tiến trình test. So với số đo của watchPrintBuild
+ * để biết tiến trình đứng thật, hay chỉ đường hỏi của Playwright bị nghẽn.
+ */
+export const startLagClocks = async ({ app, win }: AppSession) => {
+  type Holder = { __lagMax?: number };
+  const install = () => {
+    const holder = globalThis as Holder;
+    holder.__lagMax = 0;
+    let last = Date.now();
+    setInterval(() => {
+      const now = Date.now();
+      holder.__lagMax = Math.max(holder.__lagMax ?? 0, now - last - 50);
+      last = now;
+    }, 50);
+  };
+  await app.evaluate(install);
+  await win.evaluate(install);
+
+  let testLagMs = 0;
+  let last = Date.now();
+  const timer = setInterval(() => {
+    const now = Date.now();
+    testLagMs = Math.max(testLagMs, now - last - 50);
+    last = now;
+  }, 50);
+
+  return async () => {
+    clearInterval(timer);
+    const read = () => (globalThis as Holder).__lagMax ?? -1;
+    return { mainLagMs: await app.evaluate(read), rendererLagMs: await win.evaluate(read), testLagMs };
+  };
+};
+
+/**
  * Theo dõi một lượt dựng bản in tới khi hiện xem trước, song song hỏi giao diện và main process
  * để biết tiến trình nào bị đứng. Mọi lời hỏi đều có hạn nên app treo vẫn có đủ nhật ký.
  */

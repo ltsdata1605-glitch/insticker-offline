@@ -48,13 +48,13 @@ const READY_SCRIPT = `(async () => {
     await Promise.all([...imgs, ...bgs]);
     await document.fonts.ready;
   })();
-  await Promise.race([wait, new Promise((r) => setTimeout(r, ${ASSET_WAIT_MS}))]);
+  const timedOut = await Promise.race([wait.then(() => false), new Promise((r) => setTimeout(() => r(true), ${ASSET_WAIT_MS}))]);
   const tagPages = document.querySelectorAll('.print-page');
   const hostPages = document.querySelectorAll('#print-host > .sticker-container');
   const pages = tagPages.length || hostPages.length || 1;
   let maxHeightPx = 0;
   for (const el of tagPages) maxHeightPx = Math.max(maxHeightPx, el.getBoundingClientRect().height);
-  return { pages, maxHeightPx };
+  return { pages, maxHeightPx, timedOut };
 })()`;
 
 /** Ghi mốc của lượt dựng gần nhất, để khi lượt in bị kẹt còn biết nó dừng ở bước nào. */
@@ -134,8 +134,8 @@ export class PrintJobs {
     try {
       await win.loadURL(`${this.origin}/__print/${id}/doc.html`);
       markPhase('nạp xong tài liệu');
-      const { pages, maxHeightPx } = await win.webContents.executeJavaScript(READY_SCRIPT) as { pages: number; maxHeightPx: number };
-      markPhase('phông và ảnh sẵn sàng');
+      const { pages, maxHeightPx, timedOut } = await win.webContents.executeJavaScript(READY_SCRIPT) as { pages: number; maxHeightPx: number; timedOut: boolean };
+      markPhase(timedOut ? 'HẾT HẠN chờ phông và ảnh' : 'phông và ảnh sẵn sàng');
       job.totalPages = pages;
 
       if (request.paper.kind === 'roll') {

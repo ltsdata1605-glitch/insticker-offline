@@ -24,7 +24,13 @@ jobs:
       - id: e2e
         continue-on-error: true
         run: npx playwright test
-      - run: npx electron-builder --win nsis zip --x64 -c.win.signAndEditExecutable=true --publish never
+      # Chỉ để lấy số liệu so với lượt có Playwright, không quyết định kết quả build.
+      - name: Đo lô 4.000 phiếu không có Playwright
+        continue-on-error: true
+        run: node scripts/do-lo-lon.cjs
+      # Dùng bash vì PowerShell tách -c.win.x=true thành hai tham số, electron-builder hiểu nhầm là đường dẫn tệp cấu hình.
+      - shell: bash
+        run: npx electron-builder --win nsis zip --x64 -c.win.signAndEditExecutable=true --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: in-sticker-windows
