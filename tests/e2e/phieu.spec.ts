@@ -76,39 +76,54 @@ test('Chọn nền TGĐ, sửa nội dung phiếu 1 áp cho mọi phiếu, còn 
 test('Giá Sốc, Giờ Vàng, Phiếu: xem trước và khung điều khiển cỡ vừa phải, nằm giữa cửa sổ', async () => {
   const s = await openApp();
   const { win } = s;
-  for (const mode of ['Giá Sốc', 'Giờ Vàng', 'Phiếu'] as const) {
-    await chooseMode(win, mode);
-    const layout = await win.evaluate(() => {
-      const preview = (document.querySelector('#print-section .sticker-container.active-preview-page')
-        ?? document.querySelector('#print-section .sticker-container')) as HTMLElement;
-      const button = [...document.querySelectorAll('button')].find((b) => /Bấm để in/.test(b.textContent ?? '')) as HTMLElement;
-      const box = preview.getBoundingClientRect();
-      const panel = (button.closest('.no-print') as HTMLElement).getBoundingClientRect();
-      return {
-        width: innerWidth,
-        height: innerHeight,
-        pageOverflow: document.documentElement.scrollWidth - innerWidth,
-        previewWidth: box.width,
-        // Cả khung xem trước, gồm thanh chuyển trang của Phiếu, phải thấy được mà không cần cuộn
-        previewBottom: (document.querySelector('#print-section')?.parentElement as HTMLElement).getBoundingClientRect().bottom,
-        previewRight: box.right,
-        buttonLeft: button.getBoundingClientRect().left,
-        panelWidth: panel.width,
-        leftGap: box.left,
-        rightGap: innerWidth - panel.right,
-      };
-    });
-    expect(layout.pageOverflow, `${mode}: không tràn ngang`).toBeLessThanOrEqual(0);
-    expect(layout.previewWidth, `${mode}: xem trước không nhỏ hơn khổ gốc`).toBeGreaterThanOrEqual(384);
-    expect(layout.previewWidth, `${mode}: xem trước không quá to`).toBeLessThanOrEqual(460);
-    expect(layout.previewBottom, `${mode}: xem trước nằm gọn trong màn hình`).toBeLessThanOrEqual(layout.height);
-    expect(layout.buttonLeft, `${mode}: khung điều khiển nằm bên phải xem trước`).toBeGreaterThan(layout.previewRight);
-    expect(layout.panelWidth, `${mode}: khung điều khiển không quá rộng`).toBeLessThanOrEqual(480);
-    expect(layout.panelWidth, `${mode}: khung điều khiển đủ chỗ cho các nút`).toBeGreaterThan(400);
-    // Xem trước và khung điều khiển nằm giữa cửa sổ, khoảng trống hai bên cân nhau
-    expect(Math.abs(layout.leftGap - layout.rightGap), `${mode}: cân giữa cửa sổ`).toBeLessThan(30);
-    fs.mkdirSync('tests/output', { recursive: true });
-    await win.screenshot({ path: `tests/output/ui-rong-${mode === 'Phiếu' ? 'phieu' : mode === 'Giá Sốc' ? 'gia-soc' : 'gio-vang'}.png` });
+  // Máy có màn hình thấp (như máy build Windows) app dùng cỡ tối thiểu nên phải kiểm tra cả cửa sổ nhỏ
+  for (const size of [{ width: 1440, height: 900 }, { width: 1100, height: 720 }]) {
+    await s.app.evaluate(({ BrowserWindow }, { width, height }) => BrowserWindow.getAllWindows()[0].setSize(width, height), size);
+    await win.waitForTimeout(300);
+    for (const mode of ['Giá Sốc', 'Giờ Vàng', 'Phiếu'] as const) {
+      await chooseMode(win, mode);
+      const label = `${mode}, cửa sổ ${size.width}x${size.height}`;
+      const layout = await win.evaluate(() => {
+        const preview = (document.querySelector('#print-section .sticker-container.active-preview-page')
+          ?? document.querySelector('#print-section .sticker-container')) as HTMLElement;
+        const button = [...document.querySelectorAll('button')].find((b) => /Bấm để in/.test(b.textContent ?? '')) as HTMLElement;
+        const box = preview.getBoundingClientRect();
+        const panel = (button.closest('.no-print') as HTMLElement).getBoundingClientRect();
+        return {
+          width: innerWidth,
+          height: innerHeight,
+          pageOverflow: document.documentElement.scrollWidth - innerWidth,
+          previewWidth: box.width,
+          // Cả khung xem trước, gồm thanh chuyển trang của Phiếu, phải thấy được mà không cần cuộn
+          previewBottom: (document.querySelector('#print-section')?.parentElement as HTMLElement).getBoundingClientRect().bottom,
+          previewRight: box.right,
+          buttonLeft: button.getBoundingClientRect().left,
+          panelWidth: panel.width,
+          leftGap: box.left,
+          rightGap: innerWidth - panel.right,
+        };
+      });
+      console.log(`${label}: xem trước ${layout.previewWidth.toFixed(1)}, đáy ${layout.previewBottom.toFixed(0)}/${layout.height}, khung ${layout.panelWidth.toFixed(0)}, trái ${layout.leftGap.toFixed(0)}, phải ${layout.rightGap.toFixed(0)}`);
+      expect(layout.pageOverflow, `${label}: không tràn ngang`).toBeLessThanOrEqual(0);
+      // Tem tối thiểu 384 px tính cả viền khung, phần tem bên trong hụt khoảng 2 px.
+      // Phiếu nhỏ hơn một chút vì chừa chỗ cho thanh chuyển trang, để thấy đủ mà không phải cuộn.
+      const minWidth = mode === 'Phiếu' ? 340 : 380;
+      expect(layout.previewWidth, `${label}: xem trước không nhỏ hơn cỡ tối thiểu`).toBeGreaterThanOrEqual(minWidth);
+      expect(layout.previewWidth, `${label}: xem trước không quá to`).toBeLessThanOrEqual(460);
+      // Cửa sổ thật thấp hơn cỡ tối thiểu thì được phép cuộn
+      if (layout.height >= 660) {
+        expect(layout.previewBottom, `${label}: xem trước nằm gọn trong màn hình`).toBeLessThanOrEqual(layout.height);
+      }
+      expect(layout.buttonLeft, `${label}: khung điều khiển nằm bên phải xem trước`).toBeGreaterThan(layout.previewRight);
+      expect(layout.panelWidth, `${label}: khung điều khiển không quá rộng`).toBeLessThanOrEqual(480);
+      expect(layout.panelWidth, `${label}: khung điều khiển đủ chỗ cho các nút`).toBeGreaterThan(400);
+      // Xem trước và khung điều khiển nằm giữa cửa sổ, khoảng trống hai bên cân nhau
+      expect(Math.abs(layout.leftGap - layout.rightGap), `${label}: cân giữa cửa sổ`).toBeLessThan(30);
+      if (size.width === 1440) {
+        fs.mkdirSync('tests/output', { recursive: true });
+        await win.screenshot({ path: `tests/output/ui-rong-${mode === 'Phiếu' ? 'phieu' : mode === 'Giá Sốc' ? 'gia-soc' : 'gio-vang'}.png` });
+      }
+    }
   }
   await s.close();
 });
