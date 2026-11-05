@@ -66,8 +66,12 @@ const FontSelector: React.FC<FontSelectorProps> = ({ containerClassName, buttonC
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [dropdownStyles, setDropdownStyles] = useState<React.CSSProperties>({});
 
+    const userPickedFontRef = useRef(false);
+
     useEffect(() => {
         getGlobalFont().then(font => {
+            // Máy chậm có thể đọc xong sau khi người dùng đã chọn phông: giữ lựa chọn đó, không đè bằng giá trị cũ
+            if (userPickedFontRef.current) return;
             const activeFont = font || 'UTM Avo';
             setCurrentFont(activeFont);
             apDungPhong(activeFont);
@@ -128,6 +132,7 @@ const FontSelector: React.FC<FontSelectorProps> = ({ containerClassName, buttonC
 
     const handleSelectFont = async (fontValue: string) => {
         const activeFont = fontValue || 'UTM Avo';
+        userPickedFontRef.current = true;
         setCurrentFont(activeFont);
         apDungPhong(activeFont);
         await saveGlobalFont(activeFont);

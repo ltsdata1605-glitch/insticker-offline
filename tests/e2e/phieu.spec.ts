@@ -128,6 +128,52 @@ test('Giá Sốc, Giờ Vàng, Phiếu: xem trước và khung điều khiển c
   await s.close();
 });
 
+test('Chọn phông lúc app còn đang đọc phông đã lưu: lựa chọn không bị trả về mặc định, mở lại vẫn còn', async () => {
+  const dirs = newDirs();
+  let s = await openApp(dirs);
+  let win = s.win;
+  // Giả lập máy chậm: đọc phông đã lưu mất 4 giây
+  await win.addInitScript(() => {
+    const read = IDBObjectStore.prototype.get;
+    IDBObjectStore.prototype.get = function (this: IDBObjectStore, key: IDBValidKey | IDBKeyRange) {
+      const request = read.call(this, key);
+      if (key !== 'globalFont') return request;
+      let onSuccess: ((event: Event) => void) | null = null;
+      Object.defineProperty(request, 'onsuccess', { configurable: true, set(handler) { onSuccess = handler; }, get() { return onSuccess; } });
+      const holder = window as unknown as { __fontRead?: boolean };
+      request.addEventListener('success', (event) => {
+        setTimeout(() => {
+          onSuccess?.call(request as never, event);
+          holder.__fontRead = true;
+        }, 4000);
+      });
+      return request;
+    };
+  });
+  await win.reload();
+  await win.waitForSelector('#global-header-actions button', { timeout: 120_000 });
+  await win.waitForTimeout(500);
+  const fontRead = () => win.evaluate(() => Boolean((window as unknown as { __fontRead?: boolean }).__fontRead));
+  expect(await fontRead(), 'Chọn trước khi đọc xong').toBe(false);
+
+  await win.getByTitle(/Font hiện tại/).click();
+  await win.getByRole('button', { name: 'Oswald' }).click();
+  await expect(win.getByTitle('Font hiện tại: Oswald')).toBeVisible();
+
+  await expect.poll(fontRead, { timeout: 15_000 }).toBe(true);
+  await win.waitForTimeout(300);
+  await expect(win.getByTitle('Font hiện tại: Oswald')).toBeVisible();
+  // Phông thật trên giao diện cũng phải giữ nguyên, không chỉ dòng chữ trên nút
+  expect(await win.evaluate(() => getComputedStyle(document.body).fontFamily)).toContain('Oswald');
+  await win.waitForTimeout(500);
+  await s.close();
+
+  s = await openApp(dirs);
+  win = s.win;
+  await expect(win.getByTitle('Font hiện tại: Oswald')).toBeVisible();
+  await s.close();
+});
+
 test('4.000 phiếu: dựng đủ 1.000 trang, cửa sổ in chạy ở tiến trình riêng', async () => {
   const s = await openApp();
   const { win } = s;
