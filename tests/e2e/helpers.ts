@@ -59,91 +59,7 @@ const describeApp = async (app: ElectronApplication): Promise<string> => {
   ].join('; ');
 };
 
-/** Đo thời gian lâu nhất một tiến trình không trả lời, kể cả khi nó không trả lời tới cùng. */
-const stallMeter = (since: number) => {
-  let lastReply = since;
-  let longest = 0;
-  return {
-    ping: async <T>(work: () => Promise<T>): Promise<T | undefined> => {
-      const started = Date.now();
-      const reply = await within(work(), 1000);
-      const now = Date.now();
-      longest = Math.max(longest, reply === undefined ? now - lastReply : now - started);
-      if (reply !== undefined) lastReply = now;
-      return reply;
-    },
-    longest: () => longest,
-  };
-};
-
-/**
- * Đồng hồ nằm ngay trong main process, giao diện và tiến trình test. So với số đo của watchPrintBuild
- * để biết tiến trình đứng thật, hay chỉ đường hỏi của Playwright bị nghẽn.
- */
-export const startLagClocks = async ({ app, win }: AppSession) => {
-  type Holder = { __lagMax?: number };
-  const install = () => {
-    const holder = globalThis as Holder;
-    holder.__lagMax = 0;
-    let last = Date.now();
-    setInterval(() => {
-      const now = Date.now();
-      holder.__lagMax = Math.max(holder.__lagMax ?? 0, now - last - 50);
-      last = now;
-    }, 50);
-  };
-  await app.evaluate(install);
-  await win.evaluate(install);
-
-  let testLagMs = 0;
-  let last = Date.now();
-  const timer = setInterval(() => {
-    const now = Date.now();
-    testLagMs = Math.max(testLagMs, now - last - 50);
-    last = now;
-  }, 50);
-
-  return async () => {
-    clearInterval(timer);
-    const read = () => (globalThis as Holder).__lagMax ?? -1;
-    return { mainLagMs: await app.evaluate(read), rendererLagMs: await win.evaluate(read), testLagMs };
-  };
-};
-
-/**
- * Theo dõi một lượt dựng bản in tới khi hiện xem trước, song song hỏi giao diện và main process
- * để biết tiến trình nào bị đứng. Mọi lời hỏi đều có hạn nên app treo vẫn có đủ nhật ký.
- */
-export const watchPrintBuild = async ({ app, win }: AppSession, startedAt: number) => {
-  const summary = win.locator('[data-testid="print-summary"]');
-  const spinner = win.getByText('Đang dựng bản in...');
-  const renderer = stallMeter(startedAt);
-  const main = stallMeter(startedAt);
-  let spinnerMs: number | undefined;
-  let peakMb = 0;
-  let nextLogAt = startedAt + 5000;
-  const report = async (label: string) => console.log(`[dựng bản in +${((Date.now() - startedAt) / 1000).toFixed(1)}s, ${label}] ${await describeApp(app)}`);
-
-  while (Date.now() - startedAt < 150_000) {
-    const [, bytes] = await Promise.all([
-      renderer.ping(() => win.evaluate(() => 1)),
-      main.ping(() => app.evaluate(({ app: electronApp }) => electronApp.getAppMetrics().reduce((sum, m) => sum + m.memory.workingSetSize, 0))),
-    ]);
-    if (bytes) peakMb = Math.max(peakMb, Math.round(bytes / 1024));
-    if (spinnerMs === undefined && await within(spinner.isVisible(), 1000)) spinnerMs = Date.now() - startedAt;
-    if (await within(summary.isVisible(), 1000)) {
-      await report('xong');
-      return { spinnerMs, readyMs: Date.now() - startedAt, rendererStallMs: renderer.longest(), mainStallMs: main.longest(), peakMb };
-    }
-    if (Date.now() >= nextLogAt) {
-      await report('đang dựng');
-      nextLogAt = Date.now() + 5000;
-    }
-    await delay(100);
-  }
-  await report('quá hạn');
-  throw new Error(`Quá 150 giây chưa dựng xong; giao diện đứng lâu nhất ${renderer.longest()} ms, main ${main.longest()} ms`);
-};
+type CompletedDownloads = { __completedDownloads?: number };
 
 export const newDirs = (): Dirs => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'in-sticker-e2e-'));
@@ -161,6 +77,15 @@ export const openApp = async (dirs: Dirs = newDirs(), extraArgs: string[] = []):
   runningApps.add(app);
   // Máy đang bận có thể mở app chậm hơn hạn mặc định 30 giây
   const win = await app.firstWindow({ timeout: 120_000 });
+  await app.evaluate(({ session }) => {
+    const holder = globalThis as CompletedDownloads;
+    holder.__completedDownloads = 0;
+    session.defaultSession.on('will-download', (_event, item) => {
+      item.once('done', (_doneEvent, state) => {
+        if (state === 'completed') holder.__completedDownloads = (holder.__completedDownloads ?? 0) + 1;
+      });
+    });
+  });
   const errors: string[] = [];
   win.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   win.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()} @ ${m.location().url}`); });
@@ -242,6 +167,13 @@ export const inspectImage = (session: AppSession, file: string) =>
 
 export const downloadedFiles = (dirs: Dirs): string[] => fs.readdirSync(dirs.downloads).sort();
 
-export const waitForDownloads = async (dirs: Dirs, count: number) => {
-  await expect.poll(() => downloadedFiles(dirs).filter((f) => !f.endsWith('.crdownload')).length, { timeout: 30_000 }).toBeGreaterThanOrEqual(count);
+/**
+ * Chờ trình tải báo xong, không đếm tệp trong thư mục: tệp hiện ra chưa có nghĩa đã lưu xong
+ * (trên Windows, test sao lưu từng mất tệp vì đóng app ngay sau khi thấy tệp).
+ */
+export const waitForDownloads = async ({ app }: AppSession, count: number) => {
+  await expect.poll(
+    () => app.evaluate(() => (globalThis as CompletedDownloads).__completedDownloads ?? 0),
+    { timeout: 90_000 },
+  ).toBeGreaterThanOrEqual(count);
 };

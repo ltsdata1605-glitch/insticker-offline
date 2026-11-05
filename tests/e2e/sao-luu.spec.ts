@@ -18,7 +18,7 @@ test('Sao lưu ở máy này, khôi phục ở máy khác: đủ danh sách, b�
 
   await win.getByRole('button', { name: 'Sao lưu và khôi phục dữ liệu' }).click();
   await win.getByRole('button', { name: 'Sao lưu ra file' }).click();
-  await waitForDownloads(may1, 1);
+  await waitForDownloads(s, 1);
   const backup = path.join(may1.downloads, downloadedFiles(may1).find((f) => f.startsWith('in-sticker-sao-luu-')) as string);
   await win.keyboard.press('Escape');
   await s.close();

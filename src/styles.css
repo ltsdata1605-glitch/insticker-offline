@@ -183,7 +183,12 @@
 
   /* Rounded groups clip hover fills, but must not crop keyboard focus rings. */
   .ycx-control-group { overflow: hidden; }
-  .ycx-control-group:focus-within { overflow: visible; }
+  /* Chỉ mở khi đi bằng bàn phím để thấy viền focus. Bấm chuột cũng tính là focus nên nếu dùng :focus-within,
+     sau khi bấm nền nút sẽ tràn ra ngoài và lộ góc vuông ở hai đầu nhóm. */
+  .ycx-control-group:has(:focus-visible) { overflow: visible; }
+  /* Nút đầu và cuối bo theo nhóm để lúc mở overflow vẫn không lộ góc vuông */
+  .ycx-control-group > :first-child { border-start-start-radius: inherit; border-end-start-radius: inherit; }
+  .ycx-control-group > :last-child { border-start-end-radius: inherit; border-end-end-radius: inherit; }
 
   /* BusyBar (components/shared/ui/BusyBar.tsx): vạch 2px chạy ngang ở mép trên khi đang tính lại ngầm — không chặn thao tác. */
   .ycx-busy-bar__track {

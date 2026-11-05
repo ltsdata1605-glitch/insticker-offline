@@ -14,6 +14,7 @@ const FEATURES = [
   'Sắp xếp theo giá, % giảm, thưởng hoặc tên sản phẩm.',
   'Tùy chỉnh số lượng sticker cần in.',
   'Lưu danh sách in để dùng lại sau này.',
+  'Nhập danh sách bằng file Excel hoặc dán từ bảng tính: một cột mã, một cột số lượng.',
   'Bố cục 1, 2, 4, 8, 16, 24 sticker/trang hoặc máy in bill K80.',
 ];
 

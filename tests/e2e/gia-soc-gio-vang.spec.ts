@@ -208,15 +208,15 @@ test('Tải file mẫu: tự lưu vào thư mục Tải về, không ghi đè t�
   const { win } = s;
   await chooseMode(win, 'Giá Sốc');
   await win.getByRole('button', { name: 'Tải file mẫu' }).click();
-  await waitForDownloads(dirs, 1);
+  await waitForDownloads(s, 1);
   await win.getByRole('button', { name: 'Tải file mẫu' }).click();
-  await waitForDownloads(dirs, 2);
+  await waitForDownloads(s, 2);
   expect(downloadedFiles(dirs)).toEqual(['Sticker_Template_Gia_Soc (1).xlsx', 'Sticker_Template_Gia_Soc.xlsx']);
   await expect(win.getByRole('button', { name: 'Mở thư mục' }).first()).toBeVisible();
 
   await chooseMode(win, 'Giờ Vàng');
   await win.getByRole('button', { name: 'Tải file mẫu' }).click();
-  await waitForDownloads(dirs, 3);
+  await waitForDownloads(s, 3);
   expect(downloadedFiles(dirs)).toContain('Sticker_Template_Gio_Vang.xlsx');
   await s.close();
 });
@@ -259,5 +259,103 @@ test('Giờ Vàng: dùng nền và tiêu đề riêng, không lẫn với Giá S
   const type = await evalInPrintDoc<string>(s, `document.querySelector('.sticker-container').dataset.type`);
   expect(type).toBe('gio_vang');
   await closePreview(win);
+  await s.close();
+});
+
+test('Danh sách sticker: nhập 2 sản phẩm thấy đủ 2 ảnh, bấm ảnh để sửa, nút Thêm có tác dụng, in và mở lại đúng', async () => {
+  const dirs = newDirs();
+  let s = await openApp(dirs);
+  let { win } = s;
+  await chooseMode(win, 'Giá Sốc');
+  const file = writeWorkbook(dirs, 'mau-2.xlsx', [
+    ['TIÊU ĐỀ', 'CODE', 'TÊN SẢN PHẨM', 'GIÁ GỐC', 'GIÁ GIẢM', 'KHUYẾN MÃI'],
+    ['QUẠT', 'A1', 'Quạt đứng Asia', '5490000', '3490000', 'KM'],
+    ['NỒI', 'A2', 'Nồi cơm Sharp', '1290000', '990000', ''],
+  ]);
+  const thumbnails = win.getByTestId('sticker-thumbnail');
+  const bigName = win.locator('#print-section .name');
+  const note = win.getByTestId('sticker-editing-note');
+  const printButton = win.getByRole('button', { name: /Bấm để in/ }).first();
+
+  // Chưa có danh sách thì không có dải ảnh
+  await expect(win.getByTestId('sticker-strip')).toHaveCount(0);
+
+  await win.locator('label:has-text("Nhập file mẫu") input[type="file"]').setInputFiles(file);
+  await expect(thumbnails).toHaveCount(2);
+  await expect(thumbnails.nth(0).locator('.name')).toHaveText('Quạt đứng Asia');
+  await expect(thumbnails.nth(1).locator('.name')).toHaveText('Nồi cơm Sharp');
+  await expect(bigName).toHaveText('Quạt đứng Asia');
+  await expect(note).toContainText('Đang sửa sticker 1/2');
+  await expect(printButton).toContainText('(2)');
+
+  // Bấm ảnh thứ hai: mở đúng sticker đó, ảnh được đánh dấu
+  await thumbnails.nth(1).click();
+  await expect(bigName).toHaveText('Nồi cơm Sharp');
+  await expect(note).toContainText('Đang sửa sticker 2/2');
+  await expect(thumbnails.nth(1)).toHaveAttribute('aria-pressed', 'true');
+
+  // Sửa trên bản xem trước: ảnh nhỏ và bản in đổi theo, sticker kia giữ nguyên
+  await bigName.click();
+  await win.keyboard.press('ControlOrMeta+a');
+  await win.keyboard.type('Nồi cơm đã sửa');
+  await expect(thumbnails.nth(1).locator('.name')).toHaveText('Nồi cơm đã sửa');
+  await expect(thumbnails.nth(0).locator('.name')).toHaveText('Quạt đứng Asia');
+
+  // Thêm: danh sách có thêm một sticker, có thông báo, sửa tiếp không đổi sticker vừa thêm
+  await win.getByRole('button', { name: 'Thêm', exact: true }).click();
+  await expect(win.getByText('Đã thêm vào danh sách, hiện có 3 sticker')).toBeVisible();
+  await expect(thumbnails).toHaveCount(3);
+  await expect(printButton).toContainText('(3)');
+  await expect(note).toContainText('chưa có trong danh sách');
+  await bigName.click();
+  await win.keyboard.press('ControlOrMeta+a');
+  await win.keyboard.type('Sticker soạn mới');
+  await expect(thumbnails.nth(2).locator('.name')).toHaveText('Nồi cơm đã sửa');
+
+  await win.getByRole('button', { name: 'Thêm', exact: true }).click();
+  await expect(thumbnails).toHaveCount(4);
+  await expect(thumbnails.nth(3).locator('.name')).toHaveText('Sticker soạn mới');
+  await expect(printButton).toContainText('(4)');
+
+  // Tên dài không bị cắt khi đưa vào danh sách
+  const longName = 'Máy lọc nước nóng lạnh RO Kangaroo KG10A3 VTU 10 lõi dung tích lớn';
+  await bigName.click();
+  await win.keyboard.press('ControlOrMeta+a');
+  await win.keyboard.type(longName);
+  await win.getByRole('button', { name: 'Thêm', exact: true }).click();
+  await expect(thumbnails).toHaveCount(5);
+  await expect(thumbnails.nth(4).locator('.name')).toHaveText(longName);
+
+  // Bản in khớp đúng những gì thấy trong dải ảnh
+  await printButton.click();
+  expect(await printSummary(win)).toContain('Số trang | 5');
+  const printedNames = await evalInPrintDoc<string[]>(s, `[...document.querySelectorAll('#print-host .name')].map((el) => el.textContent)`);
+  expect(printedNames).toEqual(['Quạt đứng Asia', 'Nồi cơm đã sửa', 'Nồi cơm đã sửa', 'Sticker soạn mới', longName]);
+  await closePreview(win);
+
+  // Mở lại app: danh sách còn đủ
+  await win.waitForTimeout(1500);
+  await s.close();
+  s = await openApp(dirs);
+  ({ win } = s);
+  await chooseMode(win, 'Giá Sốc');
+  await expect(win.getByTestId('sticker-thumbnail')).toHaveCount(5);
+  await expect(win.getByTestId('sticker-thumbnail').nth(1).locator('.name')).toHaveText('Nồi cơm đã sửa');
+
+  // Phiếu in theo số lượng nên không có nút Thêm và không có dải ảnh
+  await chooseMode(win, 'Phiếu');
+  await expect(win.getByRole('button', { name: 'Thêm', exact: true })).toHaveCount(0);
+  await expect(win.getByTestId('sticker-strip')).toHaveCount(0);
+  await s.close();
+});
+
+test('Thêm khi chưa có danh sách: thấy ngay ảnh sticker và có thông báo', async () => {
+  const s = await openApp();
+  const { win } = s;
+  await chooseMode(win, 'Giờ Vàng');
+  await win.getByRole('button', { name: 'Thêm', exact: true }).click();
+  await expect(win.getByText('Đã thêm vào danh sách, hiện có 1 sticker')).toBeVisible();
+  await expect(win.getByTestId('sticker-thumbnail')).toHaveCount(1);
+  await expect(win.getByRole('button', { name: /Bấm để in/ }).first()).toContainText('(1)');
   await s.close();
 });

@@ -34,9 +34,41 @@ Lô lớn như 4.000 phiếu cần vài chục giây để dựng. Khung xem tr�
 3. Bấm ô **Bảng Giá** trong app và chọn tất cả các file vừa xuất. App gộp lại thành một bảng giá.
 4. Tìm theo mã, tên hoặc quét mã để thêm sản phẩm vào danh sách, chỉnh số tem rồi in.
 
+## Danh sách sticker ở Giá Sốc và Giờ Vàng
+
+- **Nhập file mẫu** hoặc file ERP: mọi sản phẩm hiện thành ảnh nhỏ bên trái bản xem trước. Bấm vào ảnh để mở sticker đó lên và sửa; thay đổi được lưu ngay và in đúng theo đó.
+- **Thêm**: đưa sticker đang hiện trên bản xem trước vào danh sách, sau đó soạn tiếp sticker mới mà không làm đổi sticker vừa thêm. Dòng chữ dưới bản xem trước cho biết bạn đang sửa sticker nào trong danh sách hay đang soạn sticker mới.
+- Khi danh sách có sticker, **Bấm để in** in các sticker đang được chọn trong danh sách. Sticker đang soạn chưa bấm Thêm thì không được in.
+
+## Chỉnh cỡ chữ
+
+Ở Giá Sốc, Giờ Vàng và Phiếu, bôi đen chữ trên bản xem trước để hiện thanh định dạng:
+
+- Nút `-` và `+` đổi cỡ chữ, ô số ở giữa là cỡ chữ hiện tại và gõ trực tiếp được. Khoảng dòng chỉnh ở nhóm kế bên.
+- Bôi đen hết một ô thì đổi cả ô; bôi đen một phần thì chỉ đổi phần đó.
+- Nút khôi phục trên thanh định dạng đưa ô đang chọn về cỡ chữ và khoảng dòng mặc định.
+- Nút **Cỡ chữ gốc** ở khung bên phải đưa mọi ô của chế độ đang mở về mặc định. Nội dung giữ nguyên.
+
+## Nhập và xuất danh sách
+
+Ở tab Sticker, mục Thao tác danh sách:
+
+- **Xuất**: tải file Excel gồm 2 cột `CODE` và `SỐ LƯỢNG`. Đang có danh sách thì điền sẵn danh sách đó, danh sách trống thì ra file mẫu chưa có dòng nào.
+- **Nhập**: chọn file Excel theo mẫu, hoặc dán từ bảng tính, mỗi dòng gồm mã và số lượng:
+
+  ```
+  2714133000100	1
+  4844099000052	2
+  ```
+
+  Màn nhập cho biết số sản phẩm tìm thấy, các mã không có trong bảng giá và các dòng lỗi trước khi bạn xác nhận. Cần nạp Bảng Giá trước.
+- Không ghi số lượng thì tính là 1. Mã trùng nhau được cộng số lượng, tối đa 500 tem mỗi sản phẩm.
+- **Thêm vào danh sách**: giữ danh sách đang có; mã đã có thì cộng thêm số lượng. **Thay danh sách**: chỉ còn các sản phẩm vừa nhập.
+- Nếu Excel hiện mã dạng `2,71E+12`, hãy đổi cột mã sang dạng Text rồi chép lại. File mẫu đã để sẵn dạng này.
+
 ## File tải về
 
-Mọi file app tạo ra (file mẫu Excel, file JSON, ảnh xuất, file sao lưu) tự lưu vào thư mục Tải về của máy, không ghi đè tệp cũ. Thông báo góc màn hình có nút **Mở thư mục**.
+Mọi file app tạo ra (file Excel, ảnh xuất, file sao lưu) tự lưu vào thư mục Tải về của máy, không ghi đè tệp cũ. Thông báo góc màn hình có nút **Mở thư mục**.
 
 ## Chuyển dữ liệu sang máy khác
 

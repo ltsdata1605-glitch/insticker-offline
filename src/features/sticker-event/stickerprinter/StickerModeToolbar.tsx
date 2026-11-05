@@ -12,18 +12,10 @@ interface StickerModeToolbarProps {
     onSelectGioVang: () => void;
     onSelectDraw: () => void;
     onSelectEvent: () => void;
-    getActiveFieldLabel: () => string;
-    getDrawActiveFieldLabel: () => string;
-    getActiveFontSize: () => number;
-    getDrawActiveFontSize: () => number;
-    onDecreaseFontSize: () => void;
-    onIncreaseFontSize: () => void;
 }
 
 export const StickerModeToolbar: React.FC<StickerModeToolbarProps> = ({
     stickerMode, stickerType, onSelectGiaSoc, onSelectGioVang, onSelectDraw, onSelectEvent,
-    getActiveFieldLabel, getDrawActiveFieldLabel, getActiveFontSize, getDrawActiveFontSize,
-    onDecreaseFontSize, onIncreaseFontSize,
 }) => {
     const { activeTab } = useActiveTab();
     const [mounted, setMounted] = useState(false);
@@ -48,7 +40,6 @@ export const StickerModeToolbar: React.FC<StickerModeToolbarProps> = ({
     if (isMobile) {
         const activeId = stickerMode === 'event' ? 'event' : stickerType;
         const chon: Record<string, () => void> = { gia_soc: onSelectGiaSoc, gio_vang: onSelectGioVang, draw: onSelectDraw, event: onSelectEvent };
-        const oDangChon = (stickerType === 'draw' ? getDrawActiveFieldLabel() : getActiveFieldLabel()).replace(/^Cỡ chữ\s*/, '');
         return (
             <div data-testid="sticker-mode-bar" className="no-print shrink-0 bg-slate-50/95 border-b border-slate-200 px-3 sm:px-4 pt-2 pb-2">
                 <div className="space-y-1.5 sm:max-w-lg sm:mx-auto">
@@ -65,30 +56,6 @@ export const StickerModeToolbar: React.FC<StickerModeToolbarProps> = ({
                         { id: 'event', label: 'Sticker' },
                     ]}
                 />
-                {stickerMode === 'sticker' && (
-                    <div className="flex items-center justify-between gap-3 pl-1">
-                        {/* Ô đang chọn trên bản xem trước. Nhãn Phiếu đã có sẵn "Cỡ chữ …", nhãn tem thì không → bỏ tiền tố rồi
-                            ghép một lần, tránh "Cỡ chữ Cỡ chữ Thông tin trái". */}
-                        <span className="type-footnote text-slate-500 truncate min-w-0">
-                            Cỡ chữ{oDangChon && <> <span className="font-semibold text-slate-800">{oDangChon}</span></>}
-                        </span>
-                        <div className="flex items-center shrink-0 rounded-control bg-white border border-slate-200">
-                            <Button variant="ghost" size="none" onMouseDown={e => e.preventDefault()} onClick={onDecreaseFontSize}
-                                className="ycx-hit h-9 w-11 flex text-slate-700 active:bg-slate-100 rounded-l-control"
-                                title="Giảm size" aria-label="Giảm cỡ chữ">
-                                <AppIcon name="minus" size="md" />
-                            </Button>
-                            <span className="min-w-10 text-center type-subhead font-semibold tabular-nums text-slate-900 border-x border-slate-200 leading-9">
-                                {stickerType === 'draw' ? getDrawActiveFontSize().toFixed(1) : getActiveFontSize()}
-                            </span>
-                            <Button variant="ghost" size="none" onMouseDown={e => e.preventDefault()} onClick={onIncreaseFontSize}
-                                className="ycx-hit h-9 w-11 flex text-slate-700 active:bg-slate-100 rounded-r-control"
-                                title="Tăng size" aria-label="Tăng cỡ chữ">
-                                <AppIcon name="add" size="md" />
-                            </Button>
-                        </div>
-                    </div>
-                )}
                 </div>
             </div>
         );
@@ -130,40 +97,6 @@ export const StickerModeToolbar: React.FC<StickerModeToolbarProps> = ({
                     </Button>
                 ))}
             </TopBarActions.Group>
-
-            {/* Nhóm điều chỉnh cỡ chữ (khi ở chế độ tem/phiếu) — Nền trắng đồng bộ */}
-            {stickerMode === 'sticker' && (
-                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
-                    <span className="text-sm font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                        {stickerType === 'draw' ? `${getDrawActiveFieldLabel()}:` : `${getActiveFieldLabel()}:`}
-                    </span>
-                    <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-full h-7">
-                        <Button
-                            variant="ghost"
-                            size="none"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={onDecreaseFontSize}
-                            className="h-full w-7 flex hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 font-black rounded-l-full text-sm"
-                            title="Giảm size"
-                        >
-                            -
-                        </Button>
-                        <span className="px-1.5 text-sm font-bold text-slate-700 dark:text-slate-300 min-w-7 text-center tabular-nums">
-                            {stickerType === 'draw' ? getDrawActiveFontSize().toFixed(1) : getActiveFontSize()}
-                        </span>
-                        <Button
-                            variant="ghost"
-                            size="none"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={onIncreaseFontSize}
-                            className="h-full w-7 flex hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 font-black rounded-r-full text-sm"
-                            title="Tăng size"
-                        >
-                            +
-                        </Button>
-                    </div>
-                </div>
-            )}
         </TopBarActions>
     );
 };

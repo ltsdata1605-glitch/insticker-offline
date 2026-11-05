@@ -225,7 +225,7 @@ export const StickerPrintPreview: React.FC<StickerPrintPreviewProps> = ({
     );
 
     return (
-        <SectionCard className="p-0 shrink-0 w-full max-w-sm mx-auto overflow-hidden rounded-none lg:rounded-none no-print-bg">
+        <SectionCard className="p-0 shrink-0 w-full max-w-sm lg:max-w-none mx-auto overflow-hidden rounded-none lg:rounded-none no-print-bg">
             <style>
                 {useMemo(() => getStickerPreviewStyles({
                     stickerType, bgImage: effectiveBgImage, headerTextSize, subHeaderTextSize, percentTextSize,

@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AppIcon } from '../../components/shared/ui/icon/AppIcon';
+import { toast } from '../../components/shared/ui/toast';
 import { Product, SavedListItem } from './types';
 import { loadData, saveDisplayedProducts } from './services/fileParser';
 import { saveList } from './services/localDataService';
+import { applyImport, downloadImportWorkbook } from './services/productListImport';
+import type { ImportEntry, ImportMode } from './services/productListImport';
 import ResultsDisplay from './ResultsDisplay';
 import Scanner from './Scanner';
 import PrintSettingsModal from './PrintSettingsModal';
@@ -15,6 +18,7 @@ import BottomNavigation from './BottomNavigation';
 import { Button } from '../../components/shared/ui/Button';
 import SavedListsModal from './SavedListsModal';
 import SaveListModal from './SaveListModal';
+import ImportListModal from './ImportListModal';
 import AlertModal from './AlertModal';
 import ConfirmModal from './ConfirmModal';
 import ErrorBoundary from './ErrorBoundary';
@@ -111,17 +115,8 @@ export default function App(): React.JSX.Element {
   });
 
   // 4. File operations Hook
-  const {
-    handleFileChange,
-    handleExport,
-    handleImport,
-  } = useStickerEventFile({
-    employeeName,
-    setEmployeeName,
-    setIsEditingEmployeeName,
-    allProducts,
+  const { handleFileChange } = useStickerEventFile({
     setAllProducts,
-    displayedProducts,
     setDisplayedProducts,
     setIsLoading,
     setError,
@@ -165,6 +160,7 @@ export default function App(): React.JSX.Element {
   const [isSaveListModalOpen, setIsSaveListModalOpen] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isManualInputOpen, setIsManualInputOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [isUserGuideOpen, setIsUserGuideOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
@@ -189,7 +185,6 @@ export default function App(): React.JSX.Element {
   const selectedCount = selectedProducts.length;
   const selectedTotalQty = useMemo(() => selectedProducts.reduce((sum, p) => sum + (p.quantity || 1), 0), [selectedProducts]);
 
-  const importInputRef = useRef<HTMLInputElement>(null);
   const productListRef = useRef<HTMLDivElement>(null);
 
   // Bind DB hook functions for manual handlers
@@ -259,7 +254,7 @@ export default function App(): React.JSX.Element {
         quantity: p.quantity || 1,
       }));
       await saveList(listName, itemsToSave);
-      showAlert('Đã lưu danh sách thành công!');
+      toast.success(`Đã lưu danh sách "${listName}"`);
     } catch (err) {
       console.error('Error saving list:', err);
       showAlert('Có lỗi xảy ra khi lưu danh sách. Vui lòng thử lại.');
@@ -270,6 +265,22 @@ export default function App(): React.JSX.Element {
 
   const handleViewSavedLists = () => {
     setIsSavedListsModalOpen(true);
+  };
+
+  const handleExportList = () => {
+    downloadImportWorkbook(displayedProducts.map((p) => ({ code: p.msp, quantity: p.quantity || 1 }))).catch((err) => {
+      console.error('Không xuất được file Excel:', err);
+      toast.error('Không xuất được file Excel.');
+    });
+  };
+
+  const handleImportList = (entries: ImportEntry[], mode: ImportMode, notFound: string[]) => {
+    setDisplayedProducts((current) => applyImport(current, entries, mode));
+    setDuplicateError(false);
+    setError(notFound.length > 0 ? `Không tìm thấy ${notFound.length} mã sản phẩm: ${notFound.join(', ')}` : null);
+    setIsImportOpen(false);
+    const tags = entries.reduce((sum, entry) => sum + entry.quantity, 0);
+    toast.success(`${mode === 'replace' ? 'Đã thay danh sách bằng' : 'Đã thêm'} ${entries.length} sản phẩm, ${tags} tem`);
   };
 
   const handleLoadSavedList = (savedItems: SavedListItem[]) => {
@@ -372,8 +383,8 @@ export default function App(): React.JSX.Element {
               onOpenManualInput={() => setIsManualInputOpen(true)}
               onReset={() => setIsResetConfirmOpen(true)}
               onClearAll={() => setIsClearAllConfirmOpen(true)}
-              onTriggerImport={() => importInputRef.current?.click()}
-              onExport={handleExport}
+              onOpenImport={() => setIsImportOpen(true)}
+              onExport={handleExportList}
               onOpenPrintSettings={() => setIsPrintSettingsOpen(true)}
               onPrintSelected={handlePrintSelected}
               onPrintAll={handlePrintAll}
@@ -404,8 +415,6 @@ export default function App(): React.JSX.Element {
                         <p>Sản phẩm này đã có trong danh sách kết quả của bạn.</p>
                     </div>
                 )}
-
-              <input type="file" ref={importInputRef} onChange={handleImport} accept=".json" className="hidden" multiple />
 
               {!isMobile && (
                 <ProductToolbar
@@ -536,6 +545,15 @@ export default function App(): React.JSX.Element {
                   setIsLayoutModalOpen(false);
                 }}
             />
+        )}
+
+        {isImportOpen && (
+          <ImportListModal
+            onClose={() => setIsImportOpen(false)}
+            allProducts={allProducts}
+            currentCount={displayedProducts.length}
+            onImport={handleImportList}
+          />
         )}
 
         {isManualInputOpen && (

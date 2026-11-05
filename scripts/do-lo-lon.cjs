@@ -1,6 +1,6 @@
-// Đo lượt dựng 4.000 phiếu mà KHÔNG gắn Playwright: đồng hồ nằm ngay trong main process và giao diện.
-// Dùng để phân biệt app đứng thật với chỉ đường hỏi của Playwright bị nghẽn. Cần build trước: npm run build.
-// Chạy: node scripts/do-lo-lon.cjs
+// Kiểm tra app không đơ khi dựng 4.000 phiếu, KHÔNG gắn Playwright: đồng hồ nằm ngay trong main process và giao diện.
+// Không đo bằng test Playwright được vì gắn nó vào làm app chậm đi nhiều trên máy yếu. Vượt ngưỡng thì thoát với mã 1.
+// Cần build trước. Chạy: npm run test:lo-lon
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -8,6 +8,10 @@ const path = require('node:path');
 const DEADLINE_MS = 170_000;
 const POLL_MS = 250;
 const LOOP_MS = 50;
+/** Người dùng phải thấy màn chờ gần như ngay sau khi bấm. */
+const MAX_SPINNER_MS = 2000;
+/** Đứng lâu hơn mức này người dùng sẽ thấy app đơ. Máy Windows 2 nhân không GPU đo được 403 ms. */
+const MAX_STALL_MS = 5000;
 
 const runLauncher = () => {
   const { spawnSync } = require('node:child_process');
@@ -107,6 +111,13 @@ const runInElectron = () => {
         log(`Bước in: ${describeTrace()}`);
         log(`Tiến trình: ${describeProcesses()}`);
         log(`KẾT QUẢ: màn chờ sau ${previewMs} ms; xem trước sau ${((Date.now() - t0) / 1000).toFixed(1)} giây; main đứng lâu nhất ${mainLagMs} ms; timer giao diện đứng lâu nhất ${lag.timer} ms; khung hình cách nhau lâu nhất ${Math.round(lag.frame)} ms; hỏi giao diện lâu nhất ${longestAskMs} ms`);
+        const problems = [
+          previewMs > MAX_SPINNER_MS && `màn chờ hiện sau ${previewMs} ms`,
+          mainLagMs > MAX_STALL_MS && `main đứng ${mainLagMs} ms`,
+          lag.timer > MAX_STALL_MS && `giao diện đứng ${lag.timer} ms`,
+          lag.frame > MAX_STALL_MS && `khung hình cách nhau ${Math.round(lag.frame)} ms`,
+        ].filter(Boolean);
+        if (problems.length > 0) throw new Error(`Không đạt: ${problems.join('; ')}`);
         log('XONG');
         return;
       }

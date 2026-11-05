@@ -35,7 +35,7 @@ interface ControlPanelProps {
     onOpenManualInput: () => void;
     onReset: () => void;
     onClearAll: () => void;
-    onTriggerImport: () => void;
+    onOpenImport: () => void;
     onExport: () => void;
     onOpenPrintSettings: () => void;
     onPrintSelected: () => void;
@@ -274,8 +274,8 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                                 <Button
                                     variant="secondary"
                                     size="none"
-                                    onClick={props.onTriggerImport}
-                                    title="Nhập danh sách từ tệp .json"
+                                    onClick={props.onOpenImport}
+                                    title="Nhập mã và số lượng từ file Excel hoặc dán từ bảng tính"
                                     className="h-7.5 rounded-control text-[11px] font-semibold gap-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-100 text-slate-600 dark:text-slate-300"
                                 >
                                     <AppIcon name="upload" size="xs" className="text-slate-400" />
@@ -285,8 +285,7 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                                     variant="secondary"
                                     size="none"
                                     onClick={props.onExport}
-                                    disabled={props.displayedProducts.length === 0}
-                                    title="Xuất danh sách ra tệp .json"
+                                    title="Xuất file Excel gồm cột mã và số lượng. Danh sách trống thì ra file mẫu"
                                     className="h-7.5 rounded-control text-[11px] font-semibold gap-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-100 text-slate-600 dark:text-slate-300"
                                 >
                                     <AppIcon name="download" size="xs" className="text-slate-400" />

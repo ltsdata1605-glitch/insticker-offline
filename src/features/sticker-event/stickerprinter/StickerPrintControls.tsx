@@ -59,6 +59,7 @@ interface StickerPrintControlsProps {
     setDrawAutoIncrement: (val: boolean) => void;
     bgImage: string;
     setBgImage: (img: string) => void;
+    onResetFontSizes: () => void;
 }
 
 export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
@@ -113,6 +114,7 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
     setDrawAutoIncrement,
     bgImage,
     setBgImage,
+    onResetFontSizes,
 }) => {
     const selectedCount = batchItems.filter(i => i.selected).length;
     const selectedManualPagesCount = manualPages.filter(p => p.selected !== false).length;
@@ -159,7 +161,7 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
     ];
 
     return (
-        <SectionCard className="w-full max-w-sm lg:aspect-[197/285] min-h-[460px] p-3 lg:p-6 no-print flex flex-col overflow-hidden">
+        <SectionCard className="w-full max-w-sm lg:max-w-[480px] lg:flex-1 lg:min-w-0 lg:h-[max(556px,82%)] min-h-[460px] p-3 lg:p-6 no-print flex flex-col overflow-hidden">
             {/* Primary Action Buttons */}
             <div className="flex gap-2 mb-3 shrink-0">
                 <Button 
@@ -170,13 +172,24 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
                     {/* Vàng = màu nút IN của chủ dự án (giữ); chữ viết như câu thay IN HOA (GĐ7) */}
                     Bấm để in ({stickerType === 'draw' ? Math.ceil(drawTotalTickets / 4) : (batchItems.length > 0 ? selectedCount + selectedManualPagesCount : (manualPages.length > 0 ? selectedManualPagesCount : 1))})
                 </Button>
-                <Button 
-                    onClick={addCurrentPage}
-                    className="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs py-2 px-3 rounded-control flex items-center justify-center gap-1 active:scale-95 transition-transform shadow-md shadow-sky-500/10 border-transparent"
-                    title="Thêm trang hiện tại vào hàng đợi in"
-                    leftIcon={<AppIcon name="add" size="md" />}
+                {stickerType !== 'draw' && (
+                    <Button
+                        onClick={addCurrentPage}
+                        className="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs py-2 px-3 rounded-control flex items-center justify-center gap-1 shrink-0"
+                        title="Thêm sticker đang hiện trên bản xem trước vào danh sách in"
+                        leftIcon={<AppIcon name="add" size="md" />}
+                    >
+                        Thêm
+                    </Button>
+                )}
+                <Button
+                    variant="secondary"
+                    onClick={onResetFontSizes}
+                    className="font-bold text-xs py-2 px-3 rounded-control flex items-center justify-center gap-1 shrink-0"
+                    title="Đưa mọi ô trên bản xem trước về cỡ chữ và khoảng dòng mặc định. Nội dung giữ nguyên."
+                    leftIcon={<AppIcon name="reset" size="md" />}
                 >
-                    Thêm
+                    Cỡ chữ gốc
                 </Button>
             </div>
 
@@ -395,6 +408,7 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
                                 </div>
                                 
                                 <div className="border-t border-slate-200/60 dark:border-slate-700/60 pt-2 space-y-1.5 text-[11px] text-slate-600 dark:text-slate-300">
+                                    <p className="flex items-start gap-1.5"><AppIcon name="quick" size="xs" className="mt-0.5 shrink-0 text-amber-500" /><span><strong>Cỡ chữ:</strong> Bôi đen chữ trên bản xem trước để tăng giảm. Nút <strong>Cỡ chữ gốc</strong> đưa tất cả về mặc định.</span></p>
                                     {stickerType === 'draw' ? (
                                         <>
                                             <p className="flex items-start gap-1.5"><AppIcon name="quick" size="xs" className="mt-0.5 shrink-0 text-amber-600" /><span><strong>Sửa nhanh:</strong> Nhập nội dung ở phiếu số 1 (trang 1). Các phiếu còn lại tự động đồng bộ theo.</span></p>

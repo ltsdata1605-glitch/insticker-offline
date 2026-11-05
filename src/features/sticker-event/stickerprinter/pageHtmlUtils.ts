@@ -144,6 +144,46 @@ export const resolvePagePrices = (page: StickerPage, priceSource: 'sale' | 'serv
     return { newPrice, percent };
 };
 
+export interface QueuePageContext {
+    stickerType: 'gia_soc' | 'gio_vang' | 'draw';
+    headerTextContent: string;
+    subHeaderTextContent: string;
+    footerTextContent: string;
+    showBarcode: boolean;
+}
+
+/** Nội dung thật của một sticker trong danh sách khi hiện ra. Bản in và ảnh thu nhỏ dùng chung để thấy sao in ra vậy. */
+export const resolveQueuePage = (page: StickerPage, context: QueuePageContext): StickerPage => {
+    const { stickerType, headerTextContent, subHeaderTextContent, footerTextContent, showBarcode } = context;
+    let finalHeader = page.header || '';
+    let finalSubHeader = page.subHeader || '';
+    const finalFooter = page.footer || '';
+
+    if (stickerType === 'gio_vang') {
+        const isGiaSocHeader = !finalHeader || finalHeader === 'SẢN PHẨM GIÁ SỐC' || finalHeader === 'QUẠT ĐIỀU HOÀ' || !finalHeader.toUpperCase().startsWith('TỪ');
+        if (isGiaSocHeader) {
+            finalHeader = headerTextContent;
+        }
+        if (!finalSubHeader || !finalSubHeader.toUpperCase().includes('SUẤT')) {
+            finalSubHeader = subHeaderTextContent;
+        }
+    } else if (stickerType === 'gia_soc') {
+        const isGioVangHeader = finalHeader && (finalHeader.toUpperCase().startsWith('TỪ') || finalHeader.includes('/'));
+        if (isGioVangHeader) {
+            finalHeader = headerTextContent;
+        }
+    }
+
+    return {
+        ...page,
+        // Bản web luôn in mã vạch cho tem trong hàng đợi, kể cả khi nút Mã Vạch đang tắt và khung xem trước không hiện.
+        code: showBarcode ? page.code : undefined,
+        header: finalHeader,
+        subHeader: finalSubHeader,
+        footer: finalFooter || footerTextContent,
+    };
+};
+
 export const generatePageHtml = (
     page: StickerPage,
     priceSource: 'sale' | 'service',

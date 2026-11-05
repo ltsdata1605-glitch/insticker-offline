@@ -5,6 +5,7 @@ import { napPhongGoogle, PHONG_GOOGLE } from '../../components/shared/ui/googleF
 import { StickerPage, SavedStickerList, PrintHistoryEntry } from './stickerprinter/types';
 import { StickerPrintPreview } from './stickerprinter/StickerPrintPreview';
 import { StickerManualQueue } from './stickerprinter/StickerManualQueue';
+import { StickerQueueStrip } from './stickerprinter/StickerQueueStrip';
 import { StickerPrintControls } from './stickerprinter/StickerPrintControls';
 import { StickerModeToolbar } from './stickerprinter/StickerModeToolbar';
 import { Button } from '../../components/shared/ui/Button';
@@ -68,17 +69,11 @@ export default function StickerPrinterView() {
         isSaveListModalOpen, setIsSaveListModalOpen,
         activeDrawPage, setActiveDrawPage,
         totalDrawPages,
-        getActiveFieldLabel,
-        getDrawActiveFieldLabel,
-        getActiveFontSize,
-        getDrawActiveFontSize,
-        setDrawActiveFontSize,
-        setActiveFontSize,
-        applyFontSizeToSelection,
         updateBatchItem,
         updateSubQueryParam,
         applySubTab,
         handleDiscountThresholdChange,
+        resetAllFontSizes,
         handleExcelUpload,
         downloadTemplate,
         loadPageToEditor,
@@ -87,6 +82,14 @@ export default function StickerPrinterView() {
         toggleItemSelection,
         toggleAllSelection,
         addCurrentPage,
+        selectQueuePage,
+        editPreviewName,
+        editPreviewOldPrice,
+        editPreviewNewPrice,
+        editHeaderText,
+        editSubHeaderText,
+        editFooterText,
+        editBarcode,
         removeManualPage,
         clearManualPages,
         togglePageSelection,
@@ -122,30 +125,6 @@ export default function StickerPrinterView() {
                     applySubTab('event');
                     updateSubQueryParam('event');
                 }}
-                getActiveFieldLabel={getActiveFieldLabel}
-                getDrawActiveFieldLabel={getDrawActiveFieldLabel}
-                getActiveFontSize={getActiveFontSize}
-                getDrawActiveFontSize={getDrawActiveFontSize}
-                onDecreaseFontSize={() => {
-                    if (stickerType === 'draw') {
-                        const curSize = getDrawActiveFontSize();
-                        const newSize = Math.max(1, curSize - 0.2);
-                        setDrawActiveFontSize(newSize);
-                        applyFontSizeToSelection(newSize);
-                    } else {
-                        setActiveFontSize(s => Math.max(1, s - 0.2));
-                    }
-                }}
-                onIncreaseFontSize={() => {
-                    if (stickerType === 'draw') {
-                        const curSize = getDrawActiveFontSize();
-                        const newSize = curSize + 0.2;
-                        setDrawActiveFontSize(newSize);
-                        applyFontSizeToSelection(newSize);
-                    } else {
-                        setActiveFontSize(s => s + 0.2);
-                    }
-                }}
             />
 
             {/* Vùng nội dung: chiếm phần còn lại dưới hàng chế độ (iPhone/iPad) — 2 lớp Sticker / tem chồng nhau như cũ */}
@@ -158,8 +137,25 @@ export default function StickerPrinterView() {
                 </div>
             )}
 
-            <div className={`w-full h-full overflow-y-auto p-3 sm:p-4 lg:p-8 flex flex-col lg:flex-row gap-4 lg:gap-8 justify-start lg:justify-center items-center lg:items-start ${stickerMode === 'event' ? 'invisible' : 'visible'}`}>
-                <div className="flex flex-col gap-4 w-full max-w-sm shrink-0">
+            {/* Xem trước và khung điều khiển cùng chiều cao, chừa lại một phần cửa sổ cho thoáng. Cửa sổ nhỏ thì giữ cỡ tối thiểu và cuộn. */}
+            <div className={`w-full h-full overflow-y-auto p-3 sm:p-4 lg:p-5 flex flex-col lg:flex-row gap-4 lg:gap-5 justify-start lg:justify-center items-center lg:items-start ${stickerMode === 'event' ? 'invisible' : 'visible'}`}>
+                {stickerType !== 'draw' && (
+                    <StickerQueueStrip
+                        pages={manualPages}
+                        activeId={activeQueuePageId}
+                        onSelect={selectQueuePage}
+                        stickerType={stickerType}
+                        bgImage={bgImage}
+                        priceSource={priceSource}
+                        discountDisplayMode={discountDisplayMode}
+                        headerTextContent={headerTextContent}
+                        subHeaderTextContent={subHeaderTextContent}
+                        footerTextContent={footerTextContent}
+                        showBarcode={showBarcode}
+                    />
+                )}
+                {/* Phiếu chừa chỗ cho thanh chuyển trang; nhập File giá thì nhiều tem xếp chồng nên cuộn trong cột này */}
+                <div className={`flex flex-col gap-2 w-full max-w-sm shrink-0 lg:w-auto lg:aspect-[197/285] lg:max-w-[50%] ${stickerType === 'draw' ? 'lg:h-[max(500px,calc(82%-4rem))]' : 'lg:h-[max(556px,82%)]'} ${batchItems.length > 0 ? 'lg:overflow-y-auto' : ''}`}>
                     <StickerPrintPreview
                         batchItems={batchItems}
                         stickerType={stickerType}
@@ -180,15 +176,15 @@ export default function StickerPrinterView() {
                         previewName={previewName}
                         previewOldPrice={previewOldPrice}
                         previewNewPrice={previewNewPrice}
-                        setPreviewOldPrice={setPreviewOldPrice}
-                        setPreviewNewPrice={setPreviewNewPrice}
+                        setPreviewOldPrice={editPreviewOldPrice}
+                        setPreviewNewPrice={editPreviewNewPrice}
                         activeField={activeField}
                         setActiveField={setActiveField}
-                        setHeaderTextContent={setHeaderTextContent}
-                        setSubHeaderTextContent={setSubHeaderTextContent}
-                        setFooterTextContent={setFooterTextContent}
-                        setBarcodeImei={setBarcodeImei}
-                        setPreviewName={setPreviewName}
+                        setHeaderTextContent={editHeaderText}
+                        setSubHeaderTextContent={editSubHeaderText}
+                        setFooterTextContent={editFooterText}
+                        setBarcodeImei={editBarcode}
+                        setPreviewName={editPreviewName}
                         drawTickets={drawTickets}
                         setDrawTickets={setDrawTickets}
                         drawStartNumber={drawStartNumber}
@@ -202,6 +198,13 @@ export default function StickerPrinterView() {
                         drawCodeSize={drawCodeSize}
                         drawFooterSize={drawFooterSize}
                     />
+                    {stickerType !== 'draw' && batchItems.length === 0 && manualPages.length > 0 && (
+                        <p data-testid="sticker-editing-note" className="no-print shrink-0 text-xs text-slate-500 text-center">
+                            {activeQueuePageId
+                                ? `Đang sửa sticker ${manualPages.findIndex((page) => page.id === activeQueuePageId) + 1}/${manualPages.length}. Thay đổi được lưu ngay.`
+                                : 'Sticker đang soạn, chưa có trong danh sách in. Bấm Thêm để đưa vào.'}
+                        </p>
+                    )}
                 </div>
                 <StickerPrintControls
                     manualPages={manualPages}
@@ -239,6 +242,7 @@ export default function StickerPrinterView() {
                     deleteHistory={deleteHistory}
                     discountThreshold={discountThreshold}
                     handleDiscountThresholdChange={handleDiscountThresholdChange}
+                    onResetFontSizes={resetAllFontSizes}
                     activeQueuePageId={activeQueuePageId}
                     setActiveQueuePageId={setActiveQueuePageId}
                     activeSubTab={activeSubTab}

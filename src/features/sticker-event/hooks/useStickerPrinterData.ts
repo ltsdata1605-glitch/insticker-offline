@@ -4,9 +4,19 @@ import { saveSetting, getSetting } from '../services/dbService';
 import { openPrintPreview } from '../../../platform/printPreview';
 import { buildAppStyledDocument } from '../../../platform/printDocument';
 import { StickerPage, SavedStickerList, PrintHistoryEntry, BatchItem, TicketDrawData } from '../stickerprinter/types';
-import { resolvePagePrices, generatePageHtml, isHistoryDuplicate, generateDrawPagesHtml } from '../stickerprinter/pageHtmlUtils';
+import { resolvePagePrices, resolveQueuePage, generatePageHtml, isHistoryDuplicate, generateDrawPagesHtml } from '../stickerprinter/pageHtmlUtils';
 import { parsePercentValue, parseBatchItemsFromExcelRows, downloadStickerTemplate, parseTemplateExcelData, parseErpPriceExcelData } from '../stickerprinter/excelParsers';
 import { getStickerPreviewStyles } from '../stickerprinter/stickerPreviewStyles';
+import {
+    DEFAULT_FIELD_SIZES,
+    DRAW_FIELDS,
+    TEM_FIELDS,
+    FIELD_SIZE_EVENT,
+    detectFieldName,
+    resetFieldFormatting,
+    resetFieldHtml,
+} from '../stickerprinter/fieldFontSizes';
+import type { FieldSizeChange, StickerFieldName } from '../stickerprinter/fieldFontSizes';
 import {
     getDefaultBgImageForType,
     isValidBgImageForType,
@@ -160,131 +170,6 @@ export function useStickerPrinterData() {
         }
     }, [stickerType, activeSubTab]);
 
-    const getActiveFieldLabel = () => {
-        switch (activeField) {
-            case 'header': return 'Tiêu đề';
-            case 'subHeader': return 'Tiêu đề phụ';
-            case 'percent': return '% Giảm';
-            case 'oldPrice': return 'Giá cũ';
-            case 'name': return 'Tên SP';
-            case 'newPrice': return 'Giá mới';
-            case 'footer': return 'Khuyến mãi';
-            default: return 'Cỡ chữ';
-        }
-    };
-
-    const applyFontSizeToSelection = (sizeVal: number) => {
-        const selection = window.getSelection();
-        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return false;
-
-        const range = selection.getRangeAt(0);
-        let parent = range.commonAncestorContainer;
-        if (parent.nodeType === 3) { // TEXT_NODE
-            parent = parent.parentNode || parent;
-        }
-
-        let current: Node | null = parent;
-        let editableContainer: HTMLElement | null = null;
-        while (current) {
-            if (current.nodeType === 1) { // ELEMENT_NODE
-                const el = current as HTMLElement;
-                if (el.getAttribute('contenteditable') === 'true') {
-                    editableContainer = el;
-                    break;
-                }
-            }
-            current = current.parentNode;
-        }
-
-        if (editableContainer) {
-            const span = document.createElement('span');
-            span.style.fontSize = `${sizeVal.toFixed(1)}cqw`;
-            
-            try {
-                span.appendChild(range.extractContents());
-                range.insertNode(span);
-                
-                const event = new Event('input', { bubbles: true });
-                editableContainer.dispatchEvent(event);
-                return true;
-            } catch (e) {
-                console.error('Error applying font size to selection:', e);
-            }
-        }
-        return false;
-    };
-
-    const getActiveFontSize = (): number => {
-        switch (activeField) {
-            case 'header': return headerTextSize;
-            case 'subHeader': return subHeaderTextSize;
-            case 'percent': return percentTextSize;
-            case 'oldPrice': return oldPriceTextSize;
-            case 'name': return nameTextSize;
-            case 'newPrice': return newPriceTextSize;
-            case 'footer': return footerTextSize;
-            default: return headerTextSize;
-        }
-    };
-
-    const getDrawActiveFontSize = (): number => {
-        switch (activeField) {
-            case 'drawTitle': return drawTitleSize;
-            case 'drawContentTopLeft': return drawContentTopLeftSize;
-            case 'drawContentTopRight': return drawContentTopRightSize;
-            case 'drawContentBottomLeft': return drawContentBottomLeftSize;
-            case 'drawContentBottomRight': return drawContentBottomRightSize;
-            case 'drawContentBottomRightSub': return drawContentBottomRightSubSize;
-            case 'drawCode': return drawCodeSize;
-            case 'drawFooter': return drawFooterSize;
-            default: return drawContentTopLeftSize;
-        }
-    };
-
-    const setDrawActiveFontSize = (newVal: number | ((prev: number) => number)) => {
-        const getVal = (prev: number) => typeof newVal === 'function' ? newVal(prev) : newVal;
-        switch (activeField) {
-            case 'drawTitle': setDrawTitleSize(getVal); break;
-            case 'drawContentTopLeft': setDrawContentTopLeftSize(getVal); break;
-            case 'drawContentTopRight': setDrawContentTopRightSize(getVal); break;
-            case 'drawContentBottomLeft': setDrawContentBottomLeftSize(getVal); break;
-            case 'drawContentBottomRight': setDrawContentBottomRightSize(getVal); break;
-            case 'drawContentBottomRightSub': setDrawContentBottomRightSubSize(getVal); break;
-            case 'drawCode': setDrawCodeSize(getVal); break;
-            case 'drawFooter': setDrawFooterSize(getVal); break;
-            default: setDrawContentTopLeftSize(getVal);
-        }
-    };
-
-    const getDrawActiveFieldLabel = () => {
-        switch (activeField) {
-            case 'drawTitle': return 'Cỡ chữ Tiêu đề';
-            case 'drawContentTopLeft': return 'Cỡ chữ Giải thưởng trái';
-            case 'drawContentTopRight': return 'Cỡ chữ Giải thưởng phải';
-            case 'drawContentBottomLeft': return 'Cỡ chữ Thông tin trái';
-            case 'drawContentBottomRight': return 'Cỡ chữ Thông tin phải';
-            case 'drawCode': return 'Cỡ chữ Mã số';
-            case 'drawFooter': return 'Cỡ chữ Siêu thị';
-            default: return 'Cỡ chữ Giải thưởng trái';
-        }
-    };
-
-    const setActiveFontSize = (val: number | ((s: number) => number)) => {
-        const update = (s: number) => {
-            const nextVal = typeof val === 'function' ? val(s) : val;
-            return Number(nextVal.toFixed(1));
-        };
-        switch (activeField) {
-            case 'header': setHeaderTextSize(update); break;
-            case 'subHeader': setSubHeaderTextSize(update); break;
-            case 'percent': setPercentTextSize(update); break;
-            case 'oldPrice': setOldPriceTextSize(update); break;
-            case 'name': setNameTextSize(update); break;
-            case 'newPrice': setNewPriceTextSize(update); break;
-            case 'footer': setFooterTextSize(update); break;
-        }
-    };
-
     const updateBatchItem = (id: string, updates: Partial<BatchItem>) => {
         setBatchItems(prev => prev.map(it => it.id === id ? { ...it, ...updates } : it));
     };
@@ -328,32 +213,81 @@ export function useStickerPrinterData() {
     // Lắng nghe event từ FloatingFormatToolbar khi người dùng điều chỉnh size chữ
     // qua popup (bôi đen text → nhấn +/−). Cập nhật React state tương ứng để
     // ticket #2-#4 (dùng style từ state) cũng thay đổi size đồng bộ.
+    const setFieldSize = useCallback((field: StickerFieldName, size: number) => {
+        const setters: Record<StickerFieldName, (value: number) => void> = {
+            header: setHeaderTextSize,
+            subHeader: setSubHeaderTextSize,
+            percent: setPercentTextSize,
+            oldPrice: setOldPriceTextSize,
+            name: setNameTextSize,
+            newPrice: setNewPriceTextSize,
+            footer: setFooterTextSize,
+            drawTitle: setDrawTitleSize,
+            drawContentTopLeft: setDrawContentTopLeftSize,
+            drawContentTopRight: setDrawContentTopRightSize,
+            drawContentBottomLeft: setDrawContentBottomLeftSize,
+            drawContentBottomRight: setDrawContentBottomRightSize,
+            drawContentBottomRightSub: setDrawContentBottomRightSubSize,
+            drawCode: setDrawCodeSize,
+            drawFooter: setDrawFooterSize,
+        };
+        setters[field](size);
+    }, []);
+
+    // Thanh định dạng đổi cỡ của cả ô: lưu vào trạng thái để bản in và lần mở sau cũng nhận
     useEffect(() => {
         const handler = (e: Event) => {
-            const detail = (e as CustomEvent).detail;
-            const size = detail?.size;
-            const field = detail?.field;
-            if (typeof size === 'number' && stickerType === 'draw') {
-                if (field) {
-                    switch (field) {
-                        case 'drawTitle': setDrawTitleSize(size); break;
-                        case 'drawContentTopLeft': setDrawContentTopLeftSize(size); break;
-                        case 'drawContentTopRight': setDrawContentTopRightSize(size); break;
-                        case 'drawContentBottomLeft': setDrawContentBottomLeftSize(size); break;
-                        case 'drawContentBottomRight': setDrawContentBottomRightSize(size); break;
-                        case 'drawContentBottomRightSub': setDrawContentBottomRightSubSize(size); break;
-                        case 'drawCode': setDrawCodeSize(size); break;
-                        case 'drawFooter': setDrawFooterSize(size); break;
-                        default: setDrawActiveFontSize(size);
-                    }
-                } else {
-                    setDrawActiveFontSize(size);
-                }
-            }
+            const { field, size } = (e as CustomEvent<FieldSizeChange>).detail;
+            setFieldSize(field, size);
         };
-        document.addEventListener('draw-font-size-change', handler);
-        return () => document.removeEventListener('draw-font-size-change', handler);
-    }, [stickerType, activeField]);  
+        document.addEventListener(FIELD_SIZE_EVENT, handler);
+        return () => document.removeEventListener(FIELD_SIZE_EVENT, handler);
+    }, [setFieldSize]);
+
+    /** Đưa mọi ô của chế độ đang mở về cỡ chữ và khoảng dòng mặc định, giữ nguyên nội dung. */
+    const resetAllFontSizes = useCallback(() => {
+        // Ô đang sửa không nhận nội dung từ trạng thái, phải rời ô trước
+        (document.activeElement as HTMLElement | null)?.blur?.();
+        window.getSelection()?.removeAllRanges();
+
+        if (stickerType === 'draw') {
+            DRAW_FIELDS.forEach((field) => setFieldSize(field, DEFAULT_FIELD_SIZES[field]));
+            const htmlFields: [keyof TicketDrawData, StickerFieldName][] = [
+                ['title', 'drawTitle'],
+                ['contentTop', 'drawContentTopLeft'],
+                ['contentTopRight', 'drawContentTopRight'],
+                ['contentBottom', 'drawContentBottomLeft'],
+                ['contentBottomRight', 'drawContentBottomRight'],
+                ['contentBottomRightSub', 'drawContentBottomRightSub'],
+                ['footer', 'drawFooter'],
+            ];
+            // Hàng nghìn phiếu dùng chung một nội dung nên chỉ xử lý mỗi nội dung một lần
+            const cache = new Map<string, string>();
+            const resetOnce = (html: string, field: StickerFieldName): string => {
+                const key = `${field}|${html}`;
+                let result = cache.get(key);
+                if (result === undefined) {
+                    result = resetFieldHtml(html, field);
+                    cache.set(key, result);
+                }
+                return result;
+            };
+            setDrawTickets((prev) => prev.map((ticket) => {
+                const next = { ...ticket };
+                for (const [key, field] of htmlFields) {
+                    const html = ticket[key];
+                    if (typeof html === 'string') (next as Record<string, unknown>)[key] = resetOnce(html, field);
+                }
+                return next;
+            }));
+        } else {
+            TEM_FIELDS.forEach((field) => setFieldSize(field, DEFAULT_FIELD_SIZES[field]));
+            document.querySelectorAll<HTMLElement>('#print-section [contenteditable="true"]').forEach((el) => {
+                resetFieldFormatting(el, detectFieldName(el));
+            });
+        }
+        toast.success('Đã khôi phục cỡ chữ mặc định');
+    }, [stickerType, setFieldSize]);
 
     useEffect(() => {
         const match = previewName.match(/(?:IMEI|CODE):\s*([A-Za-z0-9]+)/i);
@@ -386,7 +320,6 @@ export function useStickerPrinterData() {
             setStickerType('gia_soc');
             setBgImage(prev => isValidBgImageForType('gia_soc', prev) ? prev : GIA_SOC_DEFAULT_BG);
             setHeaderTextContent(prev => (prev && !prev.includes('TỪ 00/00')) ? prev : 'QUẠT ĐIỀU HOÀ');
-            setHeaderTextSize(8);
             setActiveField('header');
         } else if (sub === 'gio-vang') {
             setStickerMode('sticker');
@@ -394,7 +327,6 @@ export function useStickerPrinterData() {
             setBgImage(GIO_VANG_DEFAULT_BG);
             setHeaderTextContent(prev => (prev && prev.includes('ĐẾN')) ? prev : 'TỪ 00/00 ĐẾN 00/00');
             setSubHeaderTextContent(prev => (prev && prev.includes('SUẤT')) ? prev : '5 SUẤT/NGÀY');
-            setHeaderTextSize(8);
             setActiveField('header');
         } else if (sub === 'draw') {
             setStickerMode('sticker');
@@ -536,7 +468,8 @@ export function useStickerPrinterData() {
                     if (savedState.discountThreshold != null) setDiscountThreshold(savedState.discountThreshold);
                     if (savedState.searchTerm != null) setSearchTerm(savedState.searchTerm);
                     
-                    const loadedPages = (savedState.manualPages || []).map((page: StickerPage) => {
+                    // Bản trước cho bấm Thêm ở Phiếu nên có thể còn trang phiếu lẫn trong danh sách tem
+                    const loadedPages = (savedState.manualPages || []).filter((page: StickerPage) => !page.html?.includes('draw-page')).map((page: StickerPage) => {
                         if (page.newPrice) {
                             const digits = String(page.newPrice).replace(/\D/g, '');
                             if (digits) {
@@ -913,7 +846,8 @@ export function useStickerPrinterData() {
 
     const loadPageToEditor = (page: StickerPage) => {
         if (page.label) setPreviewName(page.label);
-        if (page.oldPrice) setPreviewOldPrice(page.oldPrice);
+        // Sticker không có giá cũ thì ô giá cũ phải trống, không giữ giá của sticker đang mở trước đó
+        setPreviewOldPrice(page.oldPrice || '');
         if (page.code) setBarcodeImei(page.code);
         if (page.header != null) setHeaderTextContent(page.header);
         if (page.footer != null) setFooterTextContent(page.footer);
@@ -979,7 +913,7 @@ export function useStickerPrinterData() {
                 setManualPages(prev => [...prev, ...newPages]);
                 setActiveSubTab('queue');
                 if (newPages.length > 0) {
-                    loadPageToEditor(newPages[0]);
+                    selectQueuePage(newPages[0]);
                 }
                 toast.success(`Đã thêm ${newPages.length} sticker vào hàng đợi in`);
             } catch (err) {
@@ -1016,7 +950,7 @@ export function useStickerPrinterData() {
                 setManualPages(prev => [...prev, ...newPages]);
                 setActiveSubTab('queue');
                 if (newPages.length > 0) {
-                    loadPageToEditor(newPages[0]);
+                    selectQueuePage(newPages[0]);
                 }
                 toast.success(`Đã thêm ${newPages.length} sticker vào hàng đợi in`);
             } catch (err) {
@@ -1036,7 +970,15 @@ export function useStickerPrinterData() {
         setBatchItems(prev => prev.map(it => ({ ...it, selected: select })));
     };
 
+    /** Mở một sticker trong danh sách lên khung xem trước để sửa. */
+    const selectQueuePage = (page: StickerPage) => {
+        setActiveQueuePageId(page.id);
+        loadPageToEditor(page);
+    };
+
     const addCurrentPage = () => {
+        // Phiếu in theo số lượng, không có danh sách nên không có gì để thêm
+        if (stickerType === 'draw') return;
         const printSection = document.getElementById('print-section');
         if (!printSection) return;
         const firstSticker = printSection.querySelector('.sticker-container') as HTMLElement;
@@ -1050,9 +992,9 @@ export function useStickerPrinterData() {
         const isSelected = isNaN(limit) ? true : parsePercentValue(percent) >= limit;
 
         const page: StickerPage = {
-            id: `page_${Date.now()}`,
+            id: `page_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
             html: firstSticker.outerHTML,
-            label: label.substring(0, 50),
+            label,
             oldPrice,
             newPrice,
             percent,
@@ -1065,6 +1007,50 @@ export function useStickerPrinterData() {
             subHeader: subHeaderTextContent,
         };
         setManualPages(prev => [...prev, page]);
+        // Khung xem trước thành sticker mới để soạn tiếp: sửa tiếp không làm đổi sticker vừa thêm
+        setActiveQueuePageId(null);
+        const total = manualPages.length + 1;
+        if (isSelected) {
+            toast.success(`Đã thêm vào danh sách, hiện có ${total} sticker`);
+        } else {
+            toast.warning(`Đã thêm vào danh sách nhưng chưa chọn in vì % giảm thấp hơn mức lọc ${limit}%`);
+        }
+    };
+
+    // Sửa chữ trên bản xem trước khi đang mở một sticker của danh sách: ghi thẳng vào sticker đó, nếu không bản in vẫn ra nội dung cũ.
+    // Chỉ các hàm edit* này nhận thao tác của người dùng, còn khi mở sticker thì gọi set* trực tiếp nên không ghi ngược lại.
+    const patchActivePage = (patch: (page: StickerPage) => Partial<StickerPage>) => {
+        if (!activeQueuePageId) return;
+        setManualPages(prev => prev.map(page => (page.id === activeQueuePageId ? { ...page, ...patch(page) } : page)));
+    };
+    const editPreviewName = (value: string) => {
+        setPreviewName(value);
+        patchActivePage(() => ({ label: value }));
+    };
+    const editPreviewOldPrice = (value: string) => {
+        setPreviewOldPrice(value);
+        // Có giá giảm riêng thì % giảm mới được tính lại theo giá cũ vừa sửa
+        patchActivePage(page => ({ oldPrice: value, salePrice: page.salePrice ?? page.newPrice }));
+    };
+    const editPreviewNewPrice = (value: string) => {
+        setPreviewNewPrice(value);
+        patchActivePage(() => (priceSource === 'service' ? { servicePrice: value } : { salePrice: value, newPrice: value }));
+    };
+    const editHeaderText = (value: string) => {
+        setHeaderTextContent(value);
+        patchActivePage(() => ({ header: value }));
+    };
+    const editSubHeaderText = (value: string) => {
+        setSubHeaderTextContent(value);
+        patchActivePage(() => ({ subHeader: value }));
+    };
+    const editFooterText = (value: string) => {
+        setFooterTextContent(value);
+        patchActivePage(() => ({ footer: value }));
+    };
+    const editBarcode = (value: string) => {
+        setBarcodeImei(value);
+        patchActivePage(() => ({ code: value }));
     };
 
     const removeManualPage = (id: string) => {
@@ -1449,33 +1435,7 @@ export function useStickerPrinterData() {
         }
 
         selectedManualPages.forEach(page => {
-            let finalHeader = page.header || '';
-            let finalSubHeader = page.subHeader || '';
-            let finalFooter = page.footer || '';
-
-            if (stickerType === 'gio_vang') {
-                const isGiaSocHeader = !finalHeader || finalHeader === 'SẢN PHẨM GIÁ SỐC' || finalHeader === 'QUẠT ĐIỀU HOÀ' || !finalHeader.toUpperCase().startsWith('TỪ');
-                if (isGiaSocHeader) {
-                    finalHeader = headerTextContent;
-                }
-                if (!finalSubHeader || !finalSubHeader.toUpperCase().includes('SUẤT')) {
-                    finalSubHeader = subHeaderTextContent;
-                }
-            } else if (stickerType === 'gia_soc') {
-                const isGioVangHeader = finalHeader && (finalHeader.toUpperCase().startsWith('TỪ') || finalHeader.includes('/'));
-                if (isGioVangHeader) {
-                    finalHeader = headerTextContent;
-                }
-            }
-
-            const tempPage: StickerPage = {
-                ...page,
-                // Bản web luôn in mã vạch cho tem trong hàng đợi, kể cả khi nút Mã Vạch đang tắt và khung xem trước không hiện.
-                code: showBarcode ? page.code : undefined,
-                header: finalHeader,
-                subHeader: finalSubHeader,
-                footer: finalFooter || footerTextContent
-            };
+            const tempPage = resolveQueuePage(page, { stickerType, headerTextContent, subHeaderTextContent, footerTextContent, showBarcode });
             printHost.insertAdjacentHTML('beforeend', generatePageHtml(tempPage, priceSource, stickerType, effectiveBg, discountDisplayMode));
         });
 
@@ -1576,17 +1536,11 @@ export function useStickerPrinterData() {
         isSaveListModalOpen, setIsSaveListModalOpen,
         activeDrawPage, setActiveDrawPage,
         totalDrawPages,
-        getActiveFieldLabel,
-        getDrawActiveFieldLabel,
-        getActiveFontSize,
-        getDrawActiveFontSize,
-        setDrawActiveFontSize,
-        setActiveFontSize,
-        applyFontSizeToSelection,
         updateBatchItem,
         updateSubQueryParam,
         applySubTab,
         handleDiscountThresholdChange,
+        resetAllFontSizes,
         handleExcelUpload,
         downloadTemplate,
         loadPageToEditor,
@@ -1595,6 +1549,14 @@ export function useStickerPrinterData() {
         toggleItemSelection,
         toggleAllSelection,
         addCurrentPage,
+        selectQueuePage,
+        editPreviewName,
+        editPreviewOldPrice,
+        editPreviewNewPrice,
+        editHeaderText,
+        editSubHeaderText,
+        editFooterText,
+        editBarcode,
         removeManualPage,
         clearManualPages,
         togglePageSelection,
