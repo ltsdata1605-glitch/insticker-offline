@@ -69,10 +69,10 @@ export const newDirs = (): Dirs => {
 };
 
 /** Mở app với dữ liệu tạm. Gọi lại với cùng `dirs` để kiểm tra dữ liệu còn sau khi đóng và mở lại. */
-export const openApp = async (dirs: Dirs = newDirs(), extraArgs: string[] = []): Promise<AppSession> => {
+export const openApp = async (dirs: Dirs = newDirs(), extraArgs: string[] = [], extraEnv: Record<string, string> = {}): Promise<AppSession> => {
   const app = await electron.launch({
     args: ['.', ...extraArgs],
-    env: { ...process.env, STICKER_USER_DATA: dirs.userData, STICKER_DOWNLOAD_DIR: dirs.downloads },
+    env: { ...process.env, STICKER_USER_DATA: dirs.userData, STICKER_DOWNLOAD_DIR: dirs.downloads, ...extraEnv },
   });
   runningApps.add(app);
   // Máy đang bận có thể mở app chậm hơn hạn mặc định 30 giây

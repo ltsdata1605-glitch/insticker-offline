@@ -1,6 +1,6 @@
 # Hướng dẫn sử dụng In Sticker
 
-App chạy không cần mạng và không cần đăng nhập. Dữ liệu nằm trên từng máy.
+Dùng và in không cần mạng, không cần đăng nhập. App chỉ vào mạng để kiểm tra và tải bản cập nhật. Dữ liệu nằm trên từng máy.
 
 ## Cài đặt
 
@@ -69,6 +69,17 @@ Lô lớn như 4.000 phiếu cần vài chục giây để dựng. Khung xem tr�
 ## File tải về
 
 Mọi file app tạo ra (file Excel, ảnh xuất, file sao lưu) tự lưu vào thư mục Tải về của máy, không ghi đè tệp cũ. Thông báo góc màn hình có nút **Mở thư mục**.
+
+## Cập nhật
+
+Khi có mạng, app tự kiểm tra bản mới lúc mở và 4 giờ một lần.
+
+- **Có bản mới:** phải cập nhật mới dùng tiếp được. App tự tải, tự cài rồi mở lại; bảng giá, danh sách và cài đặt giữ nguyên. Nếu đang mở màn in, app chờ bạn in xong mới khoá.
+- **Không có mạng:** app vẫn dùng bình thường.
+- **Tải hoặc cài bị lỗi:** có nút **Thử lại** và **Dùng tiếp lần này**, để sự cố cập nhật không chặn việc in. Lần mở sau app nhắc lại.
+- **Tuỳ chọn:** bấm nút cập nhật ở thanh trên cùng để xem phiên bản, kiểm tra bản mới và bật tắt **Tự động tải và cài**. Tắt thì app báo có bản mới và chờ bạn bấm **Cập nhật ngay**.
+- **Trên Mac:** cần để app trong thư mục Applications, nếu không app sẽ báo cần chuyển vào đó. Sau khi cập nhật, macOS có thể hỏi lại quyền camera.
+- **Trên Windows:** chỉ bản cài bằng file `.exe` mới tự cập nhật. Bản giải nén từ file zip phải tải bộ cài về.
 
 ## Chuyển dữ liệu sang máy khác
 

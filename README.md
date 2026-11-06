@@ -1,6 +1,6 @@
 # In Sticker offline
 
-App in sticker cho macOS và Windows, chạy không cần mạng. Giao diện và mẫu tem lấy từ chức năng In Sticker của dự án dashboard.
+App in sticker cho macOS và Windows, dùng và in không cần mạng (chỉ vào mạng để cập nhật). Giao diện và mẫu tem lấy từ chức năng In Sticker của dự án dashboard.
 
 ## Yêu cầu
 
@@ -19,6 +19,7 @@ App in sticker cho macOS và Windows, chạy không cần mạng. Giao diện v�
 | `npm run pack:mac:zip` | Tạo tệp zip Mac cho chip Apple và Intel |
 | `npm run pack:win` | Tạo tệp zip Windows trong `release/` |
 | `npm run test:e2e` | Chạy toàn bộ test trên app Electron thật |
+| `npm run test:cap-nhat` | Thử cập nhật thật từ bản cũ lên bản mới |
 | `npm run test:lo-lon` | Kiểm tra app không đơ khi dựng 4.000 phiếu |
 | `npm run test:parity` | In từng chế độ ra PDF và so với bản web (macOS) |
 | `node scripts/kiem-tra-dong-goi.mjs "<tệp chạy>"` | Chạy thử bản đã đóng gói (macOS) |
@@ -48,12 +49,20 @@ Những file đã thay hoặc sửa:
 - Mới: `services/localDataService.ts`, thư mục `platform/` (xem trước bản in, sao lưu, thông báo tệp tải về).
 - Không chép: `Login.tsx`, `UserManagementModal.tsx`, `SuperAdminModal.tsx`, `ChangePasswordModal.tsx`, `PdfPreviewModal.tsx`, `firebase.ts`, `services/firebaseService.ts`, `services/sessionService.ts`, `services/adminUserService.ts`, `services/sessionSyncPolicy.ts`, `hooks/useStickerEventAuth.ts`.
 
+## Cập nhật và phát hành
+
+- `electron/updater.ts`: kiểm tra, tải, xác minh SHA-512 rồi cài. Windows chạy bộ cài NSIS im lặng; Mac thay app rồi mở lại, không dùng `electron-updater` vì cơ chế của nó từ chối app chưa có Apple Developer ID.
+- Nguồn tải là repo công khai `insticker-offline-releases`, chỉ chứa tệp cài. Mã nguồn vẫn ở repo riêng tư.
+- Bản phát hành đến thẳng mọi máy và **khoá app tới khi cập nhật**, nên chỉ phát hành khi build đã xanh: `npm run phat-hanh -- <thư mục bản Mac> <thư mục bản Windows>`. Script này kiểm tra đủ tệp và đúng phiên bản trước khi tạo release.
+- Ai có quyền đưa file lên repo phát hành là có thể đưa code tới mọi máy, vì bản Mac và Windows chưa ký số. Hãy bật xác thực hai lớp cho tài khoản GitHub.
+
 ## Kiểm thử
 
 - `npm run typecheck`, `npm test`: kiểu và test đơn vị.
 - `npm run test:e2e`: chạy app Electron thật cho từng chức năng, dữ liệu tạm, không gửi gì ra máy in.
 - `npm run test:lo-lon`: dựng 4.000 phiếu với đồng hồ đặt trong app, không gắn Playwright vì gắn vào sẽ làm app chậm đi nhiều trên máy yếu. Lỗi nếu màn chờ hiện sau 2 giây hoặc app đứng quá 5 giây.
 - `npm run test:parity`: in từng chế độ ra PDF và so với bản Chrome thật trong `tests/baseline/` (cần macOS vì dùng `sips`).
+- `npm run test:cap-nhat`: đóng gói hai phiên bản, chạy bản cũ rồi để app tự tải và tự thay sang bản mới từ máy chủ cục bộ.
 - `.github/workflows/build.yml`: chạy test và đóng gói trên máy thật. Chạy tay chỉ Windows (`gh workflow run build.yml`), đẩy tag `v*` thì cả Windows và Mac. Tệp cài nằm ở mục Artifacts của lượt chạy.
 
 Hướng dẫn cho người dùng ở `HUONG_DAN_SU_DUNG.md`.

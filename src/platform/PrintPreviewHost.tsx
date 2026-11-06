@@ -5,7 +5,7 @@ import { Input } from '../components/shared/ui/Input';
 import { Modal } from '../components/shared/ui/Modal';
 import { Select } from '../components/shared/ui/Select';
 import { toast } from '../components/shared/ui/toast';
-import { subscribePrintPreview } from './printPreview';
+import { setPrintPreviewOpen, subscribePrintPreview } from './printPreview';
 import type { PrintPreviewRequest } from './printPreview';
 
 const formatSeconds = (ms: number): string => `${(ms / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} giây`;
@@ -41,6 +41,7 @@ export const PrintPreviewHost: React.FC = () => {
   const activeJobId = useRef<string | null>(null);
 
   useEffect(() => subscribePrintPreview(setRequest), []);
+  useEffect(() => setPrintPreviewOpen(request !== null), [request]);
 
   const isCurrent = result !== null && result.request === request;
   const job = isCurrent ? result.job ?? null : null;

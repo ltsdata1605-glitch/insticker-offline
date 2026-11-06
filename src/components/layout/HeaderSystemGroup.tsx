@@ -1,6 +1,7 @@
 import React from 'react';
 import FontSelector from './FontSelector';
 import { BackupButton } from '../../platform/BackupButton';
+import { UpdateButton } from '../../platform/UpdateButton';
 
 interface HeaderSystemGroupProps {
     children?: React.ReactNode;
@@ -22,6 +23,9 @@ export const HeaderSystemGroup: React.FC<HeaderSystemGroupProps> = ({ children, 
 
             <div className="border-l border-slate-100 dark:border-slate-700">
                 <BackupButton className="relative w-9 h-9 flex items-center justify-center text-slate-500 hover:text-sky-600 dark:text-slate-400 dark:hover:text-sky-400 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors" />
+            </div>
+            <div className="border-l border-slate-100 dark:border-slate-700">
+                <UpdateButton className="relative w-9 h-9 flex items-center justify-center text-slate-500 hover:text-sky-600 dark:text-slate-400 dark:hover:text-sky-400 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors" />
             </div>
         </div>
     );

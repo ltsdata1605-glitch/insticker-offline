@@ -5,6 +5,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { PrintJobRequest, PrintSendRequest, PrinterSummary, SavePdfRequest } from './contract';
 import { PrintJobs } from './printJobs';
+import { Updater } from './updater';
 
 const SCHEME = 'app';
 const HOST = 'sticker';
@@ -94,7 +95,7 @@ const assertTrustedSender = (event: IpcMainInvokeEvent): void => {
   }
 };
 
-const registerIpc = (): void => {
+const registerIpc = (updater: Updater): void => {
   ipcMain.handle('print:create', (event, request: PrintJobRequest) => {
     assertTrustedSender(event);
     return printJobs.create(request);
@@ -119,6 +120,35 @@ const registerIpc = (): void => {
   ipcMain.handle('shell:show-in-folder', (event, filePath: string) => {
     assertTrustedSender(event);
     if (savedDownloads.has(filePath)) shell.showItemInFolder(filePath);
+  });
+
+  ipcMain.handle('update:get-state', (event) => {
+    assertTrustedSender(event);
+    return updater.getState();
+  });
+  ipcMain.handle('update:check', (event) => {
+    assertTrustedSender(event);
+    return updater.check({ manual: true });
+  });
+  ipcMain.handle('update:download', (event) => {
+    assertTrustedSender(event);
+    return updater.download();
+  });
+  ipcMain.handle('update:install', (event) => {
+    assertTrustedSender(event);
+    return updater.install();
+  });
+  ipcMain.handle('update:continue', (event) => {
+    assertTrustedSender(event);
+    updater.continueWithoutUpdate();
+  });
+  ipcMain.handle('update:set-auto-download', (event, enabled: boolean) => {
+    assertTrustedSender(event);
+    return updater.setAutoDownload(enabled === true);
+  });
+  ipcMain.handle('update:open-download-page', (event) => {
+    assertTrustedSender(event);
+    return updater.openDownloadPage();
   });
 };
 
@@ -165,7 +195,7 @@ const createMainWindow = (): void => {
   });
 
   mainWindow.once('ready-to-show', () => mainWindow?.show());
-  // App offline: không mở địa chỉ nào ngoài chính nó
+  // Giao diện không mở địa chỉ nào ngoài chính nó
   mainWindow.webContents.on('will-navigate', (event, target) => {
     if (!target.startsWith(`${ORIGIN}/`)) event.preventDefault();
   });
@@ -178,7 +208,7 @@ const createMainWindow = (): void => {
   void mainWindow.loadURL(`${ORIGIN}/`);
 };
 
-/** App offline: chặn mọi yêu cầu ra mạng từ cả giao diện lẫn cửa sổ in. */
+/** Chặn mọi yêu cầu ra mạng từ cả giao diện lẫn cửa sổ in. Chỉ việc cập nhật ra mạng, qua phiên riêng trong main process. */
 const blockNetwork = (target: Session): void => {
   target.webRequest.onBeforeRequest(
     { urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] },
@@ -217,9 +247,12 @@ app.whenReady().then(() => {
 
   setupDownloads();
 
-  registerIpc();
+  const updater = new Updater((state) => mainWindow?.webContents.send('update:state', state));
+  (globalThis as { __updater?: Updater }).__updater = updater;
+  registerIpc(updater);
   buildMenu();
   createMainWindow();
+  void updater.start();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();

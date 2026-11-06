@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { DesktopApi, DownloadDone } from './contract';
+import type { DesktopApi, DownloadDone, UpdateState } from './contract';
 
 const api: DesktopApi = {
   print: {
@@ -15,6 +15,20 @@ const api: DesktopApi = {
     return () => ipcRenderer.removeListener('download:done', handler);
   },
   showInFolder: (filePath) => ipcRenderer.invoke('shell:show-in-folder', filePath),
+  update: {
+    getState: () => ipcRenderer.invoke('update:get-state'),
+    check: () => ipcRenderer.invoke('update:check'),
+    download: () => ipcRenderer.invoke('update:download'),
+    install: () => ipcRenderer.invoke('update:install'),
+    continueWithoutUpdate: () => ipcRenderer.invoke('update:continue'),
+    setAutoDownload: (enabled) => ipcRenderer.invoke('update:set-auto-download', enabled),
+    openDownloadPage: () => ipcRenderer.invoke('update:open-download-page'),
+    onStateChange: (listener) => {
+      const handler = (_event: unknown, state: UpdateState) => listener(state);
+      ipcRenderer.on('update:state', handler);
+      return () => ipcRenderer.removeListener('update:state', handler);
+    },
+  },
 };
 
 contextBridge.exposeInMainWorld('stickerDesktop', api);

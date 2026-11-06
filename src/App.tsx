@@ -4,6 +4,7 @@ import { AppToaster } from './components/shared/ui/toast';
 import ErrorBoundary from './components/shared/ui/ErrorBoundary';
 import StickerPrinterView from './features/sticker-event/StickerPrinterView';
 import { PrintPreviewHost } from './platform/PrintPreviewHost';
+import { UpdateGate } from './platform/UpdateGate';
 import { useDownloadNotice } from './platform/useDownloadNotice';
 
 /** Khung app: giữ đúng thanh tiêu đề của bản web, bỏ hai thanh bên thuộc các khu vực khác của dashboard. */
@@ -38,6 +39,7 @@ export default function App(): React.JSX.Element {
       </main>
 
       <PrintPreviewHost />
+      <UpdateGate />
       <AppToaster />
     </div>
   );

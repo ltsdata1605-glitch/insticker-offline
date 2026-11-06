@@ -60,6 +60,40 @@ export interface DownloadDone {
   ok: boolean;
 }
 
+export type UpdatePhase =
+  | 'idle'
+  | 'checking'
+  | 'up-to-date'
+  /** Có bản mới, đang chờ người dùng bấm cập nhật (khi tắt tự động tải). */
+  | 'available'
+  | 'downloading'
+  /** Đã tải và kiểm tra xong tệp, chờ giao diện cho phép cài. */
+  | 'ready'
+  | 'installing'
+  /** Tải hoặc cài lỗi. Người dùng được thử lại hoặc dùng tiếp lần này. */
+  | 'failed'
+  /** Máy này không tự cài được (bản zip, app nằm ở thư mục tạm...), phải tải về cài tay. */
+  | 'manual';
+
+export interface UpdateState {
+  phase: UpdatePhase;
+  currentVersion: string;
+  /** Số phiên bản mới, khi đã tìm thấy. */
+  version?: string;
+  percent?: number;
+  downloadedBytes?: number;
+  totalBytes?: number;
+  message?: string;
+  lastCheckedAt?: number;
+  autoDownload: boolean;
+  /** Người dùng đã chọn dùng tiếp lần này sau khi cập nhật gặp sự cố. */
+  bypassed: boolean;
+  /** False với bản chạy từ mã nguồn hoặc khi kiểm thử không có địa chỉ giả. */
+  enabled: boolean;
+  /** Phiên bản trước đó, nếu lần mở này là ngay sau khi cập nhật. */
+  justUpdatedFrom?: string;
+}
+
 export interface DesktopApi {
   print: {
     createJob(request: PrintJobRequest): Promise<PrintJobInfo>;
@@ -71,4 +105,14 @@ export interface DesktopApi {
   /** Báo khi một tệp đã lưu xong vào thư mục Tải về. Trả về hàm huỷ theo dõi. */
   onDownloadDone(listener: (item: DownloadDone) => void): () => void;
   showInFolder(filePath: string): Promise<void>;
+  update: {
+    getState(): Promise<UpdateState>;
+    check(): Promise<UpdateState>;
+    download(): Promise<void>;
+    install(): Promise<void>;
+    continueWithoutUpdate(): Promise<void>;
+    setAutoDownload(enabled: boolean): Promise<void>;
+    openDownloadPage(): Promise<void>;
+    onStateChange(listener: (state: UpdateState) => void): () => void;
+  };
 }

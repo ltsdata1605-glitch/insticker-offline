@@ -74,7 +74,7 @@ const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose }) => (
         </div>
         <div className="bg-slate-50 rounded-popup p-4 border border-slate-100">
           <p className="text-sm text-slate-600 leading-relaxed">
-            App chạy không cần mạng và không cần đăng nhập. Bảng giá, danh sách đã lưu và sản phẩm nhập tay đều nằm trên máy này.
+            Dùng và in không cần mạng, không cần đăng nhập; app chỉ vào mạng để kiểm tra và tải bản cập nhật. Bảng giá, danh sách đã lưu và sản phẩm nhập tay đều nằm trên máy này.
             Muốn chuyển dữ liệu sang máy khác, dùng nút <span className="font-semibold">Sao lưu</span> ở thanh trên cùng để tạo file, rồi khôi phục từ file đó ở máy kia.
           </p>
         </div>

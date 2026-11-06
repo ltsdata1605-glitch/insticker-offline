@@ -22,3 +22,20 @@ export const subscribePrintPreview = (next: Listener): (() => void) => {
     if (listener === next) listener = null;
   };
 };
+
+let previewOpen = false;
+const openListeners = new Set<(open: boolean) => void>();
+
+export const setPrintPreviewOpen = (open: boolean): void => {
+  previewOpen = open;
+  openListeners.forEach((notify) => notify(open));
+};
+
+/** Theo dõi màn in có đang mở không, để việc khoá app cập nhật chờ người dùng in xong. */
+export const subscribePrintPreviewOpen = (next: (open: boolean) => void): (() => void) => {
+  openListeners.add(next);
+  next(previewOpen);
+  return () => {
+    openListeners.delete(next);
+  };
+};
