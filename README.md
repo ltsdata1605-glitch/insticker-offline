@@ -20,7 +20,6 @@ App in sticker cho macOS và Windows, dùng và in không cần mạng (chỉ v�
 | `npm run pack:win` | Tạo tệp zip Windows trong `release/` |
 | `npm run test:e2e` | Chạy toàn bộ test trên app Electron thật |
 | `npm run test:cap-nhat` | Thử cập nhật thật từ bản cũ lên bản mới |
-| `npm run test:lo-lon` | Kiểm tra app không đơ khi dựng 4.000 phiếu |
 | `npm run test:parity` | In từng chế độ ra PDF và so với bản web (macOS) |
 | `node scripts/kiem-tra-dong-goi.mjs "<tệp chạy>"` | Chạy thử bản đã đóng gói (macOS) |
 
@@ -62,7 +61,6 @@ Những file đã thay hoặc sửa:
 
 - `npm run typecheck`, `npm test`: kiểu và test đơn vị.
 - `npm run test:e2e`: chạy app Electron thật cho từng chức năng, dữ liệu tạm, không gửi gì ra máy in.
-- `npm run test:lo-lon`: dựng 4.000 phiếu với đồng hồ đặt trong app, không gắn Playwright vì gắn vào sẽ làm app chậm đi nhiều trên máy yếu. Lỗi nếu màn chờ hiện sau 2 giây hoặc app đứng quá 5 giây.
 - `npm run test:parity`: in từng chế độ ra PDF và so với bản Chrome thật trong `tests/baseline/` (cần macOS vì dùng `sips`).
 - `npm run test:cap-nhat`: đóng gói hai phiên bản, chạy bản cũ rồi để app tự tải và tự thay sang bản mới từ máy chủ cục bộ. Lỗi thỉnh thoảng mới xuất hiện thì lặp nhiều vòng: `LAP=12 CHO_GIAY=150 npm run test:cap-nhat`; vòng nào lỗi sẽ in nhật ký của app, tiến trình và chụp màn hình.
 - `.github/workflows/build.yml`: chạy test và đóng gói trên máy thật. Chạy tay chỉ Windows (`gh workflow run build.yml`), đẩy tag `v*` thì cả Windows và Mac. Tệp cài nằm ở mục Artifacts của lượt chạy.

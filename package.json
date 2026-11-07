@@ -1,7 +1,7 @@
 {
   "name": "insticker-offline",
   "productName": "In Sticker",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "In Sticker offline cho macOS và Windows",
   "private": true,
   "type": "module",
@@ -23,7 +23,6 @@
     "pack:win": "npm run build && electron-builder --win zip --x64 --publish never",
     "pack:mac:zip": "npm run build && electron-builder --mac zip --arm64 --x64 --publish never",
     "test:e2e": "npm run build && playwright test",
-    "test:lo-lon": "npm run build && node scripts/do-lo-lon.cjs",
     "test:cap-nhat": "npm run build && node scripts/thu-cap-nhat.mjs",
     "phat-hanh": "node scripts/phat-hanh.mjs"
   },

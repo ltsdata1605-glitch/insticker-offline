@@ -219,7 +219,7 @@ const blockNetwork = (target: Session): void => {
   );
 };
 
-app.whenReady().then(() => {
+const startApp = (): void => {
   protocol.handle(SCHEME, handleAppRequest);
   blockNetwork(session.defaultSession);
 
@@ -257,8 +257,28 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
   });
-});
+};
+
+/** Người dùng bấm mở app lần nữa: đưa cửa sổ đang có ra trước, trên Mac có thể đã đóng cửa sổ nhưng app còn chạy. */
+const showMainWindow = (): void => {
+  if (process.platform === 'darwin') app.focus({ steal: true });
+  if (!mainWindow) {
+    createMainWindow();
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+};
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
+// Mỗi thư mục dữ liệu chỉ chạy một bản app. Kho dữ liệu chỉ cho một tiến trình mở, bản thứ hai sẽ trống dữ liệu và không lưu được gì.
+if (app.requestSingleInstanceLock()) {
+  app.on('second-instance', showMainWindow);
+  void app.whenReady().then(startApp);
+} else {
+  app.quit();
+}

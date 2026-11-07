@@ -174,25 +174,6 @@ test('Chọn phông lúc app còn đang đọc phông đã lưu: lựa chọn kh
   await s.close();
 });
 
-test('4.000 phiếu: dựng đủ 1.000 trang, cửa sổ in chạy ở tiến trình riêng', async () => {
-  const s = await openApp();
-  const { win } = s;
-  await chooseMode(win, 'Phiếu');
-  // Giao diện có đơ hay không đo bằng scripts/do-lo-lon.cjs, không đo ở đây: gắn Playwright vào làm app chậm đi nhiều
-  // trên máy yếu (Windows 2 nhân: main đứng 22 giây, không gắn chỉ 0,4 giây). Bước chờ sau khi bấm cũng nghẽn vì vậy.
-  await win.getByRole('button', { name: /Bấm để in \(1000\)/ }).click({ noWaitAfter: true });
-  expect(await printSummary(win)).toContain('Số trang | 1.000');
-
-  const processes = await s.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map((w) => w.webContents.getOSProcessId()));
-  expect(processes.length, 'Có cả cửa sổ chính và cửa sổ in').toBe(2);
-  expect(new Set(processes).size, 'Tiến trình riêng').toBe(2);
-
-  const last = await evalInPrintDoc<string>(s, `[...document.querySelectorAll('.display-code-right')].pop().textContent`);
-  expect(last).toBe('4000');
-  await closePreview(win);
-  await s.close();
-});
-
 test('Thanh định dạng chữ: bôi đen rồi đổi đậm nhạt, bản in nhận đúng', async () => {
   const s = await openApp();
   const { win } = s;

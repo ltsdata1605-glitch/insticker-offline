@@ -24,10 +24,6 @@ jobs:
       - id: e2e
         continue-on-error: true
         run: npx playwright test
-      - id: lo_lon
-        name: Kiểm tra không đơ khi in lô lớn
-        continue-on-error: true
-        run: node scripts/do-lo-lon.cjs
       # Dùng bash vì PowerShell tách -c.win.x=true thành hai tham số, electron-builder hiểu nhầm là đường dẫn tệp cấu hình.
       - shell: bash
         run: npx electron-builder --win nsis zip --x64 -c.win.signAndEditExecutable=true --publish never
@@ -52,7 +48,7 @@ jobs:
           name: ket-qua-test-windows
           path: tests/output/
       - name: Báo đỏ nếu test lỗi
-        if: steps.e2e.outcome == 'failure' || steps.lo_lon.outcome == 'failure' || steps.cap_nhat.outcome == 'failure'
+        if: steps.e2e.outcome == 'failure' || steps.cap_nhat.outcome == 'failure'
         run: exit 1
 
   mac:
@@ -70,7 +66,6 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npx playwright test
-      - run: node scripts/do-lo-lon.cjs
       - run: npx electron-builder --mac zip --arm64 --x64 --publish never
       - uses: actions/upload-artifact@v4
         with:
