@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { AppIcon } from '../../components/shared/ui/icon/AppIcon';
 import { Product } from './types';
 import { Button } from '../../components/shared/ui/Button';
@@ -11,6 +11,11 @@ interface SearchBarProps {
   disabled: boolean;
   suggestions: Product[];
   onSuggestionClick: (product: Product) => void;
+  /**
+   * Bấm Enter trong ô tìm kiếm, kèm sản phẩm đang được tô trong danh sách gợi ý. Không truyền thì thêm sản phẩm đang tô.
+   * Truyền vào để tự xử lý trường hợp gợi ý chưa kịp hiện, vd máy quét mã gõ xong bấm Enter ngay.
+   */
+  onSubmit?: (highlighted: Product | null) => void;
   showNoResults: boolean;
   isMobile?: boolean;
   hideTitle?: boolean;
@@ -24,18 +29,80 @@ const SearchBar: React.FC<SearchBarProps> = ({
   disabled, 
   suggestions, 
   onSuggestionClick,
+  onSubmit,
   showNoResults,
   isMobile,
   hideTitle = false,
   compact = false,
 }) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const listId = useId();
+  // Gợi ý đang được tô: mặc định là dòng đầu để gõ xong bấm Enter là thêm được ngay
+  const [activeIndex, setActiveIndex] = useState(-1);
+
+  useEffect(() => {
+    setActiveIndex(suggestions.length > 0 ? 0 : -1);
+  }, [suggestions]);
+
+  useEffect(() => {
+    if (activeIndex < 0) return;
+    const item = listRef.current?.querySelector<HTMLElement>(`[data-suggestion-index="${activeIndex}"]`);
+    item?.scrollIntoView?.({ block: 'nearest' });
+  }, [activeIndex]);
+
+  /** Sau khi thêm sản phẩm, con trỏ về lại ô tìm kiếm để tìm tiếp. */
+  const focusInput = () => {
+    window.requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true }));
+  };
+
   const handleClear = () => {
     // Kích hoạt sự kiện change với chuỗi rỗng
     const dummyEvent = {
       target: { value: '' }
     } as React.ChangeEvent<HTMLInputElement>;
     onSearchChange(dummyEvent);
+    focusInput();
   };
+
+  const choose = (product: Product) => {
+    onSuggestionClick(product);
+    focusInput();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Đang gõ dấu bằng bộ gõ (Telex, VNI): Enter và mũi tên thuộc về bộ gõ
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    const count = suggestions.length;
+
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (count === 0) return;
+      e.preventDefault();
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      setActiveIndex((current) => (current < 0 ? (step > 0 ? 0 : count - 1) : (current + step + count) % count));
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const highlighted = activeIndex >= 0 ? suggestions[activeIndex] ?? null : null;
+      if (onSubmit) {
+        onSubmit(highlighted);
+        focusInput();
+      } else if (highlighted) {
+        choose(highlighted);
+      }
+      return;
+    }
+
+    if (e.key === 'Escape' && searchQuery) {
+      e.preventDefault();
+      handleClear();
+    }
+  };
+
+  const isListOpen = suggestions.length > 0 || showNoResults;
+  const activeId = activeIndex >= 0 && suggestions[activeIndex] ? `${listId}-${activeIndex}` : undefined;
 
   return (
     <div className="w-full">
@@ -63,7 +130,14 @@ const SearchBar: React.FC<SearchBarProps> = ({
           {/* Khung bên ngoài lo viền + vòng sáng khi gõ (focus-within) → ô bên trong trong suốt, không viền, không ép 44px (nút quét
               cạnh bên đã cao 44px trên máy cảm ứng) */}
           <Input
+            ref={inputRef}
             type="text"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={isListOpen}
+            aria-controls={isListOpen ? listId : undefined}
+            aria-activedescendant={activeId}
+            onKeyDown={handleKeyDown}
             aria-label="Tìm sản phẩm"
             placeholder={isMobile ? "Nhập tên hoặc mã sản phẩm..." : "Nhập mã hoặc tên sản phẩm..."}
             value={searchQuery}
@@ -106,15 +180,29 @@ const SearchBar: React.FC<SearchBarProps> = ({
         </div>
 
         {/* Dropdown Gợi ý kết quả */}
-        {(suggestions.length > 0 || showNoResults) && (
-          <ul className={`absolute z-50 w-full min-w-[280px] sm:min-w-[340px] left-0 mt-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-popup shadow-xl max-h-64 sm:max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700 animate-in fade-in slide-in-from-top-1 duration-150`}>
-            {suggestions.map((suggestion) => (
+        {isListOpen && (
+          <ul
+            ref={listRef}
+            id={listId}
+            role="listbox"
+            aria-label="Gợi ý sản phẩm"
+            className={`absolute z-50 w-full min-w-[280px] sm:min-w-[340px] left-0 mt-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-popup shadow-xl max-h-64 sm:max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700 animate-in fade-in slide-in-from-top-1 duration-150`}>
+            {suggestions.map((suggestion, index) => (
               <li
                 key={suggestion.msp}
-                onClick={() => onSuggestionClick(suggestion)}
-                className="px-3 py-2 cursor-pointer hover:bg-sky-50/80 dark:hover:bg-slate-700/60 active:bg-sky-100 transition-colors flex items-center justify-between gap-2"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && onSuggestionClick(suggestion)}
+                id={`${listId}-${index}`}
+                role="option"
+                aria-selected={index === activeIndex}
+                data-suggestion-index={index}
+                // Giữ con trỏ trong ô tìm kiếm khi bấm chuột vào gợi ý
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseMove={() => { if (index !== activeIndex) setActiveIndex(index); }}
+                onClick={() => choose(suggestion)}
+                className={`px-3 py-2 cursor-pointer active:bg-sky-100 transition-colors flex items-center justify-between gap-2 ${
+                  index === activeIndex
+                    ? 'bg-sky-50 dark:bg-slate-700/60 shadow-[inset_3px_0_0_0_var(--color-sky-500)]'
+                    : 'hover:bg-sky-50/80 dark:hover:bg-slate-700/60'
+                }`}
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -131,11 +219,15 @@ const SearchBar: React.FC<SearchBarProps> = ({
                     {suggestion.sanPham}
                   </p>
                 </div>
-                <AppIcon name="chevronRight" size="sm" className="text-slate-400" />
+                {index === activeIndex && !isMobile ? (
+                  <kbd className="shrink-0 font-sans text-[10px] font-semibold text-sky-700 bg-white border border-sky-200 rounded px-1.5 py-0.5" aria-hidden="true">Enter</kbd>
+                ) : (
+                  <AppIcon name="chevronRight" size="sm" className="text-slate-400" />
+                )}
               </li>
             ))}
             {showNoResults && (
-              <li className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400 text-center">
+              <li role="presentation" className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400 text-center">
                 Không tìm thấy sản phẩm phù hợp.
               </li>
             )}

@@ -9,13 +9,14 @@ interface UserGuideModalProps {
 }
 
 const FEATURES = [
-  'Tìm kiếm sản phẩm theo mã hoặc tên.',
+  'Tìm kiếm sản phẩm theo mã hoặc tên. Phím mũi tên lên, xuống để chọn gợi ý, Enter để thêm vào danh sách.',
   'Quét mã vạch bằng camera để chọn nhanh.',
   'Sắp xếp theo giá, % giảm, thưởng hoặc tên sản phẩm.',
   'Tùy chỉnh số lượng sticker cần in.',
   'Lưu danh sách in để dùng lại sau này.',
   'Nhập danh sách bằng file Excel hoặc dán từ bảng tính: một cột mã, một cột số lượng.',
   'Bố cục 1, 2, 4, 8, 16, 24 sticker/trang hoặc máy in bill K80.',
+  'Xem lịch sử nhập bảng giá và xoá riêng từng file đã nhập bằng hai nút cạnh ô Bảng Giá.',
 ];
 
 const STEPS: { title: string; body: React.ReactNode }[] = [
@@ -37,7 +38,12 @@ const STEPS: { title: string; body: React.ReactNode }[] = [
   },
   {
     title: 'Nạp vào app',
-    body: <>Bấm ô <span className="font-bold text-emerald-600">"Bảng Giá"</span> và chọn tất cả các file vừa xuất. App gộp lại thành một bảng giá.</>,
+    body: (
+      <>
+        Bấm ô <span className="font-bold text-emerald-600">"Bảng Giá"</span> và chọn các file vừa xuất. App gộp vào bảng giá đang có: mã trùng thì cập nhật giá mới, mã chưa có thì thêm vào, giá cũ vẫn giữ.
+        Nút <span className="font-medium">Lịch sử nhập</span> cho biết mỗi lần nhập thêm mới và đổi giá những sản phẩm nào; nút <span className="font-medium">Quản lý file</span> hiện số sản phẩm của từng file và xoá riêng từng file.
+      </>
+    ),
   },
   {
     title: 'Chọn sản phẩm và in',

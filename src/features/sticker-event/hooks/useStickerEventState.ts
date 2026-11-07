@@ -22,6 +22,8 @@ export function useStickerEventState({
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<Product[]>([]);
+  // Từ khoá mà `suggestions` đang ứng với. Khác từ khoá đang gõ nghĩa là gợi ý chưa kịp tính lại.
+  const [suggestionsQuery, setSuggestionsQuery] = useState('');
   const [showNoResults, setShowNoResults] = useState(false);
   const [duplicateError, setDuplicateError] = useState<boolean>(false);
   const [highlightedMsp, setHighlightedMsp] = useState<string | null>(null);
@@ -69,12 +71,26 @@ export function useStickerEventState({
   };
 
   // Pre-indexed search keys for fast lookup & early-break iteration (tránh gọi toLowerCase hàng chục nghìn lần khi gõ phím)
-  const searchableProducts = useMemo(() => {
-    return allProducts.map(p => ({
-      product: p,
-      searchKey: `${(p.msp || '').trim().toLowerCase()} ${(p.sanPham || '').trim().toLowerCase()}`
-    }));
+  const searchIndex = useMemo(() => {
+    const byCode = new Map<string, Product>();
+    const entries = allProducts.map(p => {
+      const code = (p.msp || '').trim().toLowerCase();
+      if (code && !byCode.has(code)) byCode.set(code, p);
+      return { product: p, searchKey: `${code} ${(p.sanPham || '').trim().toLowerCase()}` };
+    });
+    return { entries, byCode };
   }, [allProducts]);
+
+  /** Tối đa 10 gợi ý, mã khớp đúng đứng đầu để gõ đủ mã rồi bấm Enter là thêm đúng sản phẩm đó. */
+  const findSuggestions = useCallback((queryStr: string): Product[] => {
+    const exact = searchIndex.byCode.get(queryStr);
+    const results: Product[] = exact ? [exact] : [];
+    const { entries } = searchIndex;
+    for (let i = 0; i < entries.length && results.length < 10; i++) {
+      if (entries[i].product !== exact && entries[i].searchKey.includes(queryStr)) results.push(entries[i].product);
+    }
+    return results;
+  }, [searchIndex]);
 
   // Autocomplete Suggestions
   useEffect(() => {
@@ -85,6 +101,7 @@ export function useStickerEventState({
     const queryStr = searchQuery.trim().toLowerCase();
     if (!queryStr) {
       setSuggestions([]);
+      setSuggestionsQuery('');
       setShowNoResults(false);
       return;
     }
@@ -92,17 +109,10 @@ export function useStickerEventState({
     // Tối ưu tốc độ: Tìm kiếm có điểm dừng sớm (early break khi đủ 10 kết quả)
     // Giảm debounce xuống 100ms giúp hiển thị gợi ý tức thì, không gây lag bàn phím
     debounceTimeout.current = window.setTimeout(() => {
-      const results: Product[] = [];
-      const len = searchableProducts.length;
-      for (let i = 0; i < len; i++) {
-        if (searchableProducts[i].searchKey.includes(queryStr)) {
-          results.push(searchableProducts[i].product);
-          if (results.length >= 10) break;
-        }
-      }
-      
+      const results = findSuggestions(queryStr);
       setSuggestions(results);
-      setShowNoResults(queryStr.length > 0 && results.length === 0);
+      setSuggestionsQuery(queryStr);
+      setShowNoResults(results.length === 0);
     }, 100);
 
     return () => {
@@ -110,7 +120,7 @@ export function useStickerEventState({
         clearTimeout(debounceTimeout.current);
       }
     };
-  }, [searchQuery, searchableProducts]);
+  }, [searchQuery, findSuggestions]);
 
   const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
@@ -141,7 +151,35 @@ export function useStickerEventState({
     }
     setSearchQuery('');
     setSuggestions([]);
+    setSuggestionsQuery('');
     setShowNoResults(false);
+  };
+
+  /**
+   * Enter trong ô tìm kiếm. Gợi ý đang hiện đúng từ khoá thì thêm sản phẩm đang tô (hoặc dòng đầu).
+   * Gợi ý chưa kịp hiện, như khi máy quét mã gõ xong bấm Enter ngay, thì chỉ thêm khi có mã khớp đúng, để không thêm nhầm.
+   */
+  const handleSearchSubmit = (highlighted: Product | null) => {
+    const queryStr = searchQuery.trim().toLowerCase();
+    if (!queryStr) return;
+
+    if (suggestionsQuery === queryStr) {
+      const pick = (highlighted && suggestions.includes(highlighted) ? highlighted : null) ?? suggestions[0];
+      if (pick) handleSuggestionClick(pick);
+      return;
+    }
+
+    const exact = searchIndex.byCode.get(queryStr);
+    if (exact) {
+      handleSuggestionClick(exact);
+      return;
+    }
+    // Chưa có mã khớp đúng: hiện gợi ý ngay để chọn bằng phím mũi tên
+    if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+    const results = findSuggestions(queryStr);
+    setSuggestions(results);
+    setSuggestionsQuery(queryStr);
+    setShowNoResults(results.length === 0);
   };
 
   const handleScanSuccess = useCallback((scannedCode: string): boolean => {
@@ -317,6 +355,7 @@ export function useStickerEventState({
     handleEmployeeNameKeyDown,
     handleSearchInputChange,
     handleSuggestionClick,
+    handleSearchSubmit,
     handleScanSuccess,
     handleToggleSelect,
     handleToggleAllSelect,

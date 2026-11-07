@@ -19,6 +19,8 @@ import { Button } from '../../components/shared/ui/Button';
 import SavedListsModal from './SavedListsModal';
 import SaveListModal from './SaveListModal';
 import ImportListModal from './ImportListModal';
+import PriceSourcesModal from './PriceSourcesModal';
+import PriceImportHistoryModal from './PriceImportHistoryModal';
 import AlertModal from './AlertModal';
 import ConfirmModal from './ConfirmModal';
 import ErrorBoundary from './ErrorBoundary';
@@ -79,6 +81,7 @@ export default function App(): React.JSX.Element {
     handleEmployeeNameKeyDown,
     handleSearchInputChange,
     handleSuggestionClick,
+    handleSearchSubmit,
     handleScanSuccess,
     handleToggleSelect,
     handleToggleAllSelect,
@@ -115,7 +118,7 @@ export default function App(): React.JSX.Element {
   });
 
   // 4. File operations Hook
-  const { handleFileChange } = useStickerEventFile({
+  const { handleFileChange, handleDeleteSources } = useStickerEventFile({
     setAllProducts,
     setDisplayedProducts,
     setIsLoading,
@@ -163,6 +166,8 @@ export default function App(): React.JSX.Element {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isUserGuideOpen, setIsUserGuideOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isPriceHistoryOpen, setIsPriceHistoryOpen] = useState(false);
+  const [isPriceSourcesOpen, setIsPriceSourcesOpen] = useState(false);
 
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -183,6 +188,10 @@ export default function App(): React.JSX.Element {
 
   const selectedProducts = useMemo(() => displayedProducts.filter(p => p.selected), [displayedProducts]);
   const selectedCount = selectedProducts.length;
+  const priceProductCount = useMemo(
+    () => allProducts.reduce((sum, p) => sum + ((p as ManualProductWithId).firebaseId ? 0 : 1), 0),
+    [allProducts],
+  );
   const selectedTotalQty = useMemo(() => selectedProducts.reduce((sum, p) => sum + (p.quantity || 1), 0), [selectedProducts]);
 
   const productListRef = useRef<HTMLDivElement>(null);
@@ -379,7 +388,11 @@ export default function App(): React.JSX.Element {
               onSearchChange={handleSearchInputChange}
               onOpenScanner={() => setIsScannerOpen(true)}
               onSuggestionClick={handleSuggestionClick}
+              onSearchSubmit={handleSearchSubmit}
               onFileChange={handleFileChange}
+              priceProductCount={priceProductCount}
+              onOpenPriceHistory={() => setIsPriceHistoryOpen(true)}
+              onOpenPriceSources={() => setIsPriceSourcesOpen(true)}
               onOpenManualInput={() => setIsManualInputOpen(true)}
               onReset={() => setIsResetConfirmOpen(true)}
               onClearAll={() => setIsClearAllConfirmOpen(true)}
@@ -427,6 +440,7 @@ export default function App(): React.JSX.Element {
                   searchDisabled={isLoading}
                   suggestions={suggestions}
                   onSuggestionClick={handleSuggestionClick}
+                  onSearchSubmit={handleSearchSubmit}
                   showNoResults={showNoResults}
                   onExportImage={async () => {
                     if (!sortedProducts || sortedProducts.length === 0) {
@@ -588,6 +602,17 @@ export default function App(): React.JSX.Element {
           cancelText="Hủy"
           type="danger"
         />
+
+        {isPriceSourcesOpen && (
+          <PriceSourcesModal
+            onClose={() => setIsPriceSourcesOpen(false)}
+            onDeleteSources={handleDeleteSources}
+          />
+        )}
+
+        {isPriceHistoryOpen && (
+          <PriceImportHistoryModal onClose={() => setIsPriceHistoryOpen(false)} />
+        )}
 
         {isSavedListsModalOpen && (
           <SavedListsModal
