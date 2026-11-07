@@ -31,7 +31,12 @@ interface ControlPanelProps {
     onSearchChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
     onOpenScanner: () => void;
     onSuggestionClick: (product: Product) => void;
+    onSearchSubmit?: (highlighted: Product | null) => void;
     onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+    /** Số sản phẩm trong bảng giá, không tính sản phẩm nhập tay. */
+    priceProductCount: number;
+    onOpenPriceHistory: () => void;
+    onOpenPriceSources: () => void;
     onOpenManualInput: () => void;
     onReset: () => void;
     onClearAll: () => void;
@@ -67,6 +72,7 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                         disabled={props.isLoading}
                         suggestions={props.suggestions}
                         onSuggestionClick={props.onSuggestionClick}
+                        onSubmit={props.onSearchSubmit}
                         showNoResults={props.showNoResults}
                         isMobile={true}
                     />
@@ -170,8 +176,8 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                                 </div>
                             </div>
 
-                            <div>
-                                <div className="relative group">
+                            <div className="flex items-stretch gap-1.5">
+                                <div className="relative group flex-1 min-w-0">
                                     <input 
                                         type="file" 
                                         id="price-file-input" 
@@ -180,6 +186,7 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
                                         disabled={props.isLoading} 
                                         multiple 
+                                        title="Nhập file giá: trùng mã thì cập nhật giá, mã mới thì thêm vào, giá cũ vẫn giữ"
                                     />
                                     <label
                                         htmlFor="price-file-input"
@@ -196,12 +203,34 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                                         </div>
                                         <div className="min-w-0 flex-1">
                                             <span className="text-xs font-bold block leading-tight truncate">Bảng Giá</span>
-                                            <span className="text-[11px] text-slate-400 dark:text-slate-500 block leading-tight truncate mt-0.5">
-                                                {props.uploadTimestamp ? props.uploadTimestamp.toLocaleTimeString('vi-VN') : 'Chưa tải'}
+                                            <span className="text-[11px] text-slate-400 dark:text-slate-500 block leading-tight truncate mt-0.5" data-testid="price-table-status">
+                                                {props.uploadTimestamp
+                                                    ? `${props.uploadTimestamp.toLocaleTimeString('vi-VN')} · ${props.priceProductCount.toLocaleString('vi-VN')} SP`
+                                                    : 'Chưa tải'}
                                             </span>
                                         </div>
                                     </label>
                                 </div>
+                                <Button
+                                    variant="outline"
+                                    size="none"
+                                    onClick={props.onOpenPriceHistory}
+                                    title="Lịch sử nhập bảng giá"
+                                    aria-label="Lịch sử nhập bảng giá"
+                                    className="w-9 shrink-0 rounded-popup bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/40"
+                                >
+                                    <AppIcon name="history" size="sm" />
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="none"
+                                    onClick={props.onOpenPriceSources}
+                                    title="Quản lý file bảng giá đã nhập"
+                                    aria-label="Quản lý file bảng giá đã nhập"
+                                    className="w-9 shrink-0 rounded-popup bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/40"
+                                >
+                                    <AppIcon name="viewList" size="sm" />
+                                </Button>
                             </div>
 
                         </div>
@@ -219,7 +248,7 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                             </h3>
                             <div className="space-y-1 text-[11px] leading-relaxed text-sky-800 dark:text-sky-300">
                                 <p><strong>B1:</strong> Vào ERP &gt; In giá &gt; Mẫu in 81 &gt; Xuất Data-only(*.xlsx).</p>
-                                <p><strong>B2:</strong> Tải file vào <strong>&quot;Bảng Giá&quot;</strong>. Có thể chọn nhiều file cùng lúc.</p>
+                                <p><strong>B2:</strong> Tải file vào <strong>&quot;Bảng Giá&quot;</strong>. Có thể chọn nhiều file cùng lúc. Nhập thêm file sau: mã trùng được cập nhật giá, mã mới được thêm, giá cũ vẫn giữ.</p>
                             </div>
                         </div>
                     )}

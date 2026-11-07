@@ -1,5 +1,7 @@
 import { Product, ManualProductDoc } from '../types';
 import { areLocalWritesFrozen } from '../../../platform/localWriteGuard';
+import { legacySource } from './priceSources';
+import type { PriceImportRecord, PriceSource } from './priceSources';
 
 function parseBonus(bonusCode: string | undefined | null): { thuongERP: number; thuongNong: number } {
   if (!bonusCode || typeof bonusCode !== 'string') {
@@ -165,7 +167,7 @@ const DB_NAME = 'ProductSearchDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'appData';
 
-interface FileInfo {
+export interface FileInfo {
   fileName: string | null;
   uploadTimestamp: Date | null;
   fileExportDate: string | null;
@@ -190,15 +192,61 @@ const getStore = async (mode: IDBTransactionMode) => {
   return db.transaction(STORE_NAME, mode).objectStore(STORE_NAME);
 };
 
-export const saveData = async (products: Product[], fileInfo: FileInfo): Promise<void> => {
-    if (areLocalWritesFrozen()) return;
+/**
+ * Lưu bảng giá đã ghép cùng các file tạo nên nó trong một lượt ghi, để hai phần không bao giờ lệch nhau.
+ * `products` vẫn giữ để màn khởi động đọc nhanh, không phải đọc lại mọi file.
+ */
+export const savePriceTable = async (products: Product[], fileInfo: FileInfo | null, sources: PriceSource[]): Promise<void> => {
+  if (areLocalWritesFrozen()) return;
   const store = await getStore('readwrite');
   return new Promise((resolve, reject) => {
     const transaction = store.transaction;
     store.put(products, 'products');
-    store.put(fileInfo, 'fileInfo');
+    if (fileInfo) store.put(fileInfo, 'fileInfo');
+    else store.delete('fileInfo');
+    store.put(sources, 'priceSources');
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
+  });
+};
+
+const readKeys = async (keys: readonly string[]): Promise<Record<string, unknown>> => {
+  const store = await getStore('readonly');
+  const requests = keys.map((key) => [key, store.get(key)] as const);
+  return new Promise((resolve, reject) => {
+    store.transaction.oncomplete = () => resolve(Object.fromEntries(requests.map(([key, request]) => [key, request.result])));
+    store.transaction.onerror = () => reject(store.transaction.error);
+  });
+};
+
+/**
+ * Các file đã nhập, cũ trước. Chỉ đọc khi nhập, xoá hoặc mở màn quản lý vì có thể nặng.
+ * Bảng giá nạp từ bản trước chưa tách file thì coi cả bảng là một file.
+ */
+export const loadPriceSources = async (): Promise<PriceSource[]> => {
+  const data = await readKeys(['priceSources', 'products', 'fileInfo']);
+  if (Array.isArray(data.priceSources)) return data.priceSources as PriceSource[];
+  const products = Array.isArray(data.products) ? (data.products as Product[]) : [];
+  return products.length > 0 ? [legacySource(products, (data.fileInfo as FileInfo | undefined) ?? null)] : [];
+};
+
+export const loadPriceImportHistory = async (): Promise<PriceImportRecord[]> => {
+  try {
+    const data = await readKeys(['priceImportHistory']);
+    return Array.isArray(data.priceImportHistory) ? (data.priceImportHistory as PriceImportRecord[]) : [];
+  } catch (e) {
+    console.error('Không đọc được lịch sử nhập bảng giá', e);
+    return [];
+  }
+};
+
+export const savePriceImportHistory = async (history: PriceImportRecord[]): Promise<void> => {
+  if (areLocalWritesFrozen()) return;
+  const store = await getStore('readwrite');
+  return new Promise((resolve, reject) => {
+    store.put(history, 'priceImportHistory');
+    store.transaction.oncomplete = () => resolve();
+    store.transaction.onerror = () => reject(store.transaction.error);
   });
 };
 
@@ -346,13 +394,13 @@ export const loadData = async (): Promise<LoadDataResult | null> => {
 };
 
 /**
- * Nút "Xóa DL": chỉ xoá bảng giá và danh sách đang hiển thị. Sản phẩm nhập tay và tên người in vẫn giữ.
- * Xoá luôn dữ liệu tồn kho còn sót từ bản trước, khi app còn chức năng nạp tồn.
+ * Nút "Xóa DL": chỉ xoá bảng giá, các file đã nhập và danh sách đang hiển thị. Sản phẩm nhập tay, tên người in
+ * và lịch sử nhập vẫn giữ. Xoá luôn dữ liệu tồn kho còn sót từ bản trước, khi app còn chức năng nạp tồn.
  */
 export const clearPriceData = async (): Promise<void> => {
   const store = await getStore('readwrite');
   return new Promise((resolve, reject) => {
-    for (const key of ['products', 'fileInfo', 'displayedProducts', 'displayedProductsLastModified', 'inventory', 'inventoryUploadTimestamp', 'inventoryFilters']) {
+    for (const key of ['products', 'fileInfo', 'priceSources', 'displayedProducts', 'displayedProductsLastModified', 'inventory', 'inventoryUploadTimestamp', 'inventoryFilters']) {
       store.delete(key);
     }
     store.transaction.oncomplete = () => resolve();

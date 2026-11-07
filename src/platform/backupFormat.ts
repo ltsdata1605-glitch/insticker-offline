@@ -11,6 +11,9 @@ export const APP_DATA_KEYS = [
   'displayedProductsLastModified',
   'employeeName',
   'manualProducts',
+  // Từng file bảng giá đã nhập và lịch sử nhập. File sao lưu cũ không có hai khoá này: app coi bảng giá là một file.
+  'priceSources',
+  'priceImportHistory',
 ] as const;
 
 export const SETTING_KEYS = [

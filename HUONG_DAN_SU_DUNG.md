@@ -31,8 +31,19 @@ Lô lớn như 4.000 phiếu cần vài chục giây để dựng. Khung xem tr�
 
 1. Vào ERP > In bảng giá. Chọn ngành hàng, nhóm hàng **Tất cả**, vị trí trưng bày **2 - Kệ trưng bày**.
 2. Chọn mẫu in **81**, bấm In rồi xuất **Excel Workbook Data-only (*.xlsx)**. Mỗi lần chỉ xuất được một ngành hàng.
-3. Bấm ô **Bảng Giá** trong app và chọn tất cả các file vừa xuất. App gộp lại thành một bảng giá.
+3. Bấm ô **Bảng Giá** trong app và chọn các file vừa xuất. App gộp vào bảng giá đang có: mã trùng thì cập nhật giá mới, mã chưa có thì thêm vào, giá cũ vẫn giữ. Sản phẩm đang có trong danh sách in cũng được cập nhật giá, giữ nguyên số tem.
 4. Tìm theo mã, tên hoặc quét mã để thêm sản phẩm vào danh sách, chỉnh số tem rồi in.
+
+### Lịch sử nhập và quản lý file
+
+Cạnh ô **Bảng Giá** có hai nút:
+
+- **Lịch sử nhập** (hình đồng hồ): mỗi lần nhập gồm những file nào, bao nhiêu sản phẩm mới, cập nhật giá, không đổi. Bấm vào một lần nhập để xem chi tiết sản phẩm thêm mới và giá cũ, giá mới của sản phẩm được cập nhật. App giữ 30 lần nhập gần nhất.
+- **Quản lý file** (hình danh sách): mỗi file đã nhập một dòng, kèm số sản phẩm của file. Bấm thùng rác để xoá riêng file đó. Sản phẩm chỉ có trong file đó không còn tìm được; sản phẩm có trong file khác vẫn còn và lấy giá của file nhập gần nhất còn lại. Danh sách đang in không đổi. File mà mọi sản phẩm đã có giá ở file nhập sau có thể dọn một lần bằng nút **Dọn**.
+
+### Tìm sản phẩm bằng bàn phím
+
+Gõ mã hoặc tên vào ô tìm kiếm, dùng phím mũi tên lên, xuống để chọn trong danh sách gợi ý rồi bấm **Enter** để thêm vào danh sách. Gợi ý đầu tiên được chọn sẵn, mã gõ đúng hoàn toàn luôn đứng đầu. Sau khi thêm, con trỏ trở về ô tìm kiếm để tìm tiếp. Bấm **Esc** để xoá ô tìm kiếm.
 
 ## Danh sách sticker ở Giá Sốc và Giờ Vàng
 
@@ -89,11 +100,11 @@ Bấm nút hình trụ ở góc trên bên phải (Sao lưu và khôi phục):
 2. Chép file `in-sticker-sao-luu-….json` sang máy mới.
 3. Trên máy mới, bấm **Khôi phục từ file**. Thao tác này thay toàn bộ dữ liệu đang có trên máy mới.
 
-File gồm bảng giá, sản phẩm nhập tay, danh sách đã lưu, lịch sử in và cài đặt.
+File gồm bảng giá và từng file đã nhập, lịch sử nhập, sản phẩm nhập tay, danh sách đã lưu, lịch sử in và cài đặt.
 
 ## Quét mã
 
-Bấm nút quét cạnh ô tìm kiếm. Lần đầu máy sẽ hỏi quyền camera; nếu đã từ chối, bật lại trong phần cài đặt quyền riêng tư của máy. Máy quét mã USB hoạt động như bàn phím: bấm vào ô tìm kiếm rồi quét, sau đó chọn sản phẩm trong danh sách gợi ý.
+Bấm nút quét cạnh ô tìm kiếm. Lần đầu máy sẽ hỏi quyền camera; nếu đã từ chối, bật lại trong phần cài đặt quyền riêng tư của máy. Máy quét mã USB hoạt động như bàn phím: bấm vào ô tìm kiếm rồi quét. Máy quét tự bấm Enter sau mã thì sản phẩm có đúng mã đó được thêm ngay; mã không có trong bảng giá thì app hiện gợi ý để chọn.
 
 ## Khác với bản web
 

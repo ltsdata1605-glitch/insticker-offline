@@ -21,6 +21,7 @@ interface ProductToolbarProps {
   searchDisabled?: boolean;
   suggestions?: Product[];
   onSuggestionClick?: (product: Product) => void;
+  onSearchSubmit?: (highlighted: Product | null) => void;
   showNoResults?: boolean;
 }
 
@@ -44,6 +45,7 @@ const ProductToolbar: React.FC<ProductToolbarProps> = ({
   searchDisabled,
   suggestions,
   onSuggestionClick,
+  onSearchSubmit,
   showNoResults,
 }) => {
   const handleSortFieldChange = (field: SortField) => {
@@ -69,6 +71,7 @@ const ProductToolbar: React.FC<ProductToolbarProps> = ({
               disabled={!!searchDisabled}
               suggestions={suggestions || []}
               onSuggestionClick={onSuggestionClick || (() => {})}
+              onSubmit={onSearchSubmit}
               showNoResults={!!showNoResults}
               hideTitle={true}
               compact={true}
