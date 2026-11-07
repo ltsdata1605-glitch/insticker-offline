@@ -51,9 +51,18 @@ const SearchBar: React.FC<SearchBarProps> = ({
     item?.scrollIntoView?.({ block: 'nearest' });
   }, [activeIndex]);
 
-  /** Sau khi thêm sản phẩm, con trỏ về lại ô tìm kiếm để tìm tiếp. */
+  /**
+   * Sau khi thêm sản phẩm, con trỏ về lại ô tìm kiếm để tìm tiếp. Việc này chạy ở khung hình kế tiếp, trên máy chậm
+   * có thể đến trễ: nếu lúc đó người dùng đã bấm sang ô nhập khác (vd ô số lượng) thì không kéo con trỏ về, kẻo số
+   * đang gõ rơi vào ô tìm kiếm.
+   */
   const focusInput = () => {
-    window.requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true }));
+    window.requestAnimationFrame(() => {
+      const active = document.activeElement as HTMLElement | null;
+      const typingElsewhere = active !== null && active !== inputRef.current
+        && (active.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName));
+      if (!typingElsewhere) inputRef.current?.focus({ preventScroll: true });
+    });
   };
 
   const handleClear = () => {
