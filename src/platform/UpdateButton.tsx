@@ -15,12 +15,17 @@ const describeStatus = (state: UpdateState): string => {
   return 'Chưa kiểm tra bản mới.';
 };
 
-/** Nút trên thanh trên cùng: xem phiên bản, kiểm tra bản mới và chọn tự động tải hay không. */
+const formatCheckedAt = (at?: number): string | null =>
+  at ? new Date(at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : null;
+
+/** Nút trên thanh trên cùng: luôn hiện số phiên bản, bấm vào để kiểm tra bản mới và chọn tự động tải hay không. */
 export const UpdateButton: React.FC<{ className?: string }> = ({ className }) => {
   const [isOpen, setIsOpen] = useState(false);
   const state = useUpdateState();
   const api = window.stickerDesktop.update;
   const pending = Boolean(state?.bypassed && state.version);
+  const version = state?.currentVersion;
+  const checkedAt = formatCheckedAt(state?.lastCheckedAt);
 
   return (
     <>
@@ -29,10 +34,11 @@ export const UpdateButton: React.FC<{ className?: string }> = ({ className }) =>
         size="none"
         onClick={() => setIsOpen(true)}
         className={className}
-        title="Cập nhật ứng dụng"
-        aria-label="Cập nhật ứng dụng"
+        title={version ? `Phiên bản ${version}. Bấm để kiểm tra bản mới` : 'Kiểm tra bản mới'}
+        aria-label={version ? `Cập nhật ứng dụng, đang dùng bản ${version}` : 'Cập nhật ứng dụng'}
       >
-        <AppIcon name="download" size="md" />
+        <AppIcon name="refresh" size="sm" />
+        {version && <span className="text-[12px] font-semibold tabular-nums" data-testid="app-version">v{version}</span>}
         {pending && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500" data-testid="update-pending-dot" />}
       </Button>
 
@@ -42,18 +48,21 @@ export const UpdateButton: React.FC<{ className?: string }> = ({ className }) =>
             <div className="rounded-control bg-slate-50 border border-slate-100 p-3 space-y-1">
               <p className="text-sm text-slate-700">Phiên bản đang dùng: <strong>{state.currentVersion}</strong></p>
               <p className="text-sm text-slate-600" role="status" data-testid="update-status">{describeStatus(state)}</p>
+              {checkedAt && <p className="text-xs text-slate-500" data-testid="update-checked-at">Kiểm tra lần cuối: {checkedAt}</p>}
             </div>
 
             {pending ? (
               <Button variant="primary" className="w-full" onClick={() => void api.download()}>Cập nhật ngay</Button>
             ) : (
               <Button
-                variant="secondary"
+                variant="primary"
                 className="w-full"
+                icon="refresh"
+                isLoading={state.phase === 'checking'}
                 disabled={!state.enabled || state.phase === 'checking'}
                 onClick={() => void api.check()}
               >
-                Kiểm tra bản mới
+                {state.phase === 'checking' ? 'Đang kiểm tra...' : 'Kiểm tra bản mới'}
               </Button>
             )}
 

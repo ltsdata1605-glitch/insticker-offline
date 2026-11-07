@@ -83,6 +83,16 @@ test('Thanh chọn chế độ: bấm và rê chuột vào nút ở hai đầu k
   await s.close();
 });
 
+test('Cụm nút cuối thanh trên: nút đầu và nút phiên bản bo theo nhóm, viền focus không lộ góc vuông', async () => {
+  const s = await openApp();
+  const { win } = s;
+  const corner = (name: RegExp, side: 'borderTopLeftRadius' | 'borderTopRightRadius') =>
+    win.getByRole('button', { name }).first().evaluate((el, c) => parseFloat(getComputedStyle(el)[c]), side);
+  expect(await corner(/^Font hiện tại|Chọn font|Phông/, 'borderTopLeftRadius'), 'Nút chữ T bo đầu trái').toBeGreaterThan(10);
+  expect(await corner(/Cập nhật ứng dụng/, 'borderTopRightRadius'), 'Nút phiên bản bo đầu phải').toBeGreaterThan(10);
+  await s.close();
+});
+
 test('Tem: thanh định dạng hiện đúng cỡ của mọi ô, tăng giảm đều nhận, in và mở lại vẫn đúng, nút gốc đưa về mặc định', async () => {
   const dirs = newDirs();
   let s = await openApp(dirs);

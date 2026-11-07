@@ -88,7 +88,7 @@ Khi có mạng, app tự kiểm tra bản mới lúc mở và 4 giờ một lầ
 - **Có bản mới:** phải cập nhật mới dùng tiếp được. App tự tải, tự cài rồi mở lại; bảng giá, danh sách và cài đặt giữ nguyên. Nếu đang mở màn in, app chờ bạn in xong mới khoá.
 - **Không có mạng:** app vẫn dùng bình thường.
 - **Tải hoặc cài bị lỗi:** có nút **Thử lại** và **Dùng tiếp lần này**, để sự cố cập nhật không chặn việc in. Lần mở sau app nhắc lại.
-- **Tuỳ chọn:** bấm nút cập nhật ở thanh trên cùng để xem phiên bản, kiểm tra bản mới và bật tắt **Tự động tải và cài**. Tắt thì app báo có bản mới và chờ bạn bấm **Cập nhật ngay**.
+- **Xem phiên bản và kiểm tra thủ công:** số phiên bản đang dùng (ví dụ **v1.1.2**) hiện ở góc phải thanh trên cùng. Bấm vào đó rồi bấm **Kiểm tra bản mới**; bảng này cũng cho biết lần kiểm tra gần nhất và cho bật tắt **Tự động tải và cài**. Tắt thì app báo có bản mới và chờ bạn bấm **Cập nhật ngay**.
 - **Trên Mac:** cần để app trong thư mục Applications, nếu không app sẽ báo cần chuyển vào đó. Sau khi cập nhật, macOS có thể hỏi lại quyền camera.
 - **Trên Windows:** chỉ bản cài bằng file `.exe` mới tự cập nhật. Bản giải nén từ file zip phải tải bộ cài về.
 

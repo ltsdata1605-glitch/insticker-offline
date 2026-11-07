@@ -67,6 +67,9 @@ test('Không có địa chỉ cập nhật (bản chạy thử): không kiểm t
   const { win } = s;
   await win.waitForTimeout(3500);
   await expect(gate(win)).toHaveCount(0);
+  // Số phiên bản luôn hiện trên thanh trên cùng, không phải mở bảng mới biết
+  await expect(win.locator('#global-header-actions').getByTestId('app-version')).toHaveText(`v${CURRENT}`);
+  await expect(win.getByRole('button', { name: `Cập nhật ứng dụng, đang dùng bản ${CURRENT}` })).toBeVisible();
   const settings = await openSettings(win);
   await expect(settings).toContainText(`Phiên bản đang dùng: ${CURRENT}`);
   await expect(settings.getByRole('button', { name: 'Kiểm tra bản mới' })).toBeDisabled();
@@ -80,8 +83,15 @@ test('Đang là bản mới nhất: không khoá, nút kiểm tra báo đúng', 
   const settings = await openSettings(win);
   await settings.getByRole('button', { name: 'Kiểm tra bản mới' }).click();
   await expect(win.getByTestId('update-status')).toHaveText('Đang dùng bản mới nhất.');
+  await expect(win.getByTestId('update-checked-at')).toContainText('Kiểm tra lần cuối:');
   await expect(gate(win)).toHaveCount(0);
   expect(feed.hits()).toBe(0);
+  fs.mkdirSync('tests/output', { recursive: true });
+  await win.screenshot({ path: 'tests/output/ui-cap-nhat-bang.png' });
+  await win.keyboard.press('Escape');
+  await settings.waitFor({ state: 'detached' });
+  await win.waitForTimeout(300);
+  await win.screenshot({ path: 'tests/output/ui-cap-nhat-nut.png', clip: { x: 0, y: 0, width: 1440, height: 120 } });
   await s.close();
   await feed.close();
 });

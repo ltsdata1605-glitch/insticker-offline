@@ -82,6 +82,7 @@ const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose }) => (
           <p className="text-sm text-slate-600 leading-relaxed">
             Dùng và in không cần mạng, không cần đăng nhập; app chỉ vào mạng để kiểm tra và tải bản cập nhật. Bảng giá, danh sách đã lưu và sản phẩm nhập tay đều nằm trên máy này.
             Muốn chuyển dữ liệu sang máy khác, dùng nút <span className="font-semibold">Sao lưu</span> ở thanh trên cùng để tạo file, rồi khôi phục từ file đó ở máy kia.
+            Số phiên bản đang dùng hiện ở góc phải thanh trên cùng; bấm vào đó để <span className="font-semibold">Kiểm tra bản mới</span>.
           </p>
         </div>
       </section>
