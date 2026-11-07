@@ -1,5 +1,37 @@
 import { describe, expect, it } from 'vitest';
-import { isNewerVersion, parseUpdateFeed, pickAsset } from '../../electron/updateFeed';
+import { isNewerVersion, parseUpdateFeed, pickAsset, retryWhileBusy } from '../../electron/updateFeed';
+
+const errorWithCode = (code: string) => Object.assign(new Error(`spawn ${code}`), { code });
+
+describe('Chạy bộ cài khi tệp đang bị giữ', () => {
+  it('tệp đang bị giữ thì thử lại tới khi chạy được', async () => {
+    let calls = 0;
+    const retried: unknown[] = [];
+    const result = await retryWhileBusy(async () => {
+      calls += 1;
+      if (calls < 3) throw errorWithCode('EBUSY');
+      return 'da chay';
+    }, { timeoutMs: 1000, delayMs: 1, onRetry: (error) => retried.push(error) });
+    expect(result).toBe('da chay');
+    expect(calls).toBe(3);
+    expect(retried).toHaveLength(2);
+  });
+
+  it('lỗi khác thì báo ngay, không thử lại', async () => {
+    let calls = 0;
+    await expect(retryWhileBusy(async () => {
+      calls += 1;
+      throw errorWithCode('ENOENT');
+    }, { timeoutMs: 1000, delayMs: 1 })).rejects.toThrow('spawn ENOENT');
+    expect(calls).toBe(1);
+  });
+
+  it('giữ quá lâu thì dừng và báo lỗi, không chờ mãi', async () => {
+    await expect(retryWhileBusy(async () => {
+      throw errorWithCode('EBUSY');
+    }, { timeoutMs: 20, delayMs: 5 })).rejects.toThrow('spawn EBUSY');
+  });
+});
 
 const MAC_FEED = `version: 1.0.1
 files:

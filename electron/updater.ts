@@ -1,12 +1,14 @@
 import { app, session, shell } from 'electron';
 import { execFile, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { createWriteStream, promises as fs } from 'node:fs';
+import { once } from 'node:events';
+import { appendFileSync, createWriteStream, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { promisify } from 'node:util';
 import type { UpdateState } from './contract';
-import { isNewerVersion, parseUpdateFeed, pickAsset } from './updateFeed';
+import { isFileBusyError, isNewerVersion, parseUpdateFeed, pickAsset, retryWhileBusy } from './updateFeed';
 import type { FeedAsset, UpdateFeed } from './updateFeed';
 
 const RELEASES_REPO = 'https://github.com/ltsdata1605-glitch/insticker-offline-releases';
@@ -19,6 +21,9 @@ const CHECK_TIMEOUT_MS = 20_000;
 /** Tính từ lần nhận dữ liệu gần nhất, mạng chậm vẫn tải được miễn là còn dữ liệu về. */
 const DOWNLOAD_STALL_MS = 60_000;
 const PROGRESS_INTERVAL_MS = 200;
+const LOG_MAX_BYTES = 256 * 1024;
+const INSTALLER_BUSY_TIMEOUT_MS = 30_000;
+const INSTALLER_BUSY_RETRY_MS = 500;
 
 const APP_BUNDLE_NAME = 'In Sticker.app';
 const BUNDLE_ID = 'vn.insticker.offline';
@@ -101,6 +106,7 @@ export class Updater {
   }
 
   async start(): Promise<void> {
+    await this.startLog();
     await this.loadSettings();
     await this.cleanUpAfterUpdate();
     if (!this.feedUrl) return;
@@ -170,6 +176,7 @@ export class Updater {
 
   /** Giao diện gọi khi đã sẵn sàng khoá app, để không thoát ngang lúc người dùng đang mở màn in. */
   async install(): Promise<void> {
+    this.log(`Giao diện yêu cầu cài, trạng thái ${this.state.phase}`);
     if (this.state.phase !== 'ready' || !this.prepared) return;
     const version = this.state.version;
     this.setState({ phase: 'installing' });
@@ -180,6 +187,7 @@ export class Updater {
       }
       if (process.platform === 'darwin') await this.launchMacSwap();
       else await this.launchWindowsInstaller();
+      this.log('Gọi app.quit');
       app.quit();
     } catch (error) {
       this.setState({ phase: 'failed', version, message: `Chưa cài được bản mới: ${toMessage(error)}` });
@@ -210,8 +218,38 @@ export class Updater {
   }
 
   private setState(patch: Partial<UpdateState>): void {
+    const phaseChanged = patch.phase !== undefined && patch.phase !== this.state.phase;
+    if (phaseChanged || (patch.message && patch.message !== this.state.message)) {
+      this.log(`${this.state.phase} -> ${patch.phase ?? this.state.phase}${patch.version ? ` (${patch.version})` : ''}${patch.message ? `: ${patch.message}` : ''}`);
+    }
     this.state = { ...this.state, ...patch };
     this.notify(this.state);
+  }
+
+  private logPath(): string {
+    return path.join(app.getPath('userData'), 'cap-nhat.log');
+  }
+
+  /** Ghi từng bước ra tệp để biết cập nhật kẹt ở đâu khi có sự cố trên máy người dùng. */
+  private log(line: string): void {
+    try {
+      appendFileSync(this.logPath(), `${new Date().toISOString()} [${process.pid}] ${line}\n`);
+    } catch {
+      // Không ghi được nhật ký thì bỏ qua, không được làm hỏng việc cập nhật
+    }
+  }
+
+  private async startLog(): Promise<void> {
+    const file = this.logPath();
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    const size = await fs.stat(file).then((stats) => stats.size, () => 0);
+    if (size > LOG_MAX_BYTES) await fs.rename(file, `${file}.cu`).catch(() => undefined);
+    this.log(`Mở app bản ${this.currentVersion}, tệp chạy ${app.getPath('exe')}, nguồn ${this.feedUrl ?? 'không có'}`);
+    // Chỉ ghi lại, không đổi cách app xử lý các lỗi này
+    process.on('uncaughtExceptionMonitor', (error) => this.log(`Lỗi không bắt được: ${error.stack ?? error.message}`));
+    process.on('unhandledRejection', (reason) => this.log(`Promise lỗi không bắt được: ${toMessage(reason)}`));
+    app.once('will-quit', () => this.log('Sắp thoát'));
+    app.once('quit', (_event, code) => this.log(`Đã thoát, mã ${code}`));
   }
 
   private settingsPath(): string {
@@ -264,28 +302,35 @@ export class Updater {
     const controller = new AbortController();
     let stallTimer = setTimeout(() => controller.abort(), DOWNLOAD_STALL_MS);
     const hash = createHash('sha512');
-    const output = createWriteStream(target);
     try {
       const response = await this.fetch(`${this.feedUrl}/${asset.url}`, controller.signal);
+      this.log(`Tải ${asset.url} (${asset.size} byte): máy chủ trả về ${response.status}`);
       if (!response.ok || !response.body) throw new Error(`máy chủ trả về ${response.status}`);
 
       let received = 0;
       let lastReport = 0;
-      for await (const chunk of Readable.fromWeb(response.body as never)) {
-        clearTimeout(stallTimer);
-        stallTimer = setTimeout(() => controller.abort(), DOWNLOAD_STALL_MS);
-        hash.update(chunk as Buffer);
-        if (!output.write(chunk)) await new Promise<void>((resolve) => output.once('drain', () => resolve()));
-        received += (chunk as Buffer).length;
-        if (Date.now() - lastReport > PROGRESS_INTERVAL_MS) {
-          lastReport = Date.now();
-          this.setState({ percent: Math.min(99, Math.floor((received / asset.size) * 100)), downloadedBytes: received });
+      const reportProgress = () => this.setState({ percent: Math.min(99, Math.floor((received / asset.size) * 100)), downloadedBytes: received });
+      const output = createWriteStream(target);
+      // pipeline lo cả lỗi ghi đĩa và việc chờ khi đĩa ghi chậm hơn mạng
+      await pipeline(Readable.fromWeb(response.body as never), async function* (source: AsyncIterable<Buffer>) {
+        for await (const chunk of source) {
+          clearTimeout(stallTimer);
+          stallTimer = setTimeout(() => controller.abort(), DOWNLOAD_STALL_MS);
+          hash.update(chunk);
+          received += chunk.length;
+          if (Date.now() - lastReport > PROGRESS_INTERVAL_MS) {
+            lastReport = Date.now();
+            reportProgress();
+          }
+          yield chunk;
         }
-      }
+      }, output);
+      // Ghi xong chưa có nghĩa tệp đã đóng: chạy bộ cài khi tệp còn mở sẽ lỗi EBUSY trên Windows
+      if (!output.closed) await once(output, 'close');
+      this.log(`Đã ghi và đóng tệp tải về: ${received} byte`);
       if (received !== asset.size) throw new Error('tệp tải về không đủ dung lượng');
     } finally {
       clearTimeout(stallTimer);
-      await new Promise<void>((resolve) => output.end(() => resolve()));
     }
     if (hash.digest('base64') !== asset.sha512) throw new Error('tệp tải về bị lỗi, không khớp mã kiểm tra');
     return target;
@@ -348,6 +393,7 @@ export class Updater {
       const child = spawn(command, args, { detached: true, stdio: 'ignore' });
       child.once('error', reject);
       child.once('spawn', () => {
+        this.log(`Đã chạy ${command}, pid ${child.pid}`);
         child.unref();
         resolve();
       });
@@ -363,9 +409,18 @@ export class Updater {
     return this.launchDetached('/bin/bash', ['-c', MAC_SWAP_SCRIPT, 'in-sticker-update', String(process.pid), old, this.prepared?.bundle as string, backup, ...openArgs]);
   }
 
-  private launchWindowsInstaller(): Promise<void> {
-    // Giống electron-updater: cài im lặng, giữ lối tắt người dùng đã sửa, xong tự mở lại app
-    return this.launchDetached(this.prepared?.installer as string, ['/S', '--updated', '--force-run']);
+  private async launchWindowsInstaller(): Promise<void> {
+    try {
+      // Giống electron-updater: cài im lặng, giữ lối tắt người dùng đã sửa, xong tự mở lại app
+      await retryWhileBusy(() => this.launchDetached(this.prepared?.installer as string, ['/S', '--updated', '--force-run']), {
+        timeoutMs: INSTALLER_BUSY_TIMEOUT_MS,
+        delayMs: INSTALLER_BUSY_RETRY_MS,
+        onRetry: (error) => this.log(`Tệp cài đang bị giữ (${toMessage(error)}), thử chạy lại`),
+      });
+    } catch (error) {
+      if (isFileBusyError(error)) throw new Error('tệp cài đang bị chương trình khác giữ, thường là phần mềm diệt virus. Hãy thử lại sau ít giây.');
+      throw error;
+    }
   }
 
   private async cleanUpAfterUpdate(): Promise<void> {

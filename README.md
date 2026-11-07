@@ -51,7 +51,7 @@ Những file đã thay hoặc sửa:
 
 ## Cập nhật và phát hành
 
-- `electron/updater.ts`: kiểm tra, tải, xác minh SHA-512 rồi cài. Windows chạy bộ cài NSIS im lặng; Mac thay app rồi mở lại, không dùng `electron-updater` vì cơ chế của nó từ chối app chưa có Apple Developer ID.
+- `electron/updater.ts`: kiểm tra, tải, xác minh SHA-512 rồi cài. Windows chạy bộ cài NSIS im lặng; Mac thay app rồi mở lại, không dùng `electron-updater` vì cơ chế của nó từ chối app chưa có Apple Developer ID. Từng bước được ghi vào `cap-nhat.log` trong thư mục dữ liệu của app, xem tệp này đầu tiên khi cập nhật lỗi.
 - Nguồn tải là repo công khai `insticker-offline-releases`, chỉ chứa tệp cài. Mã nguồn vẫn ở repo riêng tư.
 - Bản phát hành đến thẳng mọi máy và **khoá app tới khi cập nhật**, nên chỉ phát hành khi build đã xanh: `npm run phat-hanh -- <thư mục bản Mac> <thư mục bản Windows>`. Script này kiểm tra đủ tệp và đúng phiên bản trước khi tạo release.
 - Ai có quyền đưa file lên repo phát hành là có thể đưa code tới mọi máy, vì bản Mac và Windows chưa ký số. Hãy bật xác thực hai lớp cho tài khoản GitHub.
@@ -62,7 +62,7 @@ Những file đã thay hoặc sửa:
 - `npm run test:e2e`: chạy app Electron thật cho từng chức năng, dữ liệu tạm, không gửi gì ra máy in.
 - `npm run test:lo-lon`: dựng 4.000 phiếu với đồng hồ đặt trong app, không gắn Playwright vì gắn vào sẽ làm app chậm đi nhiều trên máy yếu. Lỗi nếu màn chờ hiện sau 2 giây hoặc app đứng quá 5 giây.
 - `npm run test:parity`: in từng chế độ ra PDF và so với bản Chrome thật trong `tests/baseline/` (cần macOS vì dùng `sips`).
-- `npm run test:cap-nhat`: đóng gói hai phiên bản, chạy bản cũ rồi để app tự tải và tự thay sang bản mới từ máy chủ cục bộ.
+- `npm run test:cap-nhat`: đóng gói hai phiên bản, chạy bản cũ rồi để app tự tải và tự thay sang bản mới từ máy chủ cục bộ. Lỗi thỉnh thoảng mới xuất hiện thì lặp nhiều vòng: `LAP=12 CHO_GIAY=150 npm run test:cap-nhat`; vòng nào lỗi sẽ in nhật ký của app, tiến trình và chụp màn hình.
 - `.github/workflows/build.yml`: chạy test và đóng gói trên máy thật. Chạy tay chỉ Windows (`gh workflow run build.yml`), đẩy tag `v*` thì cả Windows và Mac. Tệp cài nằm ở mục Artifacts của lượt chạy.
 
 Hướng dẫn cho người dùng ở `HUONG_DAN_SU_DUNG.md`.

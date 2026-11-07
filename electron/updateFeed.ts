@@ -76,6 +76,26 @@ export const isNewerVersion = (candidate: string, current: string): boolean => {
   return false;
 };
 
+/** Tệp đang bị chương trình khác giữ. Trên Windows, tệp .exe vừa tải xong thường bị phần mềm diệt virus giữ một lúc. */
+export const isFileBusyError = (error: unknown): boolean =>
+  ['EBUSY', 'EPERM', 'EACCES', 'ETXTBSY'].includes((error as { code?: string } | null)?.code ?? '');
+
+export const retryWhileBusy = async <T>(
+  action: () => Promise<T>,
+  options: { timeoutMs: number; delayMs: number; onRetry?: (error: unknown) => void },
+): Promise<T> => {
+  const startedAt = Date.now();
+  for (;;) {
+    try {
+      return await action();
+    } catch (error) {
+      if (!isFileBusyError(error) || Date.now() - startedAt >= options.timeoutMs) throw error;
+      options.onRetry?.(error);
+      await new Promise((resolve) => setTimeout(resolve, options.delayMs));
+    }
+  }
+};
+
 /** Windows dùng bộ cài .exe. Mac dùng tệp zip đúng loại chip, vì tệp mô tả liệt kê cả hai. */
 export const pickAsset = (feed: UpdateFeed, platform: string, arch: string): FeedAsset | null => {
   if (platform === 'win32') return feed.files.find((file) => file.url.endsWith('.exe')) ?? null;

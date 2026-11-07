@@ -50,7 +50,9 @@ const describeApp = async (app: ElectronApplication): Promise<string> => {
     ? await within(win.evaluate(() => performance.getEntriesByType('mark').filter((m) => m.name.startsWith('in:')).map((m) => m.name)), 3000)
     : undefined;
   const steps = main?.trace.map((t) => `${t.phase} +${t.at - main.trace[0].at}ms`).join(', ') ?? '';
+  const windowEvents = await within(app.evaluate(() => (globalThis as WindowEventLog).__windowEvents ?? []), 3000);
   return [
+    `cửa sổ: ${windowEvents?.join(', ') || 'không có sự kiện đóng hay sập'}`,
     `main ${main ? 'trả lời' : 'KHÔNG trả lời'}`,
     `giao diện ${marks ? `trả lời, mốc: ${marks.join(', ') || 'chưa có'}` : 'KHÔNG trả lời'}`,
     `bước in: ${steps || 'chưa có'}`,
@@ -60,6 +62,7 @@ const describeApp = async (app: ElectronApplication): Promise<string> => {
 };
 
 type CompletedDownloads = { __completedDownloads?: number };
+type WindowEventLog = { __windowEvents?: string[] };
 
 export const newDirs = (): Dirs => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'in-sticker-e2e-'));
@@ -77,6 +80,20 @@ export const openApp = async (dirs: Dirs = newDirs(), extraArgs: string[] = [], 
   runningApps.add(app);
   // Máy đang bận có thể mở app chậm hơn hạn mặc định 30 giây
   const win = await app.firstWindow({ timeout: 120_000 });
+  // Phân biệt cửa sổ bị đóng với giao diện bị sập khi test lỗi vì mất trang
+  await app.evaluate(({ BrowserWindow }) => {
+    const log: string[] = [];
+    (globalThis as WindowEventLog).__windowEvents = log;
+    const startedAt = Date.now();
+    const note = (text: string) => log.push(`${text} +${Date.now() - startedAt}ms`);
+    const [mainWindow] = BrowserWindow.getAllWindows();
+    mainWindow.on('close', () => note('nhận lệnh đóng'));
+    mainWindow.on('closed', () => note('đã đóng'));
+    mainWindow.webContents.on('render-process-gone', (_event, details) => note(`giao diện sập (${details.reason}, mã ${details.exitCode})`));
+    mainWindow.webContents.on('before-input-event', (_event, input) => {
+      if (input.type === 'keyDown' && (input.meta || input.control)) note(`phím ${input.meta ? 'Cmd' : 'Ctrl'}+${input.key}`);
+    });
+  });
   await app.evaluate(({ session }) => {
     const holder = globalThis as CompletedDownloads;
     holder.__completedDownloads = 0;

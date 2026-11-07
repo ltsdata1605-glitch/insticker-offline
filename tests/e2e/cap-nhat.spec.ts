@@ -150,8 +150,9 @@ test('Tệp tải về bị lỗi: không cài, thử lại được, dùng ti�
 
   // Thử lại khi tệp vẫn lỗi rồi dùng tiếp lần này
   await gate(win).getByRole('button', { name: 'Thử lại' }).click();
+  // Ngay sau khi bấm, màn hình có thể còn dòng báo lỗi của lần trước nên phải chờ lượt tải thứ hai bắt đầu đã
+  await expect.poll(() => feed.hits()).toBe(2);
   await expect(gate(win)).toContainText('Chưa cập nhật được', { timeout: 20_000 });
-  expect(feed.hits()).toBe(2);
   await gate(win).getByRole('button', { name: 'Dùng tiếp lần này' }).click();
   await expect(gate(win)).toHaveCount(0);
   await chooseMode(win, 'Giá Sốc');
