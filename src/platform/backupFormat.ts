@@ -14,6 +14,12 @@ export const APP_DATA_KEYS = [
   // Từng file bảng giá đã nhập và lịch sử nhập. File sao lưu cũ không có hai khoá này: app coi bảng giá là một file.
   'priceSources',
   'priceImportHistory',
+  // Tab Sticker (sản phẩm lấy từ file mẫu). File sao lưu cũ không có các khoá này.
+  'sticker.products',
+  'sticker.fileInfo',
+  'sticker.displayedProducts',
+  'sticker.displayedProductsLastModified',
+  'sticker.manualProducts',
 ] as const;
 
 export const SETTING_KEYS = [
@@ -21,6 +27,7 @@ export const SETTING_KEYS = [
   'stickerPrintHistory',
   'stickerSavedLists',
   'stickerEventSavedLists',
+  'stickerTagSavedLists',
   'printSettings',
   'modernPositions',
   'globalFont',

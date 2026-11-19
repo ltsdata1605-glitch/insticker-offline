@@ -142,6 +142,11 @@ export const PrintPreviewHost: React.FC = () => {
         </div>
 
         <aside className="w-[280px] shrink-0 flex flex-col gap-4">
+          {request.note && (
+            <p className="p-3 rounded-control bg-sky-50 border border-sky-100 text-xs font-medium text-sky-800 leading-relaxed" data-testid="print-batch-note">
+              {request.note}
+            </p>
+          )}
           <div className="space-y-1.5">
             <label htmlFor="print-device" className="text-[12px] font-semibold text-slate-600">Máy in</label>
             {printers.length > 0 ? (

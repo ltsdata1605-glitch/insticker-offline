@@ -6,16 +6,17 @@ import { TopBarActions } from '../../../components/shared/ui/TopBarActions';
 import { Tabs } from '../../../components/shared/ui/Tabs';
 
 interface StickerModeToolbarProps {
-    stickerMode: 'sticker' | 'event';
+    stickerMode: 'sticker' | 'event' | 'tag';
     stickerType: 'gia_soc' | 'gio_vang' | 'draw';
     onSelectGiaSoc: () => void;
     onSelectGioVang: () => void;
     onSelectDraw: () => void;
     onSelectEvent: () => void;
+    onSelectTag: () => void;
 }
 
 export const StickerModeToolbar: React.FC<StickerModeToolbarProps> = ({
-    stickerMode, stickerType, onSelectGiaSoc, onSelectGioVang, onSelectDraw, onSelectEvent,
+    stickerMode, stickerType, onSelectGiaSoc, onSelectGioVang, onSelectDraw, onSelectEvent, onSelectTag,
 }) => {
     const { activeTab } = useActiveTab();
     const [mounted, setMounted] = useState(false);
@@ -38,8 +39,8 @@ export const StickerModeToolbar: React.FC<StickerModeToolbarProps> = ({
     // khe ~250px, phải vuốt ngang mới thấy "Sticker" và ô cỡ chữ — apple-tuong-thich đỏ ở mọi khung cảm ứng). Nay là HÀNG
     // THỨ HAI ngay dưới thanh trên: segmented 4 chế độ chia đều + hàng cỡ chữ (chỉ ở chế độ tem) với nút −/+ 44px.
     if (isMobile) {
-        const activeId = stickerMode === 'event' ? 'event' : stickerType;
-        const chon: Record<string, () => void> = { gia_soc: onSelectGiaSoc, gio_vang: onSelectGioVang, draw: onSelectDraw, event: onSelectEvent };
+        const activeId = stickerMode === 'event' ? 'event' : stickerMode === 'tag' ? 'tag' : stickerType;
+        const chon: Record<string, () => void> = { gia_soc: onSelectGiaSoc, gio_vang: onSelectGioVang, draw: onSelectDraw, tag: onSelectTag, event: onSelectEvent };
         return (
             <div data-testid="sticker-mode-bar" className="no-print shrink-0 bg-slate-50/95 border-b border-slate-200 px-3 sm:px-4 pt-2 pb-2">
                 <div className="space-y-1.5 sm:max-w-lg sm:mx-auto">
@@ -53,7 +54,8 @@ export const StickerModeToolbar: React.FC<StickerModeToolbarProps> = ({
                         { id: 'gia_soc', label: 'Giá sốc' },
                         { id: 'gio_vang', label: 'Giờ vàng' },
                         { id: 'draw', label: 'Phiếu' },
-                        { id: 'event', label: 'Sticker' },
+                        { id: 'tag', label: 'Sticker' },
+                        { id: 'event', label: 'Event' },
                     ]}
                 />
                 </div>
@@ -65,7 +67,8 @@ export const StickerModeToolbar: React.FC<StickerModeToolbarProps> = ({
         { id: 'gia_soc', label: 'Giá Sốc', icon: 'quick' as const, color: 'sky', onClick: onSelectGiaSoc, isActive: stickerMode === 'sticker' && stickerType === 'gia_soc' },
         { id: 'gio_vang', label: 'Giờ Vàng', icon: 'clock' as const, color: 'amber', onClick: onSelectGioVang, isActive: stickerMode === 'sticker' && stickerType === 'gio_vang' },
         { id: 'draw', label: 'Phiếu', icon: 'coupon' as const, color: 'rose', onClick: onSelectDraw, isActive: stickerMode === 'sticker' && stickerType === 'draw' },
-        { id: 'event', label: 'Sticker', icon: 'product' as const, color: 'emerald', onClick: onSelectEvent, isActive: stickerMode === 'event' },
+        { id: 'tag', label: 'Sticker', icon: 'tag' as const, color: 'violet', onClick: onSelectTag, isActive: stickerMode === 'tag' },
+        { id: 'event', label: 'Event', icon: 'product' as const, color: 'emerald', onClick: onSelectEvent, isActive: stickerMode === 'event' },
     ];
 
     const getModeColorClasses = (color: string, isActive: boolean) => {
@@ -74,6 +77,7 @@ export const StickerModeToolbar: React.FC<StickerModeToolbarProps> = ({
             case 'emerald': return 'bg-emerald-50/80 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 font-semibold';
             case 'amber': return 'bg-amber-50/80 hover:bg-amber-100 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-400 font-semibold';
             case 'rose': return 'bg-rose-50/80 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-400 font-semibold';
+            case 'violet': return 'bg-violet-50/80 hover:bg-violet-100 dark:bg-violet-900/30 dark:hover:bg-violet-900/50 text-violet-700 dark:text-violet-400 font-semibold';
             case 'sky': return 'bg-sky-50/80 hover:bg-sky-100 dark:bg-sky-900/30 dark:hover:bg-sky-900/50 text-sky-700 dark:text-sky-400 font-semibold';
             default: return 'bg-sky-50/80 hover:bg-sky-100 dark:bg-sky-900/30 dark:hover:bg-sky-900/50 text-sky-700 dark:text-sky-400 font-semibold';
         }

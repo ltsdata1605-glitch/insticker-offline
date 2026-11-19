@@ -2,6 +2,7 @@ import React from 'react';
 import { AppIcon } from '../../components/shared/ui/icon/AppIcon';
 import { Button } from '../../components/shared/ui/Button';
 import { Modal } from '../../components/shared/ui/Modal';
+import { useStickerScope } from './services/scope';
 
 interface UserGuideModalProps {
   isOpen: boolean;
@@ -51,7 +52,44 @@ const STEPS: { title: string; body: React.ReactNode }[] = [
   },
 ];
 
-const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose }) => (
+// Tab Sticker: sản phẩm lấy từ file mẫu tự điền, không có thưởng, mỗi sản phẩm một bố cục
+const TEMPLATE_FEATURES = [
+  'Tải file mẫu, điền sản phẩm cần in rồi nhập lại. Không cần bảng giá ERP.',
+  'Mỗi sản phẩm một bố cục: 1, 2, 4, 8, 16 hoặc 24 sticker/trang, sửa được trên danh sách hoặc khi bấm in.',
+  'In theo bố cục từng sản phẩm: mỗi bố cục một lượt in, lượt sau tự mở khi đóng lượt trước.',
+  ...FEATURES.slice(0, 2),
+  'Sắp xếp theo giá, % giảm hoặc tên sản phẩm.',
+  ...FEATURES.slice(3, 6),
+];
+
+const TEMPLATE_STEPS: { title: string; body: React.ReactNode }[] = [
+  {
+    title: 'Tải file mẫu',
+    body: <>Bấm <span className="font-bold">Tải file mẫu</span> ở khung bên trái. File có sẵn vài dòng ví dụ và trang hướng dẫn.</>,
+  },
+  {
+    title: 'Điền sản phẩm',
+    body: (
+      <>
+        Mỗi dòng một sản phẩm: <span className="font-medium">Mã SP, Tên sản phẩm, Giá gốc, Giá bán, Khuyến mãi, Số lượng tem</span> và <span className="font-medium">Bố cục</span> (số sticker trên một trang A4). Giá gốc trống thì tem không có giá gạch.
+      </>
+    ),
+  },
+  {
+    title: 'Nhập vào app',
+    body: <>Bấm <span className="font-bold text-sky-600">Nhập file mẫu</span>. Dòng lỗi bị bỏ qua và được báo theo số dòng. Nhập thêm file sau: mã trùng được cập nhật, mã mới thêm vào danh sách.</>,
+  },
+  {
+    title: 'In',
+    body: <>Bấm <span className="font-medium">In tất cả</span> hoặc <span className="font-medium">In đã chọn</span>, rồi <span className="font-medium">In theo bố cục từng sản phẩm</span>. Mỗi bố cục in trên khổ giấy riêng nên in thành từng lượt.</>,
+  },
+];
+
+const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose }) => {
+  const isTemplate = useStickerScope() === 'sticker';
+  const features = isTemplate ? TEMPLATE_FEATURES : FEATURES;
+  const steps = isTemplate ? TEMPLATE_STEPS : STEPS;
+  return (
   <Modal
     isOpen={isOpen}
     onClose={onClose}
@@ -93,7 +131,7 @@ const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose }) => (
           <h3 className="text-base font-bold text-slate-800">2. Chức năng chính</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {FEATURES.map((item) => (
+          {features.map((item) => (
             <div key={item} className="flex items-start gap-3 p-3 bg-white border border-slate-100 rounded-control shadow-sm">
               <AppIcon name="success" size="md" className="text-emerald-500 mt-0.5" />
               <span className="text-sm text-slate-600">{item}</span>
@@ -108,7 +146,7 @@ const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose }) => (
           <h3 className="text-base font-bold text-slate-800">3. Quy trình nạp dữ liệu</h3>
         </div>
         <div className="relative pl-8 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 space-y-6">
-          {STEPS.map((step, index) => (
+          {steps.map((step, index) => (
             <div key={step.title} className="relative">
               <div className="absolute -left-8 top-0 w-6 h-6 bg-sky-600 text-white rounded-full flex items-center justify-center text-xs font-bold">{index + 1}</div>
               <h4 className="text-sm font-bold text-slate-800 mb-1">{step.title}</h4>
@@ -119,6 +157,7 @@ const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose }) => (
       </section>
     </div>
   </Modal>
-);
+  );
+};
 
 export default UserGuideModal;

@@ -24,7 +24,7 @@ const card = (win: Page, msp: string) => win.locator(`[data-msp="${msp}"]`);
 const status = (win: Page) => win.getByTestId('price-table-status');
 
 const start = async (win: Page) => {
-  await chooseMode(win, 'Sticker');
+  await chooseMode(win, 'Event');
   const name = win.locator('#employee-name-input');
   if (await name.isVisible().catch(() => false)) {
     await name.fill('NV thử in');
@@ -107,7 +107,7 @@ test('Nhập thêm file giá: trùng mã thì cập nhật giá, mã mới thì 
   // Mở lại app: các file đã nhập vẫn còn
   s = await openApp(dirs);
   win = s.win;
-  await chooseMode(win, 'Sticker');
+  await chooseMode(win, 'Event');
   await expect(status(win)).toContainText('4 SP');
   await win.getByRole('button', { name: 'Quản lý file bảng giá đã nhập' }).click();
   dialog = win.getByRole('dialog');
@@ -223,7 +223,7 @@ test('Bảng giá nạp từ bản trước vẫn dùng được, thành một f
 
   s = await openApp(dirs);
   win = s.win;
-  await chooseMode(win, 'Sticker');
+  await chooseMode(win, 'Event');
   await expect(status(win)).toContainText('2 SP');
   await win.getByRole('button', { name: 'Quản lý file bảng giá đã nhập' }).click();
   let dialog = win.getByRole('dialog');

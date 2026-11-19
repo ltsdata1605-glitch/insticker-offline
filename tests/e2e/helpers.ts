@@ -122,7 +122,8 @@ export const openApp = async (dirs: Dirs = newDirs(), extraArgs: string[] = [], 
   };
 };
 
-export const chooseMode = async (win: Page, name: 'Giá Sốc' | 'Giờ Vàng' | 'Phiếu' | 'Sticker') => {
+/** 'Sticker' là tab in từ file mẫu, 'Event' là tab in từ bảng giá ERP (trước bản 1.2.0 tên là Sticker). */
+export const chooseMode = async (win: Page, name: 'Giá Sốc' | 'Giờ Vàng' | 'Phiếu' | 'Sticker' | 'Event') => {
   await win.locator('#global-header-actions').getByRole('button', { name, exact: true }).click();
   await win.waitForTimeout(500);
 };

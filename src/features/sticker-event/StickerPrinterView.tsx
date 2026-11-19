@@ -23,6 +23,7 @@ export default function StickerPrinterView() {
     const {
         stickerMode, setStickerMode,
         eventEverOpened, setEventEverOpened,
+        tagEverOpened,
         stickerType, setStickerType,
         bgImage, setBgImage,
         priceSource, setPriceSource,
@@ -125,20 +126,33 @@ export default function StickerPrinterView() {
                     applySubTab('event');
                     updateSubQueryParam('event');
                 }}
+                onSelectTag={() => {
+                    applySubTab('sticker');
+                    updateSubQueryParam('sticker');
+                }}
             />
 
-            {/* Vùng nội dung: chiếm phần còn lại dưới hàng chế độ (iPhone/iPad) — 2 lớp Sticker / tem chồng nhau như cũ */}
+            {/* Vùng nội dung: chiếm phần còn lại dưới hàng chế độ. Lớp Event, lớp Sticker và lớp tem chồng nhau; lớp không mở thì ẩn hẳn
+                (invisible) để không bấm hay tab nhầm vào lớp đó, vẫn giữ nguyên trạng thái của nó. */}
             <div className="relative flex-1 min-h-0">
             {eventEverOpened && (
-                <div className={`absolute inset-0 z-10 w-full h-full overflow-y-auto transition-opacity duration-200 ${stickerMode === 'event' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+                <div className={`absolute inset-0 z-10 w-full h-full overflow-y-auto transition-opacity duration-200 ${stickerMode === 'event' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none invisible'}`}>
+                    <ErrorBoundary name="Event">
+                        <StickerEventApp scope="event" isActive={stickerMode === 'event'} />
+                    </ErrorBoundary>
+                </div>
+            )}
+            {/* Tab Sticker: cùng màn với Event nhưng lấy sản phẩm từ file mẫu, dữ liệu lưu riêng */}
+            {tagEverOpened && (
+                <div className={`absolute inset-0 z-10 w-full h-full overflow-y-auto transition-opacity duration-200 ${stickerMode === 'tag' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none invisible'}`}>
                     <ErrorBoundary name="Sticker">
-                        <StickerEventApp isActive={stickerMode === 'event'} />
+                        <StickerEventApp scope="sticker" isActive={stickerMode === 'tag'} />
                     </ErrorBoundary>
                 </div>
             )}
 
             {/* Xem trước và khung điều khiển cùng chiều cao, chừa lại một phần cửa sổ cho thoáng. Cửa sổ nhỏ thì giữ cỡ tối thiểu và cuộn. */}
-            <div className={`w-full h-full overflow-y-auto p-3 sm:p-4 lg:p-5 flex flex-col lg:flex-row gap-4 lg:gap-5 justify-start lg:justify-center items-center lg:items-start ${stickerMode === 'event' ? 'invisible' : 'visible'}`}>
+            <div className={`w-full h-full overflow-y-auto p-3 sm:p-4 lg:p-5 flex flex-col lg:flex-row gap-4 lg:gap-5 justify-start lg:justify-center items-center lg:items-start ${stickerMode === 'sticker' ? 'visible' : 'invisible'}`}>
                 {stickerType !== 'draw' && (
                     <StickerQueueStrip
                         pages={manualPages}

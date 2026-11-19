@@ -8,14 +8,15 @@ Dùng và in không cần mạng, không cần đăng nhập. App chỉ vào m�
 
 **Windows 10/11 64-bit:** giải nén tệp zip vào một thư mục cố định rồi chạy `In Sticker.exe`. Nếu hiện cảnh báo SmartScreen: bấm **More info**, rồi **Run anyway**. Cập nhật bản mới bằng cách giải nén đè; dữ liệu không mất vì được lưu riêng trong hồ sơ người dùng.
 
-## Bốn chế độ
+## Năm chế độ
 
 | Tab | Dùng để | Nguồn dữ liệu |
 |---|---|---|
 | **Giá Sốc** | Tem A4 giá sốc | File giá ĐSD - TBBM, file mẫu, file ERP mẫu 97 và 99, hoặc gõ trực tiếp trên tem |
 | **Giờ Vàng** | Tem A4 giờ vàng, có thời gian và số suất | Như Giá Sốc |
 | **Phiếu** | Phiếu rút thăm, 4 phiếu mỗi trang, tự nhảy số | Gõ trực tiếp vào phiếu 1, các phiếu còn lại tự theo |
-| **Sticker** | Tem giá 1 đến 24 tem mỗi trang hoặc máy in bill K80 | Bảng giá ERP mẫu 81, nhập tay, quét mã |
+| **Sticker** | Tem giá như Event, mỗi sản phẩm một bố cục riêng (1 đến 24 tem mỗi trang) | File mẫu tự điền, nhập tay, quét mã |
+| **Event** | Tem giá 1 đến 24 tem mỗi trang hoặc máy in bill K80 (trước bản 1.2.0 tab này tên là Sticker) | Bảng giá ERP mẫu 81, nhập tay, quét mã |
 
 ## In
 
@@ -27,7 +28,19 @@ Bấm in sẽ mở màn xem trước. App tự đặt khổ giấy, không lề 
 
 Lô lớn như 4.000 phiếu cần vài chục giây để dựng. Khung xem trước chỉ hiện 3 trang đầu cho nhanh, còn bản in và PDF vẫn đủ trang.
 
-## Nạp dữ liệu cho tab Sticker
+## Tab Sticker: in từ file mẫu
+
+Tab Sticker in cùng loại tem giá với tab Event nhưng không cần bảng giá ERP: bạn tự điền sản phẩm cần in vào file mẫu.
+
+1. Bấm **Tải file mẫu** ở khung bên trái. File `Mau_Sticker.xlsx` lưu vào thư mục Tải về, có sẵn vài dòng ví dụ và trang hướng dẫn.
+2. Điền mỗi sản phẩm một dòng: **Mã SP**, **Tên sản phẩm**, **Giá gốc** (để trống thì tem không có giá gạch), **Giá bán**, **Khuyến mãi**, **Số lượng tem** (trống là 1) và **Bố cục**: số sticker trên một trang A4, chọn 1, 2, 4, 8, 16 hoặc 24 (trống là 4).
+3. Bấm **Nhập file mẫu**. Sản phẩm vào thẳng danh sách. Dòng thiếu mã, tên, giá bán hoặc bố cục không hợp lệ bị bỏ qua và được báo theo số dòng trong Excel. Nhập thêm file sau: mã trùng được cập nhật theo file mới, mã mới thêm vào cuối; nhập lại cùng file không làm tăng số tem.
+4. Sửa bố cục từng sản phẩm ở ô **Bố cục** trên danh sách, hoặc trong hộp chọn bố cục khi bấm in.
+5. Bấm **In tất cả** hoặc **In đã chọn**, rồi **In theo bố cục từng sản phẩm**. Mỗi bố cục là một lượt in riêng vì khổ giấy khác nhau (1, 4 và 16 tem mỗi trang in A4 ngang; 2, 8 và 24 in A4 dọc). Màn xem trước ghi đang ở lượt mấy; in xong hoặc đóng màn này thì lượt sau tự mở. Muốn in tất cả cùng một bố cục thì chọn ở mục **Hoặc in tất cả theo một bố cục**, kể cả máy in bill 80mm.
+
+Tem ở tab Sticker không in thưởng. Danh sách đang in, danh sách đã lưu và sản phẩm nhập tay của tab Sticker là riêng, không lẫn với tab Event. Tên người in và cài đặt tem dùng chung. Nút thùng rác trên thanh trên cùng (khi đang ở tab Sticker) xoá các sản phẩm đã nhập từ file mẫu và danh sách đang in của tab này.
+
+## Nạp dữ liệu cho tab Event
 
 1. Vào ERP > In bảng giá. Chọn ngành hàng, nhóm hàng **Tất cả**, vị trí trưng bày **2 - Kệ trưng bày**.
 2. Chọn mẫu in **81**, bấm In rồi xuất **Excel Workbook Data-only (*.xlsx)**. Mỗi lần chỉ xuất được một ngành hàng.
@@ -48,6 +61,7 @@ Gõ mã hoặc tên vào ô tìm kiếm, dùng phím mũi tên lên, xuống đ�
 ## Danh sách sticker ở Giá Sốc và Giờ Vàng
 
 - **Nhập file mẫu** hoặc file ERP: mọi sản phẩm hiện thành ảnh nhỏ bên trái bản xem trước. Bấm vào ảnh để mở sticker đó lên và sửa; thay đổi được lưu ngay và in đúng theo đó.
+- Nút **x** ở góc trên bên phải mỗi ảnh xoá ngay sticker đó khỏi danh sách.
 - **Thêm**: đưa sticker đang hiện trên bản xem trước vào danh sách, sau đó soạn tiếp sticker mới mà không làm đổi sticker vừa thêm. Dòng chữ dưới bản xem trước cho biết bạn đang sửa sticker nào trong danh sách hay đang soạn sticker mới.
 - Khi danh sách có sticker, **Bấm để in** in các sticker đang được chọn trong danh sách. Sticker đang soạn chưa bấm Thêm thì không được in.
 
@@ -62,7 +76,7 @@ Gõ mã hoặc tên vào ô tìm kiếm, dùng phím mũi tên lên, xuống đ�
 
 ## Nhập và xuất danh sách
 
-Ở tab Sticker, mục Thao tác danh sách:
+Ở tab Event và tab Sticker, mục Thao tác danh sách:
 
 - **Xuất**: tải file Excel gồm 2 cột `CODE` và `SỐ LƯỢNG`. Đang có danh sách thì điền sẵn danh sách đó, danh sách trống thì ra file mẫu chưa có dòng nào.
 - **Nhập**: chọn file Excel theo mẫu, hoặc dán từ bảng tính, mỗi dòng gồm mã và số lượng:
@@ -72,7 +86,7 @@ Gõ mã hoặc tên vào ô tìm kiếm, dùng phím mũi tên lên, xuống đ�
   4844099000052	2
   ```
 
-  Màn nhập cho biết số sản phẩm tìm thấy, các mã không có trong bảng giá và các dòng lỗi trước khi bạn xác nhận. Cần nạp Bảng Giá trước.
+  Màn nhập cho biết số sản phẩm tìm thấy, các mã không có trong bảng giá và các dòng lỗi trước khi bạn xác nhận. Tab Event cần nạp Bảng Giá trước, tab Sticker cần nhập file mẫu trước.
 - Không ghi số lượng thì tính là 1. Mã trùng nhau được cộng số lượng, tối đa 500 tem mỗi sản phẩm.
 - **Thêm vào danh sách**: giữ danh sách đang có; mã đã có thì cộng thêm số lượng. **Thay danh sách**: chỉ còn các sản phẩm vừa nhập.
 - Nếu Excel hiện mã dạng `2,71E+12`, hãy đổi cột mã sang dạng Text rồi chép lại. File mẫu đã để sẵn dạng này.
@@ -109,6 +123,7 @@ Bấm nút quét cạnh ô tìm kiếm. Lần đầu máy sẽ hỏi quyền cam
 ## Khác với bản web
 
 - Không có đăng nhập, phân quyền, kho và đồng bộ Cloud. Danh sách đã lưu không tự sang máy khác, hãy dùng Sao lưu.
-- Ai dùng máy cũng nạp được bảng giá và xoá được bảng giá bằng nút thùng rác trên thanh trên cùng (chỉ hiện ở chế độ Sticker).
+- Ai dùng máy cũng nạp được bảng giá và xoá được bảng giá bằng nút thùng rác trên thanh trên cùng (chỉ hiện ở tab Event).
+- Có thêm tab Sticker in từ file mẫu tự điền, mỗi sản phẩm một bố cục.
 - Không có nạp tồn kho, nên cũng không có bộ lọc ngành hàng, nhóm hàng và số tem theo tồn.
 - Không có giao diện điện thoại.

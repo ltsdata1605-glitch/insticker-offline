@@ -22,7 +22,7 @@ const addBySearch = async (win: Page, query: string) => {
 };
 
 const setupProducts = async (win: Page, dirs: Dirs) => {
-  await chooseMode(win, 'Sticker');
+  await chooseMode(win, 'Event');
   const name = win.locator('#employee-name-input');
   if (await name.isVisible().catch(() => false)) {
     await name.fill('NV thử in');
@@ -37,7 +37,7 @@ const setupProducts = async (win: Page, dirs: Dirs) => {
 test('Lần đầu mở: có hướng dẫn, nội dung offline, không còn phần đăng nhập và Cloud', async () => {
   const s = await openApp();
   const { win } = s;
-  await chooseMode(win, 'Sticker');
+  await chooseMode(win, 'Event');
   await expect(win.getByText('Hướng dẫn sử dụng Hệ thống In Sticker Event')).toBeVisible();
   await expect(win.locator('img[alt="QR Code"]').first()).toHaveAttribute('src', /^data:image/);
 
@@ -68,12 +68,12 @@ test('Lần đầu mở: có hướng dẫn, nội dung offline, không còn ph�
   await s.close();
 });
 
-test('Nút xoá bảng giá: trên thanh trên giữa nút sao lưu và nút phiên bản, chỉ có biểu tượng, chỉ ở chế độ Sticker', async () => {
+test('Nút xoá bảng giá: trên thanh trên giữa nút sao lưu và nút phiên bản, chỉ có biểu tượng, chỉ ở chế độ Event', async () => {
   const s = await openApp();
   const { win } = s;
   const header = win.locator('#global-header-actions');
   const clearAll = header.getByRole('button', { name: 'Xóa toàn bộ dữ liệu bảng giá' });
-  await chooseMode(win, 'Sticker');
+  await chooseMode(win, 'Event');
   await expect(clearAll).toBeVisible();
   await expect(clearAll).toHaveText('');
   await expect(win.getByRole('button', { name: 'Xóa DL' })).toHaveCount(0);
@@ -83,12 +83,12 @@ test('Nút xoá bảng giá: trên thanh trên giữa nút sao lưu và nút phi
   expect(clearAllX).toBeGreaterThan(await x('Sao lưu và khôi phục dữ liệu'));
   expect(clearAllX).toBeLessThan(await x(/Cập nhật ứng dụng/));
 
-  // Chỉ xoá bảng giá của màn Sticker nên các chế độ khác không có nút này
-  for (const mode of ['Giá Sốc', 'Giờ Vàng', 'Phiếu'] as const) {
+  // Chỉ xoá bảng giá của màn Event nên các chế độ khác không có nút này (tab Sticker có nút riêng, xoá sản phẩm từ file mẫu)
+  for (const mode of ['Giá Sốc', 'Giờ Vàng', 'Phiếu', 'Sticker'] as const) {
     await chooseMode(win, mode);
     await expect(clearAll).toHaveCount(0);
   }
-  await chooseMode(win, 'Sticker');
+  await chooseMode(win, 'Event');
   await expect(clearAll).toBeVisible();
   await s.close();
 });
@@ -173,7 +173,7 @@ test('Cài đặt tem: tắt QR và tên nhân viên thì bản in không còn, 
   await s.close();
   s = await openApp(dirs);
   win = s.win;
-  await chooseMode(win, 'Sticker');
+  await chooseMode(win, 'Event');
   await win.getByRole('button', { name: 'Cài đặt' }).click();
   await win.waitForTimeout(300);
   await expect(win.getByRole('dialog').getByRole('button', { name: 'Xong' })).toBeVisible();
@@ -208,7 +208,7 @@ test('Sản phẩm nhập tay: thêm, sửa, in, xoá; còn sau khi mở lại v
   const dirs = newDirs();
   let s = await openApp(dirs);
   let win = s.win;
-  await chooseMode(win, 'Sticker');
+  await chooseMode(win, 'Event');
   const name = win.locator('#employee-name-input');
   await name.fill('NV thử in');
   await name.press('Enter');
@@ -241,7 +241,7 @@ test('Sản phẩm nhập tay: thêm, sửa, in, xoá; còn sau khi mở lại v
   // Mở lại: sản phẩm vẫn còn và tìm được
   s = await openApp(dirs);
   win = s.win;
-  await chooseMode(win, 'Sticker');
+  await chooseMode(win, 'Event');
   await win.waitForTimeout(500);
   await win.locator('#price-file-input').setInputFiles(writePriceFile(dirs));
   await win.waitForTimeout(600);
@@ -315,7 +315,7 @@ test('Lưu danh sách, mở lại, xoá; xuất và nhập file JSON; danh sách
   // Mở lại app: danh sách hiển thị còn nguyên, mở được danh sách đã lưu
   s = await openApp(dirs);
   win = s.win;
-  await chooseMode(win, 'Sticker');
+  await chooseMode(win, 'Event');
   await expect(win.locator('[data-msp]')).toHaveCount(3);
   await win.getByRole('button', { name: 'DS đã lưu' }).click();
   const lists = win.getByRole('dialog');

@@ -5,7 +5,7 @@ test('Thêm bằng ô tìm kiếm rồi bấm ngay vào ô số lượng: số g
   const dirs = newDirs();
   const s = await openApp(dirs);
   const { win } = s;
-  await chooseMode(win, 'Sticker');
+  await chooseMode(win, 'Event');
   const name = win.locator('#employee-name-input');
   if (await name.isVisible().catch(() => false)) {
     await name.fill('NV thử in');

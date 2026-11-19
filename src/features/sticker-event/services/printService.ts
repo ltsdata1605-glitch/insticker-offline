@@ -1259,7 +1259,12 @@ const getPrintStyles = (settings: PrintSettings): string => {
     `;
 }
 
-export const printPriceTags = async (products: Product[], employeeName: string, settings: PrintSettings): Promise<void> => {
+export const printPriceTags = async (
+  products: Product[],
+  employeeName: string,
+  settings: PrintSettings,
+  { title = 'In Bảng Giá', note }: { title?: string; note?: string } = {},
+): Promise<void> => {
   const abbreviatedEmployeeName = abbreviateName(employeeName);
 
   // Generate QR Code data URLs for all products offline
@@ -1305,7 +1310,6 @@ export const printPriceTags = async (products: Product[], employeeName: string, 
     allPagesHTML += `<div class="print-page ${sizeClass}">${pageTags}</div>`;
   }
 
-  const title = 'In Bảng Giá';
   const html = `
       <!DOCTYPE html>
       <html lang="vi">
@@ -1335,6 +1339,7 @@ export const printPriceTags = async (products: Product[], employeeName: string, 
   openPrintPreview({
     buildHtml: () => html,
     title,
+    note,
     paper: settings.tagsPerPage === 80
       ? { kind: 'roll', widthMm: 80 }
       : { kind: 'a4', landscape: orientation === 'landscape' },

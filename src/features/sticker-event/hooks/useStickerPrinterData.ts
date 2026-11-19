@@ -34,7 +34,8 @@ const STICKER_DB_KEY = 'stickerPrinterState';
 const STICKER_HISTORY_KEY = 'stickerPrintHistory';
 const STICKER_SAVED_LISTS_KEY = 'stickerSavedLists';
 const STICKER_LAST_SUB_KEY = 'sticker_last_sub';
-const STICKER_SUBS = ['draw', 'gia-soc', 'gio-vang', 'event'];
+// 'sticker' là tab Sticker in từ file mẫu, 'event' là tab Event (trước đây tên là Sticker) in từ bảng giá ERP
+const STICKER_SUBS = ['draw', 'gia-soc', 'gio-vang', 'sticker', 'event'];
 function readLastStickerSub(): string {
     try {
         const v = localStorage.getItem(STICKER_LAST_SUB_KEY);
@@ -101,8 +102,10 @@ export const DEFAULT_DRAW_HISTORY_ENTRY: PrintHistoryEntry = {
 };
 
 export function useStickerPrinterData() {
-    const [stickerMode, setStickerMode] = useState<'sticker' | 'event'>('sticker');
+    // 'sticker': Giá Sốc, Giờ Vàng, Phiếu; 'tag': tab Sticker in từ file mẫu; 'event': tab Event in từ bảng giá
+    const [stickerMode, setStickerMode] = useState<'sticker' | 'event' | 'tag'>('sticker');
     const [eventEverOpened, setEventEverOpened] = useState(false);
+    const [tagEverOpened, setTagEverOpened] = useState(false);
     const [stickerType, setStickerType] = useState<'gia_soc' | 'gio_vang' | 'draw'>('draw');
     const [bgImage, setBgImage] = useState('/frame/bg_phieu.png');
     const [priceSource, setPriceSource] = useState<'sale' | 'service'>('sale');
@@ -336,6 +339,9 @@ export function useStickerPrinterData() {
         } else if (sub === 'event') {
             setStickerMode('event');
             setEventEverOpened(true);
+        } else if (sub === 'sticker') {
+            setStickerMode('tag');
+            setTagEverOpened(true);
         }
     }, []);
 
@@ -404,6 +410,9 @@ export function useStickerPrinterData() {
                     } else if (currentSub === 'event') {
                         setStickerMode('event');
                         setEventEverOpened(true);
+                    } else if (currentSub === 'sticker') {
+                        setStickerMode('tag');
+                        setTagEverOpened(true);
                     }
 
                     // STRICT BG IMAGE BINDING: Chỉ khôi phục bgImage nếu nó thuộc đúng loại tem hiện tại
@@ -1490,6 +1499,7 @@ export function useStickerPrinterData() {
     return {
         stickerMode, setStickerMode,
         eventEverOpened, setEventEverOpened,
+        tagEverOpened,
         stickerType, setStickerType,
         bgImage, setBgImage,
         priceSource, setPriceSource,

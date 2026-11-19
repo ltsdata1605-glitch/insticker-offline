@@ -1,3 +1,6 @@
+/** Số sticker trên một trang A4 (tab Sticker cho mỗi sản phẩm một bố cục riêng). */
+export type TagLayout = 1 | 2 | 4 | 8 | 16 | 24;
+
 export interface Product {
   msp: string; // AK
   sanPham: string; // A + B
@@ -10,6 +13,8 @@ export interface Product {
   ngayIn: string; // AI
   selected: boolean;
   quantity: number;
+  /** Chỉ tab Sticker: bố cục in của sản phẩm, lấy từ cột Bố cục của file mẫu. Không có thì in 4 sticker/trang. */
+  layout?: TagLayout;
 }
 
 // Khi lưu danh sách, chỉ lưu msp+quantity để tiết kiệm dung lượng Firestore (xem

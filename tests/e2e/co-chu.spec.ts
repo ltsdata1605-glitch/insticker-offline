@@ -55,7 +55,7 @@ const clearSelection = async (win: Page) => {
 test('Đầu trang không còn ô chỉnh cỡ chữ ở mọi chế độ', async () => {
   const s = await openApp();
   const { win } = s;
-  for (const mode of ['Giá Sốc', 'Giờ Vàng', 'Phiếu', 'Sticker'] as const) {
+  for (const mode of ['Giá Sốc', 'Giờ Vàng', 'Phiếu', 'Sticker', 'Event'] as const) {
     await chooseMode(win, mode);
     await expect(win.getByTitle('Tăng size', { exact: true })).toHaveCount(0);
     await expect(win.getByTitle('Giảm size', { exact: true })).toHaveCount(0);
@@ -68,7 +68,7 @@ test('Thanh chọn chế độ: bấm và rê chuột vào nút ở hai đầu k
   const s = await openApp();
   const { win } = s;
   const header = win.locator('#global-header-actions');
-  for (const [name, corner] of [['Giá Sốc', 'borderTopLeftRadius'], ['Sticker', 'borderTopRightRadius']] as const) {
+  for (const [name, corner] of [['Giá Sốc', 'borderTopLeftRadius'], ['Event', 'borderTopRightRadius']] as const) {
     const button = header.getByRole('button', { name, exact: true });
     await button.click();
     await button.hover();

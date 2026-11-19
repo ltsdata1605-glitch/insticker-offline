@@ -26,7 +26,7 @@ const launchAgain = (dirs: Dirs) => new Promise<number | null>((resolve, reject)
 });
 
 const importPrices = async (win: Page, dirs: Dirs) => {
-  await chooseMode(win, 'Sticker');
+  await chooseMode(win, 'Event');
   const name = win.locator('#employee-name-input');
   if (await name.isVisible().catch(() => false)) {
     await name.fill('NV thử in');
@@ -76,7 +76,7 @@ test('Mac: đã đóng cửa sổ nhưng app còn chạy thì mở lần nữa h
   const next = await reopened;
   await next.waitForSelector('#global-header-actions button', { timeout: 60_000 });
   await next.waitForTimeout(800);
-  await chooseMode(next, 'Sticker');
+  await chooseMode(next, 'Event');
   await expect(next.getByTestId('price-table-status')).toContainText('2 SP');
   expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
   await s.close();

@@ -2,6 +2,8 @@ import { Product, ManualProductDoc } from '../types';
 import { areLocalWritesFrozen } from '../../../platform/localWriteGuard';
 import { legacySource } from './priceSources';
 import type { PriceImportRecord, PriceSource } from './priceSources';
+import { scopedKey } from './scope';
+import type { StickerScope } from './scope';
 
 function parseBonus(bonusCode: string | undefined | null): { thuongERP: number; thuongNong: number } {
   if (!bonusCode || typeof bonusCode !== 'string') {
@@ -210,6 +212,18 @@ export const savePriceTable = async (products: Product[], fileInfo: FileInfo | n
   });
 };
 
+/** Sản phẩm của tab Sticker, lấy từ các file mẫu đã nhập. */
+export const saveTemplateProducts = async (products: Product[], fileInfo: FileInfo): Promise<void> => {
+  if (areLocalWritesFrozen()) return;
+  const store = await getStore('readwrite');
+  return new Promise((resolve, reject) => {
+    store.put(products, scopedKey('sticker', 'products'));
+    store.put(fileInfo, scopedKey('sticker', 'fileInfo'));
+    store.transaction.oncomplete = () => resolve();
+    store.transaction.onerror = () => reject(store.transaction.error);
+  });
+};
+
 const readKeys = async (keys: readonly string[]): Promise<Record<string, unknown>> => {
   const store = await getStore('readonly');
   const requests = keys.map((key) => [key, store.get(key)] as const);
@@ -250,16 +264,22 @@ export const savePriceImportHistory = async (history: PriceImportRecord[]): Prom
   });
 };
 
-export const saveDisplayedProducts = async (products: Product[], timestamp?: number): Promise<void> => {
+export const saveDisplayedProducts = async (products: Product[], scope: StickerScope = 'event'): Promise<void> => {
     if (areLocalWritesFrozen()) return;
     const store = await getStore('readwrite');
     return new Promise((resolve, reject) => {
         const transaction = store.transaction;
-        store.put(products, 'displayedProducts');
-        store.put(timestamp || Date.now(), 'displayedProductsLastModified');
+        store.put(products, scopedKey(scope, 'displayedProducts'));
+        store.put(Date.now(), scopedKey(scope, 'displayedProductsLastModified'));
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error);
     });
+};
+
+/** Tên người in dùng chung cho tab Event và tab Sticker. */
+export const loadEmployeeName = async (): Promise<string> => {
+    const data = await readKeys(['employeeName']);
+    return typeof data.employeeName === 'string' ? data.employeeName : '';
 };
 
 export const saveEmployeeName = async (name: string): Promise<void> => {
@@ -274,21 +294,21 @@ export const saveEmployeeName = async (name: string): Promise<void> => {
 };
 
 /** Sản phẩm nhập tay. Bản web lưu ở Firestore theo mã kho, app offline lưu trên máy. */
-export const saveManualProducts = async (products: ManualProductDoc[]): Promise<void> => {
+export const saveManualProducts = async (products: ManualProductDoc[], scope: StickerScope = 'event'): Promise<void> => {
     if (areLocalWritesFrozen()) return;
     const store = await getStore('readwrite');
     return new Promise((resolve, reject) => {
         const transaction = store.transaction;
-        store.put(products, 'manualProducts');
+        store.put(products, scopedKey(scope, 'manualProducts'));
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error);
     });
 };
 
-export const loadManualProducts = async (): Promise<ManualProductDoc[]> => {
+export const loadManualProducts = async (scope: StickerScope = 'event'): Promise<ManualProductDoc[]> => {
     try {
         const store = await getStore('readonly');
-        const request = store.get('manualProducts');
+        const request = store.get(scopedKey(scope, 'manualProducts'));
         return new Promise((resolve) => {
             request.onsuccess = () => resolve(Array.isArray(request.result) ? request.result : []);
             request.onerror = () => resolve([]);
@@ -335,14 +355,15 @@ interface LoadDataResult {
     displayedProductsLastModified: number | null;
 }
 
-export const loadData = async (): Promise<LoadDataResult | null> => {
+/** Tên người in dùng chung cho mọi tab nên không theo `scope`. */
+export const loadData = async (scope: StickerScope = 'event'): Promise<LoadDataResult | null> => {
     try {
         const store = await getStore('readonly');
-        const productsReq = store.get('products');
-        const displayedProductsReq = store.get('displayedProducts');
-        const fileInfoReq = store.get('fileInfo');
+        const productsReq = store.get(scopedKey(scope, 'products'));
+        const displayedProductsReq = store.get(scopedKey(scope, 'displayedProducts'));
+        const fileInfoReq = store.get(scopedKey(scope, 'fileInfo'));
         const employeeNameReq = store.get('employeeName');
-        const displayedProductsLastModifiedReq = store.get('displayedProductsLastModified');
+        const displayedProductsLastModifiedReq = store.get(scopedKey(scope, 'displayedProductsLastModified'));
 
         return new Promise((resolve) => {
             const results: LoadDataResult = { products: [], displayedProducts: [], fileInfo: null, employeeName: '', displayedProductsLastModified: null };
@@ -394,13 +415,17 @@ export const loadData = async (): Promise<LoadDataResult | null> => {
 };
 
 /**
- * Nút xoá bảng giá (thùng rác trên thanh trên, chế độ Sticker): chỉ xoá bảng giá, các file đã nhập và danh sách đang hiển thị. Sản phẩm nhập tay, tên người in
- * và lịch sử nhập vẫn giữ. Xoá luôn dữ liệu tồn kho còn sót từ bản trước, khi app còn chức năng nạp tồn.
+ * Nút thùng rác trên thanh trên. Tab Event: chỉ xoá bảng giá, các file đã nhập và danh sách đang hiển thị; sản phẩm nhập tay,
+ * tên người in và lịch sử nhập vẫn giữ; xoá luôn dữ liệu tồn kho còn sót từ bản trước, khi app còn chức năng nạp tồn.
+ * Tab Sticker: xoá sản phẩm đã nhập từ file mẫu và danh sách đang hiển thị.
  */
-export const clearPriceData = async (): Promise<void> => {
+export const clearPriceData = async (scope: StickerScope = 'event'): Promise<void> => {
   const store = await getStore('readwrite');
+  const keys = scope === 'event'
+    ? ['products', 'fileInfo', 'priceSources', 'displayedProducts', 'displayedProductsLastModified', 'inventory', 'inventoryUploadTimestamp', 'inventoryFilters']
+    : ['products', 'fileInfo', 'displayedProducts', 'displayedProductsLastModified'].map((key) => scopedKey(scope, key));
   return new Promise((resolve, reject) => {
-    for (const key of ['products', 'fileInfo', 'priceSources', 'displayedProducts', 'displayedProductsLastModified', 'inventory', 'inventoryUploadTimestamp', 'inventoryFilters']) {
+    for (const key of keys) {
       store.delete(key);
     }
     store.transaction.oncomplete = () => resolve();

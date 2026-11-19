@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Product } from '../types';
 import { saveEmployeeName, parseCurrency, saveDisplayedProducts } from '../services/fileParser';
 import { SortField, SortDirection } from '../ProductToolbar';
+import type { StickerScope } from '../services/scope';
 
 /** Lưu danh sách đang hiển thị xuống máy sau khi người dùng ngừng thao tác. */
 const LOCAL_SAVE_DEBOUNCE_MS = 1000;
@@ -9,11 +10,13 @@ const LOCAL_SAVE_DEBOUNCE_MS = 1000;
 interface UseStickerEventStateProps {
   isInitializing: boolean;
   allProducts: Product[];
+  scope: StickerScope;
 }
 
 export function useStickerEventState({
   isInitializing,
   allProducts,
+  scope,
 }: UseStickerEventStateProps) {
   const [displayedProducts, setDisplayedProducts] = useState<Product[]>([]);
   const [sortField, setSortField] = useState<SortField>('none');
@@ -238,13 +241,13 @@ export function useStickerEventState({
 
   const executeReset = useCallback(async () => {
     setDisplayedProducts([]);
-    saveDisplayedProducts([]);
+    saveDisplayedProducts([], scope);
     setSearchQuery('');
     setSuggestions([]);
     setShowNoResults(false);
     setDuplicateError(false);
     setError(null);
-  }, []);
+  }, [scope]);
 
   const handleSortChange = useCallback((field: SortField, direction: SortDirection) => {
     setSortField(field);
@@ -257,11 +260,11 @@ export function useStickerEventState({
 
     if (saveDisplayedProductsTimeoutRef.current) clearTimeout(saveDisplayedProductsTimeoutRef.current);
     saveDisplayedProductsTimeoutRef.current = window.setTimeout(() => {
-      saveDisplayedProducts(displayedProducts).catch(console.error);
+      saveDisplayedProducts(displayedProducts, scope).catch(console.error);
     }, LOCAL_SAVE_DEBOUNCE_MS);
 
     const handleFlushSave = () => {
-      saveDisplayedProducts(displayedProducts).catch(console.error);
+      saveDisplayedProducts(displayedProducts, scope).catch(console.error);
     };
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') handleFlushSave();
@@ -275,7 +278,7 @@ export function useStickerEventState({
       window.removeEventListener('beforeunload', handleFlushSave);
       window.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [displayedProducts, isInitializing]);
+  }, [displayedProducts, isInitializing, scope]);
 
   // Sorted Products Memo
   const sortedProducts = useMemo(() => {

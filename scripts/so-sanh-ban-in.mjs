@@ -127,7 +127,7 @@ const fileGia = path.join(OUT, 'bang-gia.xlsx');
   ]), 'Sheet1');
   XLSX.writeFile(wb, fileGia);
 }
-await chonTab('Sticker');
+await chonTab('Event');
 await win.locator('#employee-name-input').fill('NV thử in');
 await win.locator('#employee-name-input').press('Enter');
 await win.locator('#price-file-input').setInputFiles(fileGia);
