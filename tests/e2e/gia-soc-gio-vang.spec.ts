@@ -359,3 +359,53 @@ test('Thêm khi chưa có danh sách: thấy ngay ảnh sticker và có thông b
   await expect(win.getByRole('button', { name: /Bấm để in/ }).first()).toContainText('(1)');
   await s.close();
 });
+
+test('Nút x trên ảnh sticker: xoá nhanh đúng sticker đó, không mở sticker, còn đúng sau khi mở lại', async () => {
+  const dirs = newDirs();
+  let s = await openApp(dirs);
+  let { win } = s;
+  await chooseMode(win, 'Giờ Vàng');
+  const thumbnails = win.getByTestId('sticker-thumbnail');
+  const removeButtons = win.getByTestId('sticker-thumbnail-remove');
+  const bigName = win.locator('#print-section .name');
+  const printButton = win.getByRole('button', { name: /Bấm để in/ }).first();
+
+  for (const name of ['Sticker A', 'Sticker B', 'Sticker C']) {
+    await bigName.click();
+    await win.keyboard.press('ControlOrMeta+a');
+    await win.keyboard.type(name);
+    await win.getByRole('button', { name: 'Thêm', exact: true }).click();
+  }
+  await expect(thumbnails).toHaveCount(3);
+  await expect(removeButtons).toHaveCount(3);
+
+  // Xoá sticker giữa: không mở sticker đó, số thứ tự và số trang in cập nhật
+  await thumbnails.nth(0).click();
+  await win.getByRole('button', { name: 'Xoá sticker 2: Sticker B' }).click();
+  await expect(thumbnails).toHaveCount(2);
+  await expect(thumbnails.nth(0).locator('.name')).toHaveText('Sticker A');
+  await expect(thumbnails.nth(1).locator('.name')).toHaveText('Sticker C');
+  await expect(thumbnails.nth(1)).toHaveAttribute('aria-label', 'Mở sticker 2: Sticker C');
+  await expect(thumbnails.nth(0)).toHaveAttribute('aria-pressed', 'true');
+  await expect(bigName).toHaveText('Sticker A');
+  await expect(printButton).toContainText('(2)');
+
+  // Xoá sticker đang mở: bản xem trước thành sticker đang soạn, chưa có trong danh sách
+  await removeButtons.nth(0).click();
+  await expect(thumbnails).toHaveCount(1);
+  await expect(win.getByTestId('sticker-editing-note')).toContainText('chưa có trong danh sách');
+
+  await win.waitForTimeout(1500);
+  await s.close();
+  s = await openApp(dirs);
+  ({ win } = s);
+  await chooseMode(win, 'Giờ Vàng');
+  await expect(win.getByTestId('sticker-thumbnail')).toHaveCount(1);
+  await expect(win.getByTestId('sticker-thumbnail').nth(0).locator('.name')).toHaveText('Sticker C');
+
+  // Xoá hết thì không còn dải ảnh, nút in quay về in sticker đang soạn
+  await win.getByTestId('sticker-thumbnail-remove').click();
+  await expect(win.getByTestId('sticker-strip')).toHaveCount(0);
+  await expect(win.getByRole('button', { name: /Bấm để in/ }).first()).toContainText('(1)');
+  await s.close();
+});

@@ -144,6 +144,7 @@ export default function StickerPrinterView() {
                         pages={manualPages}
                         activeId={activeQueuePageId}
                         onSelect={selectQueuePage}
+                        onRemove={removeManualPage}
                         stickerType={stickerType}
                         bgImage={bgImage}
                         priceSource={priceSource}
