@@ -132,7 +132,7 @@ export default function StickerPrinterView() {
             {eventEverOpened && (
                 <div className={`absolute inset-0 z-10 w-full h-full overflow-y-auto transition-opacity duration-200 ${stickerMode === 'event' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
                     <ErrorBoundary name="Sticker">
-                        <StickerEventApp />
+                        <StickerEventApp isActive={stickerMode === 'event'} />
                     </ErrorBoundary>
                 </div>
             )}

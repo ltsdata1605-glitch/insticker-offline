@@ -34,8 +34,10 @@ import { useStickerEventFile } from './hooks/useStickerEventFile';
 import { useStickerEventPrint } from './hooks/useStickerEventPrint';
 import { useStickerEventState } from './hooks/useStickerEventState';
 import { Overlay } from '../../components/shared/ui/Overlay';
+import { HeaderSlot } from '../../platform/HeaderSlot';
 
-export default function App(): React.JSX.Element {
+/** `isActive`: đang ở chế độ Sticker. Màn vẫn giữ trong cây khi sang chế độ khác nên phải biết để ẩn nút trên thanh trên. */
+export default function App({ isActive = true }: { isActive?: boolean }): React.JSX.Element {
   const [isInitializing, setIsInitializing] = useState(true);
 
   // 1b. Lifted Database & File States
@@ -395,7 +397,6 @@ export default function App(): React.JSX.Element {
               onOpenPriceSources={() => setIsPriceSourcesOpen(true)}
               onOpenManualInput={() => setIsManualInputOpen(true)}
               onReset={() => setIsResetConfirmOpen(true)}
-              onClearAll={() => setIsClearAllConfirmOpen(true)}
               onOpenImport={() => setIsImportOpen(true)}
               onExport={handleExportList}
               onOpenPrintSettings={() => setIsPrintSettingsOpen(true)}
@@ -591,6 +592,24 @@ export default function App(): React.JSX.Element {
           cancelText="Hủy"
           type="danger"
         />
+
+        {isActive && (
+          <HeaderSlot>
+            <div className="border-l border-slate-100 dark:border-slate-700">
+              <Button
+                variant="ghost"
+                size="none"
+                onClick={() => setIsClearAllConfirmOpen(true)}
+                disabled={isLoading}
+                title="Xóa toàn bộ dữ liệu bảng giá trên máy này"
+                aria-label="Xóa toàn bộ dữ liệu bảng giá"
+                className="relative w-9 h-9 flex items-center justify-center text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+              >
+                <AppIcon name="delete" size="md" />
+              </Button>
+            </div>
+          </HeaderSlot>
+        )}
 
         <ConfirmModal
           isOpen={isClearAllConfirmOpen}

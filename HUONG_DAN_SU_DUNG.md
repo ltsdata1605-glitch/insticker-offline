@@ -109,6 +109,6 @@ Bấm nút quét cạnh ô tìm kiếm. Lần đầu máy sẽ hỏi quyền cam
 ## Khác với bản web
 
 - Không có đăng nhập, phân quyền, kho và đồng bộ Cloud. Danh sách đã lưu không tự sang máy khác, hãy dùng Sao lưu.
-- Ai dùng máy cũng nạp được bảng giá và dùng nút **Xóa DL**.
+- Ai dùng máy cũng nạp được bảng giá và xoá được bảng giá bằng nút thùng rác trên thanh trên cùng (chỉ hiện ở chế độ Sticker).
 - Không có nạp tồn kho, nên cũng không có bộ lọc ngành hàng, nhóm hàng và số tem theo tồn.
 - Không có giao diện điện thoại.

@@ -47,6 +47,7 @@ Những file đã thay hoặc sửa:
 - Bỏ theo yêu cầu: nạp tồn kho, link lấy file tồn, file mẫu theo ngành hàng, bộ lọc ngành/nhóm hàng, số tem và sắp xếp theo tồn. `InventoryToolbar.tsx` đổi thành `ProductToolbar.tsx`, `FilterModal.tsx` chỉ còn sắp xếp.
 - Mới: `services/localDataService.ts`, thư mục `platform/` (xem trước bản in, sao lưu, thông báo tệp tải về).
 - Bảng giá ghép từ nhiều file (`services/priceSources.ts`): mỗi file đã nhập lưu riêng ở khoá `priceSources`, `products` là bản đã ghép, file nhập sau ghi đè giá khi trùng mã. Bản web nhập file mới là thay cả bảng. Lịch sử nhập ở khoá `priceImportHistory`. Màn mới: `PriceSourcesModal.tsx`, `PriceImportHistoryModal.tsx`.
+- Nút xoá bảng giá (bản web là nút "Xóa DL" trong `ControlPanel.tsx`) chuyển lên cụm nút cuối thanh trên, chỉ có biểu tượng thùng rác và chỉ hiện ở chế độ Sticker. Màn Sticker đặt nút vào chỗ trống của cụm qua `platform/HeaderSlot.tsx`.
 - `SearchBar.tsx`: chọn gợi ý bằng phím mũi tên, Enter để thêm, con trỏ về lại ô tìm kiếm sau khi thêm; mã khớp đúng đứng đầu gợi ý.
 - Không chép: `Login.tsx`, `UserManagementModal.tsx`, `SuperAdminModal.tsx`, `ChangePasswordModal.tsx`, `PdfPreviewModal.tsx`, `firebase.ts`, `services/firebaseService.ts`, `services/sessionService.ts`, `services/adminUserService.ts`, `services/sessionSyncPolicy.ts`, `hooks/useStickerEventAuth.ts`.
 

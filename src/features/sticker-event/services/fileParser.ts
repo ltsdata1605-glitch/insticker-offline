@@ -394,7 +394,7 @@ export const loadData = async (): Promise<LoadDataResult | null> => {
 };
 
 /**
- * Nút "Xóa DL": chỉ xoá bảng giá, các file đã nhập và danh sách đang hiển thị. Sản phẩm nhập tay, tên người in
+ * Nút xoá bảng giá (thùng rác trên thanh trên, chế độ Sticker): chỉ xoá bảng giá, các file đã nhập và danh sách đang hiển thị. Sản phẩm nhập tay, tên người in
  * và lịch sử nhập vẫn giữ. Xoá luôn dữ liệu tồn kho còn sót từ bản trước, khi app còn chức năng nạp tồn.
  */
 export const clearPriceData = async (): Promise<void> => {

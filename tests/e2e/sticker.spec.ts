@@ -68,6 +68,31 @@ test('Lần đầu mở: có hướng dẫn, nội dung offline, không còn ph�
   await s.close();
 });
 
+test('Nút xoá bảng giá: trên thanh trên giữa nút sao lưu và nút phiên bản, chỉ có biểu tượng, chỉ ở chế độ Sticker', async () => {
+  const s = await openApp();
+  const { win } = s;
+  const header = win.locator('#global-header-actions');
+  const clearAll = header.getByRole('button', { name: 'Xóa toàn bộ dữ liệu bảng giá' });
+  await chooseMode(win, 'Sticker');
+  await expect(clearAll).toBeVisible();
+  await expect(clearAll).toHaveText('');
+  await expect(win.getByRole('button', { name: 'Xóa DL' })).toHaveCount(0);
+
+  const x = async (name: string | RegExp) => (await header.getByRole('button', { name }).boundingBox())!.x;
+  const clearAllX = await x('Xóa toàn bộ dữ liệu bảng giá');
+  expect(clearAllX).toBeGreaterThan(await x('Sao lưu và khôi phục dữ liệu'));
+  expect(clearAllX).toBeLessThan(await x(/Cập nhật ứng dụng/));
+
+  // Chỉ xoá bảng giá của màn Sticker nên các chế độ khác không có nút này
+  for (const mode of ['Giá Sốc', 'Giờ Vàng', 'Phiếu'] as const) {
+    await chooseMode(win, mode);
+    await expect(clearAll).toHaveCount(0);
+  }
+  await chooseMode(win, 'Sticker');
+  await expect(clearAll).toBeVisible();
+  await s.close();
+});
+
 test('Nạp bảng giá, tìm thêm sản phẩm, số lượng, in đã chọn, in tất cả, in một sản phẩm', async () => {
   const dirs = newDirs();
   const s = await openApp(dirs);
@@ -179,7 +204,7 @@ test('Sắp xếp danh sách theo giá, % giảm, tên và bỏ sắp xếp', as
   await s.close();
 });
 
-test('Sản phẩm nhập tay: thêm, sửa, in, xoá; còn sau khi mở lại và sau khi Xóa DL', async () => {
+test('Sản phẩm nhập tay: thêm, sửa, in, xoá; còn sau khi mở lại và sau khi xoá bảng giá', async () => {
   const dirs = newDirs();
   let s = await openApp(dirs);
   let win = s.win;
@@ -224,8 +249,8 @@ test('Sản phẩm nhập tay: thêm, sửa, in, xoá; còn sau khi mở lại v
   await expect(win.locator('li', { hasText: 'Bàn ủi Philips' }).first()).toBeVisible();
   await win.getByLabel('Tìm sản phẩm').first().fill('');
 
-  // Xóa DL: mất bảng giá, còn sản phẩm nhập tay và tên người in
-  await win.getByRole('button', { name: 'Xóa DL' }).click();
+  // Xoá bảng giá: mất bảng giá, còn sản phẩm nhập tay và tên người in
+  await win.locator('#global-header-actions').getByRole('button', { name: 'Xóa toàn bộ dữ liệu bảng giá' }).click();
   await win.getByRole('dialog').getByRole('button', { name: 'Xác nhận Xóa' }).click();
   await expect(win.getByRole('dialog').getByText('Đã xóa toàn bộ dữ liệu bảng giá.')).toBeVisible();
   await win.getByRole('dialog').getByRole('button').first().click();

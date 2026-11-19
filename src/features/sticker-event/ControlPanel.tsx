@@ -39,7 +39,6 @@ interface ControlPanelProps {
     onOpenPriceSources: () => void;
     onOpenManualInput: () => void;
     onReset: () => void;
-    onClearAll: () => void;
     onOpenImport: () => void;
     onExport: () => void;
     onOpenPrintSettings: () => void;
@@ -137,18 +136,6 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                                         </span>
                                     </div>
                                 </div>
-                            )}
-
-                            {isAdmin && (
-                                <Button
-                                    variant="ghost" size="xs"
-                                    onClick={props.onClearAll}
-                                    className="flex gap-1 font-semibold text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 shrink-0"
-                                    title="Xóa toàn bộ dữ liệu bảng giá trên máy này"
-                                >
-                                    <AppIcon name="delete" size="xs" />
-                                    <span>Xóa DL</span>
-                                </Button>
                             )}
                         </div>
                         {isEmployeeNameEmpty && (
