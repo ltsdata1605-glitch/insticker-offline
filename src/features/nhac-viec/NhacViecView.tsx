@@ -1,19 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '../../components/shared/ui/Button';
+import { Input } from '../../components/shared/ui/Input';
 import { Modal } from '../../components/shared/ui/Modal';
 import { Switch } from '../../components/shared/ui/Switch';
 import { Tabs } from '../../components/shared/ui/Tabs';
 import { TopBarActions } from '../../components/shared/ui/TopBarActions';
-import { AppIcon } from '../../components/shared/ui/icon/AppIcon';
 import type { BackgroundSettings } from '../../../electron/contract';
 import type { ChecklistRun, ChecklistTemplate, Reminder } from './nhacViecModel';
-import { DAY, atTime, dateKey, relativeText, runOnTime, runProgress, scheduledOn, startOfDay, statsBetween, timeOfDay, weekdayName } from './nhacViecModel';
-import { useNhacViec } from './NhacViecProvider';
+import { DAY, atTime, dateKey, dateTimeText as dateTimeTextOf, relativeText, runOnTime, runProgress, scheduledOn, startOfDay, statsBetween, timeOfDay, weekdayName } from './nhacViecModel';
+import { clockNow, useNhacViec } from './NhacViecProvider';
+import { TEMPLATE_COPY_URL } from './sheetTasks';
 import { ReminderForm } from './ReminderForm';
 import { ReminderList, ReminderRow, sortedViews } from './ReminderList';
 import { TemplateForm } from './TemplateForm';
 import { RunView } from './RunView';
-import { PRESETS, VOICE_HELP, playPreset, vietnameseVoice } from './sounds';
+import { PRESETS, VOICE_HELP, playPreset, playSpeech, setPreferredVoiceName, vietnameseVoice, vietnameseVoices } from './sounds';
 
 type Tab = 'today' | 'reminders' | 'checklists' | 'stats';
 
@@ -50,7 +51,7 @@ const RunRow: React.FC<{ run: ChecklistRun; now: number; onOpen: () => void }> =
 
 /** Tab Checklist: các mẫu (bắt đầu lượt, sửa), lượt đang làm, lượt gần đây. */
 const ChecklistPanel: React.FC<{ onOpenRun: (run: ChecklistRun) => void; onEditTemplate: (template: ChecklistTemplate | null) => void }> = ({ onOpenRun, onEditTemplate }) => {
-    const { templates, runs, now, openRunFor } = useNhacViec();
+    const { templates, runs, now, openRunFor, sheet } = useNhacViec();
     const active = runs.filter(run => !run.finishedAt);
     const recent = runs.filter(run => run.finishedAt).slice(0, 30);
     return (
@@ -69,14 +70,24 @@ const ChecklistPanel: React.FC<{ onOpenRun: (run: ChecklistRun) => void; onEditT
                     {templates.map(template => (
                         <li key={template.id} data-testid="mau-checklist" className="flex items-center gap-3 rounded-card border border-slate-200 bg-white px-4 py-3">
                             <div className="min-w-0 flex-1">
-                                <p className="text-[15px] font-bold text-slate-900 break-words">{template.name}</p>
-                                <p className="text-[12px] text-slate-500">{template.items.length} việc · {scheduleText(template)}{template.description ? ` · ${template.description}` : ''}</p>
+                                <p className="text-[15px] font-bold text-slate-900 break-words">
+                                    {template.name}
+                                    {template.source?.kind === 'sheet' && <span className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200">Google Sheet</span>}
+                                </p>
+                                <p className="text-[12px] text-slate-500">
+                                    {template.items.length} việc · {scheduleText(template)}{template.assignee ? ` · Người làm: ${template.assignee}` : ''}{template.description ? ` · ${template.description}` : ''}
+                                </p>
                             </div>
                             <Button size="sm" icon="play" onClick={() => {
                                 const run = openRunFor(template.id);
                                 if (run) onOpenRun(run);
                             }}>Bắt đầu</Button>
-                            <Button size="sm" variant="secondary" icon="edit" aria-label={`Sửa ${template.name}`} onClick={() => onEditTemplate(template)} />
+                            {template.source?.kind === 'sheet' ? (
+                                <Button size="sm" variant="secondary" icon="externalLink" aria-label={`Mở Google Sheet của ${template.name}`} title="Sửa checklist này trong Google Sheet"
+                                    onClick={() => sheet && void window.stickerDesktop.reminders.openSheet(sheet.url)} />
+                            ) : (
+                                <Button size="sm" variant="secondary" icon="edit" aria-label={`Sửa ${template.name}`} onClick={() => onEditTemplate(template)} />
+                            )}
                         </li>
                     ))}
                 </ul>
@@ -155,7 +166,8 @@ const StatsPanel: React.FC<{ onOpenRun: (run: ChecklistRun) => void }> = ({ onOp
     const { reminders, runs, now } = useNhacViec();
     const [days, setDays] = useState(7);
     const from = startOfDay(now) - (days - 1) * DAY;
-    const stats = statsBetween(reminders, runs, from, now);
+    // Tính đến đúng lúc này: `now` trên màn chỉ cập nhật 30 giây một lần, lượt vừa bắt đầu vẫn phải được đếm
+    const stats = statsBetween(reminders, runs, from, Math.max(now, clockNow()));
     const inRange = runs.filter(run => run.startedAt >= from);
     const rate = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : '–');
     const Card: React.FC<{ label: string; value: string | number; tone?: string }> = ({ label, value, tone = 'text-slate-900' }) => (
@@ -201,18 +213,109 @@ const StatsPanel: React.FC<{ onOpenRun: (run: ChecklistRun) => void }> = ({ onOp
     );
 };
 
+/** Nhận việc từ Google Sheet: tạo file từ mẫu, chia sẻ, dán link; đã kết nối thì xem tình trạng, đồng bộ ngay, ngắt kết nối. */
+const SheetSection: React.FC = () => {
+    const { sheet, syncing, connectSheet, disconnectSheet, syncSheet } = useNhacViec();
+    const [link, setLink] = useState('');
+    const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+    const [busy, setBusy] = useState(false);
+    const open = (url: string) => void window.stickerDesktop.reminders.openSheet(url);
+    const connect = async (url = link) => {
+        setBusy(true);
+        const outcome = await connectSheet(url);
+        setBusy(false);
+        setResult(outcome);
+        if (outcome.ok) setLink('');
+    };
+    /** Đỡ phải gõ: lấy link Google Sheet vừa sao chép và kết nối luôn */
+    const pasteAndConnect = async () => {
+        const copied = await window.stickerDesktop.reminders.readSheetLinkFromClipboard();
+        if (!copied) {
+            setResult({ ok: false, message: 'Chưa có link Google Sheet trong bộ nhớ tạm. Trong file, bấm Chia sẻ rồi Sao chép đường liên kết.' });
+            return;
+        }
+        setLink(copied);
+        await connect(copied);
+    };
+    const Step: React.FC<{ n: number; title: string; children: React.ReactNode }> = ({ n, title, children }) => (
+        <li className="flex gap-3">
+            <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-600 text-[12px] font-black text-white">{n}</span>
+            <div className="min-w-0 flex-1 space-y-1.5">
+                <p className="text-[14px] font-bold text-slate-800">{title}</p>
+                {children}
+            </div>
+        </li>
+    );
+    return (
+        <section aria-label="Nhận việc từ Google Sheet" className="rounded-card border border-slate-200 bg-white px-4 py-3 space-y-3">
+            <div>
+                <p className="text-[15px] font-bold text-slate-900">Nhận việc từ Google Sheet</p>
+                <p className="text-[12px] text-slate-500">Quản lý ghi việc và checklist vào Google Sheet (chọn từ danh sách, không phải gõ nhiều), app tự nhận về, báo việc mới và nhắc đúng hạn. App đọc file 5 phút một lần.</p>
+            </div>
+            {sheet ? (
+                <div className="space-y-2">
+                    <p className="text-[13px] text-slate-700 break-all">Đang nhận việc từ: <span className="font-semibold">{sheet.url}</span></p>
+                    <p data-testid="tinh-trang-sheet" className={`rounded-control px-3 py-2 text-[13px] font-semibold ${sheet.lastOk === false ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>
+                        {sheet.lastSyncAt === undefined ? 'Chưa đọc lần nào'
+                            : sheet.lastOk === false ? `${dateTimeTextOf(sheet.lastSyncAt)}: ${sheet.lastMessage}`
+                                : `Đọc lúc ${dateTimeTextOf(sheet.lastSyncAt)}: ${sheet.taskCount ?? 0} công việc đang giao, ${sheet.checklistCount ?? 0} checklist`}
+                    </p>
+                    {sheet.skipped && sheet.skipped.length > 0 && (
+                        <ul className="rounded-control border border-amber-200 bg-amber-50/60 px-3 py-2 text-[12px] text-amber-800 space-y-0.5">
+                            <li className="font-bold">App bỏ qua {sheet.skipped.length} dòng ghi chưa đúng:</li>
+                            {sheet.skipped.slice(0, 8).map(item => <li key={`${item.sheet}-${item.row}`}>{item.sheet ? `Trang ${item.sheet}, d` : 'D'}òng {item.row}: {item.reason}</li>)}
+                        </ul>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                        <Button size="sm" icon="refresh" isLoading={syncing} onClick={() => void syncSheet()}>Đồng bộ ngay</Button>
+                        <Button size="sm" variant="secondary" icon="externalLink" onClick={() => open(sheet.url)}>Mở Google Sheet</Button>
+                        <Button size="sm" variant="ghost" className="text-rose-600" onClick={disconnectSheet}>Ngắt kết nối</Button>
+                    </div>
+                </div>
+            ) : (
+                <ol className="space-y-3">
+                    <Step n={1} title="Tạo file nhắc việc">
+                        <p className="text-[12px] text-slate-600">Trình duyệt mở trang của Google, đăng nhập rồi bấm <strong>Tạo bản sao</strong>. File mới nằm trong Google Drive của bạn, có sẵn trang Nhắc việc, Checklist, Danh mục người và Hướng dẫn.</p>
+                        <Button size="sm" icon="add" onClick={() => open(TEMPLATE_COPY_URL)}>Tạo file nhắc việc</Button>
+                    </Step>
+                    <Step n={2} title="Chia sẻ file">
+                        <p className="text-[12px] text-slate-600">
+                            Trong file vừa tạo, bấm <strong>Chia sẻ</strong>, phần Quyền truy cập chung chọn <strong>Bất kỳ ai có đường liên kết</strong> và <strong>Người chỉnh sửa</strong>
+                            để quản lý ghi việc được. Bấm <strong>Sao chép đường liên kết</strong>.
+                        </p>
+                    </Step>
+                    <Step n={3} title="Dán link và kết nối">
+                        <Button icon="paste" isLoading={busy} onClick={() => void pasteAndConnect()}>Dán link đã sao chép</Button>
+                        <div className="flex gap-2">
+                            <Input value={link} onChange={e => { setLink(e.target.value); setResult(null); }} placeholder="hoặc dán tay: https://docs.google.com/spreadsheets/d/…" aria-label="Link Google Sheet" />
+                            <Button variant="secondary" disabled={!link.trim() || busy} onClick={() => void connect()}>Kết nối</Button>
+                        </div>
+                    </Step>
+                </ol>
+            )}
+            {result && <p role={result.ok ? 'status' : 'alert'} className={`text-[13px] font-semibold ${result.ok ? 'text-emerald-700' : 'text-rose-600'}`}>{result.message}</p>}
+            <p className="text-[11px] text-slate-500">
+                Ai có link đều xem được nội dung file, đừng ghi thông tin nhạy cảm. App chỉ đọc file: bấm Đã xong trong app không ghi ngược lên file. Ghi Huỷ ở cột Trạng thái để rút việc.
+            </p>
+        </section>
+    );
+};
+
 /** Cài đặt: chạy nền để nhắc khi đóng cửa sổ, khởi động cùng máy, kiểm tra giọng đọc và loa. */
 const SettingsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const [settings, setSettings] = useState<BackgroundSettings | null>(null);
     const [voice, setVoice] = useState<string | null | undefined>(undefined);
+    const [voices, setVoices] = useState<string[]>([]);
     useEffect(() => {
         void window.stickerDesktop.reminders.getBackground().then(setSettings);
+        void vietnameseVoices().then(list => setVoices(list.map(item => item.name)));
         void vietnameseVoice().then(found => setVoice(found ? found.name : null));
     }, []);
     const change = async (next: Partial<Pick<BackgroundSettings, 'runInBackground' | 'openAtLogin'>>) => setSettings(await window.stickerDesktop.reminders.setBackground(next));
     return (
-        <Modal isOpen={true} onClose={onClose} title="Cài đặt nhắc việc" maxWidth="md" zIndex="z-[200]">
+        <Modal isOpen={true} onClose={onClose} title="Cài đặt nhắc việc" maxWidth="lg" zIndex="z-[200]">
             <div className="space-y-4">
+                <SheetSection />
                 <ul className="divide-y divide-slate-100 rounded-card border border-slate-200 bg-white">
                     <li className="flex items-center justify-between gap-3 px-4 py-3">
                         <span id="cd-chay-nen" className="text-[14px] text-slate-800">
@@ -231,9 +334,17 @@ const SettingsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 </ul>
                 <div className="rounded-card border border-slate-200 bg-white px-4 py-3 space-y-2">
                     <p className="text-[14px] font-semibold text-slate-800">Giọng đọc tiếng Việt</p>
-                    <p className={`text-[13px] ${voice === null ? 'text-amber-700' : 'text-slate-600'}`}>
-                        {voice === undefined ? 'Đang kiểm tra…' : voice ? `Đang dùng giọng: ${voice}` : VOICE_HELP}
-                    </p>
+                    {voice === undefined ? <p className="text-[13px] text-slate-600">Đang kiểm tra giọng đọc của máy…</p>
+                        : voice === null ? <p role="alert" className="text-[13px] text-amber-700">{VOICE_HELP}</p>
+                            : (
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <select value={voice} aria-label="Giọng đọc" onChange={e => { setPreferredVoiceName(e.target.value); setVoice(e.target.value); }}
+                                        className="h-9 rounded-control border border-slate-200 bg-white px-2 text-[13px] focus:outline-none focus:border-sky-400">
+                                        {voices.map(name => <option key={name} value={name}>{name}</option>)}
+                                    </select>
+                                    <Button size="sm" variant="secondary" icon="play" onClick={() => playSpeech('Xin chào. Đây là giọng đọc nhắc việc của In Sticker.', false)}>Nghe thử giọng</Button>
+                                </div>
+                            )}
                     <p className="text-[12px] text-slate-500">App không tự tăng âm lượng của máy được. Hãy để loa ở mức nghe rõ và bấm thử chuông:</p>
                     <div className="flex flex-wrap gap-1.5">
                         {PRESETS.map(preset => <Button key={preset.id} size="xs" variant="secondary" icon="play" onClick={() => playPreset(preset.id, false)}>{preset.label}</Button>)}
@@ -275,14 +386,8 @@ export default function NhacViecView({ active }: { active: boolean }): React.JSX
 
     return (
         <div className="relative h-full bg-slate-100 dark:bg-slate-900">
-            {active && (
-                <TopBarActions>
-                    <span className="flex items-center gap-2 px-3 text-[15px] font-semibold text-slate-700">
-                        <AppIcon name="notification" size="md" className="text-sky-600" />
-                        Nhắc việc
-                    </span>
-                </TopBarActions>
-            )}
+            {/* Tên chức năng đã hiện ở tiêu đề bên trái; cụm bên phải chỉ còn các nút chung */}
+            {active && <TopBarActions>{null}</TopBarActions>}
             {loaded && (
                 <div className="flex h-full min-h-0 flex-col gap-4 p-4 lg:p-5">
                     {run ? (

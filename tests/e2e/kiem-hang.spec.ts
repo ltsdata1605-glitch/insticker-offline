@@ -32,8 +32,12 @@ test('Kiểm hàng: nhập nhiều file, quét mã, IMEI, mã lạ, thừa, hoà
 
   // Thanh bên trái có hai chức năng, In sticker đang mở
   await expect(rail(win).getByRole('button', { name: 'In sticker' })).toHaveAttribute('aria-current', 'page');
+  await expect(win.getByRole('heading', { level: 1 })).toHaveText('In Sticker');
   await openKiemHang(win);
   await expect(rail(win).getByRole('button', { name: 'Kiểm hàng' })).toHaveAttribute('aria-current', 'page');
+  // Tiêu đề và icon trên thanh trên cùng đổi theo chức năng
+  await expect(win.getByRole('heading', { level: 1 })).toHaveText('Kiểm hàng');
+  await expect(win.getByTestId('module-logo')).toBeVisible();
   await expect(win.getByRole('heading', { name: 'Kiểm hàng nhận' })).toBeVisible();
   // Thanh trên không còn các tab của In sticker
   await expect(win.getByRole('button', { name: 'Giá Sốc' })).toHaveCount(0);

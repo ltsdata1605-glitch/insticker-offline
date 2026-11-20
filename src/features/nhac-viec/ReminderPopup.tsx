@@ -68,7 +68,7 @@ export default function ReminderPopup(): React.JSX.Element {
             <div className="flex items-center gap-2">
                 <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-black ${tone.badge}`}>
                     <AppIcon name="notification" size="sm" />
-                    {data.kind === 'missed' ? 'Nhắc việc bị lỡ' : data.kind === 'checklist' ? 'Checklist' : `Nhắc việc · ${PRIORITY_TEXT[data.priority]}`}
+                    {data.kind === 'missed' ? 'Nhắc việc bị lỡ' : data.kind === 'new' ? 'Việc mới từ Google Sheet' : data.kind === 'checklist' ? 'Checklist' : `Nhắc việc · ${PRIORITY_TEXT[data.priority]}`}
                 </span>
                 {!muted && (
                     <button type="button" onClick={() => { playback.current?.stop(); setMuted(true); }}
@@ -81,7 +81,12 @@ export default function ReminderPopup(): React.JSX.Element {
             <div className="min-h-0 flex-1 overflow-y-auto">
                 <h1 className="text-[22px] font-black leading-tight text-slate-900 break-words">{data.title}</h1>
                 {data.content && <p className="mt-2 text-[14px] leading-relaxed text-slate-700 whitespace-pre-wrap break-words">{data.content}</p>}
-                {data.deadline !== undefined && data.kind !== 'missed' && (
+                {(data.assignee || data.assigner) && (
+                    <p className="mt-2 text-[13px] font-semibold text-slate-700">
+                        {[data.assignee && `Giao cho: ${data.assignee}`, data.assigner && `Người giao: ${data.assigner}`].filter(Boolean).join(' · ')}
+                    </p>
+                )}
+                {data.deadline !== undefined && data.kind !== 'missed' && data.kind !== 'new' && (
                     <div className={`mt-3 flex items-center justify-between rounded-control px-3 py-2 text-[14px] font-bold ${data.deadline >= now ? 'bg-amber-50 text-amber-800' : 'bg-rose-50 text-rose-700'}`}>
                         <span>Hạn {dateTimeText(data.deadline)}</span>
                         <span>{relativeText(data.deadline, now)}</span>
@@ -91,15 +96,18 @@ export default function ReminderPopup(): React.JSX.Element {
                     <ul className="mt-3 divide-y divide-slate-100 rounded-control border border-slate-200 text-[13px]">
                         {data.missed.map(item => (
                             <li key={`${item.title}-${item.at}`} className="flex items-center justify-between gap-2 px-3 py-1.5">
-                                <span className="min-w-0 truncate font-semibold text-slate-800">{item.title}</span>
-                                <span className="shrink-0 text-slate-500">{timeOfDay(item.at)} {new Date(item.at).toLocaleDateString('vi-VN')}</span>
+                                <span className="min-w-0">
+                                    <span className="block truncate font-semibold text-slate-800">{item.title}</span>
+                                    {item.note && <span className="block truncate text-[12px] text-slate-500">{item.note}</span>}
+                                </span>
+                                <span className="shrink-0 text-slate-500">{data.kind === 'new' ? 'Hạn ' : ''}{timeOfDay(item.at)} {new Date(item.at).toLocaleDateString('vi-VN')}</span>
                             </li>
                         ))}
                     </ul>
                 )}
             </div>
 
-            {data.kind === 'missed' ? (
+            {data.kind === 'missed' || data.kind === 'new' ? (
                 <div className="grid grid-cols-2 gap-2">
                     <button type="button" onClick={() => act('open')} className="h-11 rounded-control bg-sky-600 text-white font-bold hover:bg-sky-700">Xem danh sách</button>
                     <button type="button" onClick={() => act('dismiss')} className="h-11 rounded-control border border-slate-300 font-bold text-slate-700 hover:bg-slate-50">Đóng</button>

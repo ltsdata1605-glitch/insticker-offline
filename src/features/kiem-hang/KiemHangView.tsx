@@ -359,14 +359,8 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
             }}
             onDrop={onDrop}
         >
-            {active && (
-                <TopBarActions>
-                    <span className="flex items-center gap-2 px-3 text-[15px] font-semibold text-slate-700">
-                        <AppIcon name="checklist" size="md" className="text-sky-600" />
-                        Kiểm hàng
-                    </span>
-                </TopBarActions>
-            )}
+            {/* Tên chức năng đã hiện ở tiêu đề bên trái; cụm bên phải chỉ còn các nút chung */}
+            {active && <TopBarActions>{null}</TopBarActions>}
             <input
                 ref={fileRef}
                 type="file"

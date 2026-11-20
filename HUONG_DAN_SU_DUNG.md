@@ -10,7 +10,7 @@ Dùng và in không cần mạng, không cần đăng nhập. App chỉ vào m�
 
 ## Ba chức năng
 
-Thanh bên trái, ngay dưới logo, chọn chức năng: **In sticker** (năm chế độ bên dưới), **Kiểm hàng** (đối chiếu hàng nhận với file phiếu chuyển kho) và **Nhắc việc** (nhắc việc có chuông, checklist và báo cáo). Chuyển qua lại không mất việc đang làm dở ở chức năng kia. Số đỏ trên biểu tượng Nhắc việc là số việc đang quá hạn.
+Thanh bên trái, ngay dưới logo, chọn chức năng: **In sticker** (năm chế độ bên dưới), **Kiểm hàng** (đối chiếu hàng nhận với file phiếu chuyển kho) và **Nhắc việc** (nhắc việc có chuông, checklist và báo cáo). Tiêu đề và icon trên thanh trên cùng đổi theo chức năng đang mở. Chuyển qua lại không mất việc đang làm dở ở chức năng kia. Số đỏ trên biểu tượng Nhắc việc là số việc đang quá hạn.
 
 ## Năm chế độ
 
@@ -207,8 +207,31 @@ Bấm **Tạo nhắc việc**, điền:
 Đóng cửa sổ thì app **vẫn chạy nền** để nhắc việc; biểu tượng In Sticker nằm ở khay hệ thống (góc phải thanh tác vụ trên Windows, thanh menu trên Mac). Muốn tắt hẳn: bấm biểu tượng đó, chọn **Thoát hẳn**. Trong **Cài đặt** của Nhắc việc:
 
 - Bật tắt **Chạy nền khi đóng cửa sổ** và **Khởi động cùng máy** (bản đã cài; bật máy là app tự chạy nền).
-- Xem giọng đọc tiếng Việt và bấm thử chuông. App không tự tăng âm lượng của máy được, hãy để loa ở mức nghe rõ.
+- Chọn giọng đọc tiếng Việt (máy có nhiều giọng thì chọn được), bấm **Nghe thử giọng** và thử chuông. App không tự tăng âm lượng của máy được, hãy để loa ở mức nghe rõ.
 - Máy chưa có giọng tiếng Việt: Windows vào Settings > Time & language > Speech > Add voices, chọn Tiếng Việt; Mac vào Cài đặt hệ thống > Trợ năng > Nội dung được đọc > Giọng hệ thống > Quản lý giọng, chọn Tiếng Việt (Linh).
+
+### Nhận việc từ Google Sheet
+
+Quản lý ghi việc và checklist vào một file Google Sheet, app ở cửa hàng tự nhận về, báo việc mới và nhắc đúng hạn. Làm một lần trong **Cài đặt** của Nhắc việc:
+
+1. Bấm **Tạo file nhắc việc**. Trình duyệt mở trang của Google, đăng nhập rồi bấm **Tạo bản sao**: file mới nằm trong Google Drive của bạn, có sẵn 4 trang Nhắc việc, Checklist, Danh mục, Hướng dẫn.
+2. Trong file đó bấm **Chia sẻ**, phần Quyền truy cập chung chọn **Bất kỳ ai có đường liên kết** và **Người chỉnh sửa** (để quản lý ghi việc). Bấm **Sao chép đường liên kết**.
+3. Quay lại app, bấm **Dán link đã sao chép** (hoặc dán tay vào ô rồi bấm Kết nối).
+
+Trong file, hầu hết các cột chọn từ danh sách, không phải gõ:
+
+- **Danh mục:** ghi tên nhân viên và người giao một lần, các trang khác chọn từ danh sách này.
+- **Nhắc việc:** mỗi dòng một việc, mã việc điền sẵn. Ghi Tiêu đề, bấm đúp ô Ngày hạn để chọn trên lịch, chọn Giờ hạn (trống là 17:00). Người xử lý, Mức độ, Nhắc trước, Lặp lại, Âm thanh, Checklist, Trạng thái, Người giao đều chọn từ danh sách; để trống thì app dùng mặc định. Việc Khẩn tô đỏ, việc quá hạn tô đỏ ở ngày hạn, việc Xong tô xanh, việc Huỷ gạch ngang.
+- **Checklist:** các dòng cùng Tên checklist là một checklist, mỗi dòng một việc. Tick Bắt buộc, Cần ảnh, Cần ghi chú. Lịch làm, giờ bắt đầu, giờ hạn, người làm, trạng thái chọn ở dòng đầu của checklist.
+- Chọn **Huỷ** ở Trạng thái để rút việc, **Xong** để đánh dấu xong; checklist chọn **Ngưng** để rút.
+
+Trong app:
+
+- App đọc file lúc mở, 5 phút một lần và khi máy thức dậy; bấm **Đồng bộ ngay** để đọc liền. Có việc mới thì bật cửa sổ "Có N công việc mới" kèm chuông.
+- Việc và checklist từ Google Sheet có nhãn **Google Sheet**, ghi rõ người xử lý (người làm) và người giao. Việc có gắn checklist thì cửa sổ nhắc có nút **Mở checklist liên kết**. Muốn sửa thì sửa trong file (nút liên kết cạnh việc mở file), app tự cập nhật ở lần đọc sau.
+- Dòng ghi sai (thiếu hạn, sai dạng ngày, trùng mã) được liệt kê trong Cài đặt để sửa.
+- App chỉ đọc file: bấm Đã xong trong app không ghi ngược lên file. Ai có link đều xem được file, đừng ghi thông tin nhạy cảm.
+- **Ngắt kết nối** bỏ các việc và checklist nhận từ file, những gì tự tạo trong app giữ nguyên.
 
 ### Checklist
 

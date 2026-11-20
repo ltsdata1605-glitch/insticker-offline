@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { AppIcon } from './components/shared/ui/icon/AppIcon';
+import type { IconName } from './components/shared/ui/icon';
 import { AppToaster } from './components/shared/ui/toast';
 import ErrorBoundary from './components/shared/ui/ErrorBoundary';
 import StickerPrinterView from './features/sticker-event/StickerPrinterView';
@@ -44,6 +46,13 @@ const ModuleLayer: React.FC<{ shown: boolean; children: React.ReactNode }> = ({ 
     {children}
   </div>
 );
+
+/** Tiêu đề và icon trên thanh trên cùng theo chức năng đang mở */
+const MODULE_HEADER: Record<AppModule, { first: string; second: string; icon: IconName }> = {
+  'tools-print-sticker': { first: 'In', second: 'Sticker', icon: 'print' },
+  'tools-kiem-hang': { first: 'Kiểm', second: 'hàng', icon: 'checklist' },
+  'tools-nhac-viec': { first: 'Nhắc', second: 'việc', icon: 'notification' },
+};
 
 /** Thanh bên trái kèm số việc quá hạn của Nhắc việc */
 const Rail: React.FC<{ items: readonly RailItem[]; current: AppModule; onSelect: (id: AppModule) => void }> = props => {
@@ -98,13 +107,20 @@ function AppShell(): React.JSX.Element {
                   onClick={onLogoClick}
                   className="w-11 h-11 flex items-center justify-center select-none drop-shadow-[0_3px_6px_rgba(3,105,161,0.3)]"
                 >
-                  {/* Cùng hình với icon app (sinh từ scripts/tao-icon.mjs) */}
-                  <img src="/favicon.svg" alt="" draggable={false} className="w-11 h-11" />
+                  {current === 'tools-print-sticker' ? (
+                    // Cùng hình với icon app (sinh từ scripts/tao-icon.mjs)
+                    <img src="/favicon.svg" alt="" draggable={false} className="w-11 h-11" />
+                  ) : (
+                    <span data-testid="module-logo" className="w-11 h-11 rounded-[11px] bg-gradient-to-br from-sky-500 to-sky-700 text-white flex items-center justify-center">
+                      <AppIcon name={MODULE_HEADER[current].icon} px={24} />
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="h-8 w-1 bg-sky-600 rounded-full shadow-[0_0_12px_rgba(2,132,199,0.4)] ml-1 mr-3" />
+              {/* Tiêu đề đổi theo chức năng đang mở */}
               <h1 className="text-[28px] font-black tracking-tight text-slate-900 uppercase leading-none">
-                In <span className="text-sky-600">Sticker</span>
+                {MODULE_HEADER[current].first} <span className="text-sky-600">{MODULE_HEADER[current].second}</span>
               </h1>
             </div>
             <div className="flex items-center gap-2 shrink-0 justify-end">

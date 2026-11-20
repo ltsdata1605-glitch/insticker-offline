@@ -104,7 +104,7 @@ export type ReminderSound =
 export interface ReminderPopupData {
   /** Khoá lần nhắc: mỗi khoá chỉ có một cửa sổ */
   key: string;
-  kind: 'reminder' | 'checklist' | 'missed';
+  kind: 'reminder' | 'checklist' | 'missed' | 'new';
   title: string;
   content: string;
   /** Hạn của lần này (ms) */
@@ -117,9 +117,17 @@ export interface ReminderPopupData {
   speech: string;
   /** Có checklist để mở */
   hasChecklist?: boolean;
-  /** Nhắc bị lỡ (kind = missed) */
-  missed?: { title: string; at: number }[];
+  /** Nhắc bị lỡ (kind = missed) hoặc việc mới từ Google Sheet (kind = new) */
+  missed?: { title: string; at: number; note?: string }[];
+  /** Việc giao từ Google Sheet */
+  assignee?: string;
+  assigner?: string;
 }
+
+/** Kết quả tải file Google Sheet: cả file dạng .xlsx (base64) để đọc được mọi trang */
+export type SheetFetchResult =
+  | { ok: true; base64: string }
+  | { ok: false; reason: 'invalid-url' | 'not-shared' | 'not-found' | 'offline' | 'error'; message?: string };
 
 export interface ReminderAction {
   key: string;
@@ -171,5 +179,11 @@ export interface DesktopApi {
     onRecheck(listener: () => void): () => void;
     getBackground(): Promise<BackgroundSettings>;
     setBackground(settings: Partial<Pick<BackgroundSettings, 'runInBackground' | 'openAtLogin'>>): Promise<BackgroundSettings>;
+    /** Tải file Google Sheet (đã chia sẻ cho người có link) dạng .xlsx */
+    fetchSheet(url: string): Promise<SheetFetchResult>;
+    /** Link Google Sheet đang có trong clipboard (rỗng nếu clipboard không phải link Google Sheet) */
+    readSheetLinkFromClipboard(): Promise<string>;
+    /** Mở link Google Sheet trong trình duyệt của máy */
+    openSheet(url: string): Promise<void>;
   };
 }

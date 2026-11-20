@@ -1,7 +1,7 @@
 {
   "name": "insticker-offline",
   "productName": "In Sticker",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "In Sticker offline cho macOS và Windows",
   "private": true,
   "type": "module",

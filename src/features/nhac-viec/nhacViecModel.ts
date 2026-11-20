@@ -41,6 +41,11 @@ export interface Reminder {
     snoozes: { occ: number; at: number }[];
     /** Dừng nhắc lặp lại */
     stopped?: boolean;
+    /** Việc nhận từ Google Sheet (mã việc trong file). Sửa trong Google Sheet, không sửa trong app. */
+    source?: { kind: 'sheet'; taskId: string };
+    /** Người xử lý, người giao (việc từ Google Sheet) */
+    assignee?: string;
+    assigner?: string;
 }
 
 export type ItemStatus = 'todo' | 'done' | 'issue' | 'na';
@@ -71,6 +76,10 @@ export interface ChecklistTemplate {
     schedule: ChecklistSchedule;
     createdAt: number;
     updatedAt: number;
+    /** Checklist nhận từ trang Checklist của Google Sheet: sửa trong file, không sửa trong app */
+    source?: { kind: 'sheet' };
+    /** Người làm (checklist từ Google Sheet) */
+    assignee?: string;
 }
 
 export interface ChecklistRunItem extends ChecklistItemTemplate {

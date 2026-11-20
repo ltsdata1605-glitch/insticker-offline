@@ -46,6 +46,9 @@ const api: DesktopApi = {
     },
     getBackground: () => ipcRenderer.invoke('background:get'),
     setBackground: (settings) => ipcRenderer.invoke('background:set', settings),
+    fetchSheet: (url) => ipcRenderer.invoke('sheet:fetch', url),
+    openSheet: (url) => ipcRenderer.invoke('sheet:open', url),
+    readSheetLinkFromClipboard: () => ipcRenderer.invoke('sheet:clipboard'),
   },
 };
 

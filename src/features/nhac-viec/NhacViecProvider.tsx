@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { getSetting, saveSetting } from '../sticker-event/services/dbService';
-import type { ReminderPopupData } from '../../../electron/contract';
+import type { ReminderPopupData, SheetFetchResult } from '../../../electron/contract';
+import { toast } from '../../components/shared/ui/toast';
+import { SYNC_EVERY, mergeSheetChecklists, mergeSheetTasks, readSheetTables, sheetIdFromUrl } from './sheetTasks';
 import type { ChecklistAlert, ChecklistRun, ChecklistTemplate, Reminder } from './nhacViecModel';
 import {
     DAY, MINUTE, checklistAlerts, dateKey, defaultSpeech, markDone, markFired, newId, pendingAlerts, pruneReminder, reminderView,
@@ -24,6 +26,22 @@ export interface MediaEntry {
     createdAt: number;
 }
 
+/** File Google Sheet nhận việc */
+export interface SheetConfig {
+    url: string;
+    connectedAt: number;
+    lastSyncAt?: number;
+    lastOk?: boolean;
+    /** Lý do lần đồng bộ cuối không được */
+    lastMessage?: string;
+    /** Số việc đang giao trong file */
+    taskCount?: number;
+    /** Số checklist đang dùng trong file */
+    checklistCount?: number;
+    /** Dòng ghi sai, app bỏ qua */
+    skipped?: { row: number; reason: string; sheet?: string }[];
+}
+
 interface NhacViecState {
     /** Lần nhắc checklist đã hiện */
     checklistFired: Record<string, number>;
@@ -31,7 +49,16 @@ interface NhacViecState {
     checklistSnoozes: Record<string, number>;
     /** Người thực hiện, nhớ cho lần sau */
     performer: string;
+    sheet?: SheetConfig;
 }
+
+const SHEET_ERRORS: Record<Exclude<SheetFetchResult, { ok: true }>['reason'], string> = {
+    'invalid-url': 'Link không phải link Google Sheet. Hãy sao chép link từ nút Chia sẻ của file.',
+    'not-shared': 'File chưa chia sẻ cho người có link. Mở file, bấm Chia sẻ, chọn Bất kỳ ai có đường liên kết.',
+    'not-found': 'Không tìm thấy file: link sai hoặc file đã bị xoá.',
+    'offline': 'Không có mạng hoặc Google không trả lời. App sẽ tự thử lại.',
+    'error': 'Không đọc được file. App sẽ tự thử lại.',
+};
 
 const EMPTY_STATE: NhacViecState = { checklistFired: {}, checklistSnoozes: {}, performer: '' };
 
@@ -64,6 +91,12 @@ interface NhacViecApi {
     clearOpenRequest: () => void;
     /** Số việc quá hạn, hiện trên thanh bên trái */
     badge: number;
+    sheet: SheetConfig | null;
+    syncing: boolean;
+    /** Kết nối file Google Sheet: đọc thử, đúng mẫu thì lưu và nhận việc ngay */
+    connectSheet: (url: string) => Promise<{ ok: boolean; message: string }>;
+    disconnectSheet: () => void;
+    syncSheet: () => Promise<void>;
 }
 
 const Ctx = createContext<NhacViecApi | null>(null);
@@ -95,6 +128,7 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
     const [state, setState] = useState<NhacViecState>(EMPTY_STATE);
     const [media, setMedia] = useState<Record<string, MediaEntry>>({});
     const [openRequest, setOpenRequest] = useState<OpenRequest | null>(null);
+    const [syncing, setSyncing] = useState(false);
     const refs = useRef({ reminders, templates, runs, state, media });
     refs.current = { reminders, templates, runs, state, media };
     const onOpenRef = useRef(onOpen);
@@ -208,6 +242,8 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
                 sound: reminder.sound,
                 speech: defaultSpeech(reminder, alert.occ, at),
                 hasChecklist: Boolean(reminder.checklistTemplateId),
+                assignee: reminder.assignee,
+                assigner: reminder.assigner,
             });
             touch(reminder.id, item => markFired(item, alert.occ, at));
         }
@@ -280,6 +316,86 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
         return () => window.clearInterval(timer);
     }, []);
 
+    // ---------- Nhận việc từ Google Sheet ----------
+
+    /** Đọc file, ghép việc, báo việc mới. `url` khác file đang nối khi đang kết nối file mới. */
+    const runSheetSync = useCallback(async (url: string, connecting: boolean): Promise<{ ok: boolean; message: string }> => {
+        const api = desktop();
+        if (!api) return { ok: false, message: 'Chỉ dùng được trong app.' };
+        setSyncing(true);
+        try {
+            const result = await api.fetchSheet(url);
+            const at = clockNow();
+            const st = refs.current.state;
+            const base: SheetConfig = connecting ? { url, connectedAt: at } : (st.sheet ?? { url, connectedAt: at });
+            if (!result.ok) {
+                const message = SHEET_ERRORS[result.reason];
+                if (!connecting) commitState({ ...st, sheet: { ...base, lastSyncAt: at, lastOk: false, lastMessage: message } });
+                return { ok: false, message };
+            }
+            // Cả file dạng .xlsx: đọc trang Nhắc việc và trang Checklist
+            const XLSX = await import('xlsx');
+            const workbook = XLSX.read(result.base64, { type: 'base64' });
+            const parsed = readSheetTables(workbook.SheetNames.map(name => ({
+                name,
+                rows: XLSX.utils.sheet_to_json<string[]>(workbook.Sheets[name], { header: 1, raw: false, defval: '' }),
+            })));
+            if (parsed.badHeader) {
+                const message = 'File không đúng mẫu: không thấy trang Nhắc việc. Hãy tạo file bằng nút Tạo file nhắc việc.';
+                if (!connecting) commitState({ ...st, sheet: { ...base, lastSyncAt: at, lastOk: false, lastMessage: message } });
+                return { ok: false, message };
+            }
+            // Checklist trước, để việc gắn checklist tìm được mẫu
+            const mergedChecklists = mergeSheetChecklists(refs.current.templates, parsed.checklists, at);
+            if (mergedChecklists.changed) commitTemplates(mergedChecklists.templates);
+            const merged = mergeSheetTasks(refs.current.reminders, parsed.tasks, at);
+            if (merged.added.length || merged.updated || merged.removed) commitReminders(merged.reminders);
+            const taskCount = parsed.tasks.filter(task => task.status !== 'cancelled').length;
+            const checklistCount = parsed.checklists.filter(item => !item.stopped).length;
+            commitState({ ...refs.current.state, sheet: { ...base, lastSyncAt: at, lastOk: true, lastMessage: undefined, taskCount, checklistCount, skipped: parsed.skipped } });
+            if (merged.added.length > 0) {
+                const count = merged.added.length;
+                showPopup({
+                    key: `new@${at}`,
+                    kind: 'new',
+                    title: `Có ${count} công việc mới`,
+                    content: 'Quản lý vừa giao việc qua Google Sheet.',
+                    priority: merged.added.some(item => item.priority === 'urgent') ? 'urgent' : 'important',
+                    sound: { kind: 'preset', preset: 'chuong-cua' },
+                    speech: `Có ${count} công việc mới.`,
+                    missed: merged.added.map(item => ({ title: item.title, at: item.deadline, note: item.assignee ? `Giao cho ${item.assignee}` : undefined })),
+                });
+                toast.success(`Có ${count} công việc mới từ Google Sheet`);
+            }
+            const changes = [merged.added.length && `${merged.added.length} việc mới`, merged.updated && `${merged.updated} việc thay đổi`, merged.removed && `${merged.removed} việc đã huỷ`].filter(Boolean).join(', ');
+            return { ok: true, message: `Đọc được ${taskCount} công việc, ${checklistCount} checklist${changes ? `: ${changes}` : ''}.` };
+        } catch (error) {
+            console.error('[Nhắc việc] Không đọc được file Google Sheet', error);
+            return { ok: false, message: 'Không đọc được nội dung file. Hãy tạo file bằng nút Tạo file nhắc việc.' };
+        } finally {
+            setSyncing(false);
+        }
+    }, [commitReminders, commitTemplates, commitState, showPopup]);
+
+    const syncSheet = useCallback(async () => {
+        const url = refs.current.state.sheet?.url;
+        if (!url || !enabled) return;
+        await runSheetSync(url, false);
+    }, [enabled, runSheetSync]);
+
+    // Đọc file lúc mở app, 5 phút một lần, và khi máy thức dậy
+    const sheetUrl = state.sheet?.url;
+    useEffect(() => {
+        if (!loaded || !enabled || !sheetUrl) return;
+        void syncSheet();
+        const timer = window.setInterval(() => void syncSheet(), SYNC_EVERY);
+        const offRecheck = desktop()?.onRecheck(() => void syncSheet());
+        return () => {
+            window.clearInterval(timer);
+            offRecheck?.();
+        };
+    }, [loaded, enabled, sheetUrl, syncSheet]);
+
     // ---------- Lượt checklist ----------
 
     const openRunFor = useCallback((templateId: string): ChecklistRun | null => {
@@ -299,7 +415,7 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
     useEffect(() => {
         const off = desktop()?.onAction(action => {
             const at = clockNow();
-            if (action.key.startsWith('missed@')) {
+            if (action.key.startsWith('missed@') || action.key.startsWith('new@')) {
                 if (action.action === 'open') {
                     setOpenRequest({ kind: 'today' });
                     onOpenRef.current();
@@ -403,8 +519,22 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
             openRequest,
             clearOpenRequest: () => setOpenRequest(null),
             badge: overdueReminders + overdueChecklists,
+            sheet: state.sheet ?? null,
+            syncing,
+            connectSheet: async url => {
+                if (!sheetIdFromUrl(url)) return { ok: false, message: SHEET_ERRORS['invalid-url'] };
+                return runSheetSync(url.trim(), true);
+            },
+            disconnectSheet: () => {
+                // Bỏ các việc và checklist nhận từ file, giữ những gì tự tạo trong app
+                commitReminders(refs.current.reminders.filter(item => item.source?.kind !== 'sheet'));
+                commitTemplates(refs.current.templates.filter(item => item.source?.kind !== 'sheet'));
+                const { sheet: _removed, ...rest } = refs.current.state;
+                commitState({ ...rest });
+            },
+            syncSheet,
         };
-    }, [loaded, now, reminders, templates, runs, state.performer, media, openRequest, commitReminders, commitTemplates, commitRuns, commitState, commitMedia, collectMedia, openRunFor]);
+    }, [loaded, now, reminders, templates, runs, state.performer, state.sheet, syncing, media, openRequest, commitReminders, commitTemplates, commitRuns, commitState, commitMedia, collectMedia, openRunFor, runSheetSync, syncSheet]);
 
     return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 };

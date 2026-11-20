@@ -1,7 +1,7 @@
-import { BrowserWindow, Menu, Notification, Tray, app, ipcMain, nativeImage, powerMonitor, screen } from 'electron';
+import { BrowserWindow, Menu, Notification, Tray, app, clipboard, ipcMain, nativeImage, powerMonitor, screen, session, shell } from 'electron';
 import type { IpcMainInvokeEvent } from 'electron';
 import fs from 'node:fs';
-import type { BackgroundSettings, ReminderAction, ReminderPopupData } from './contract';
+import type { BackgroundSettings, ReminderAction, ReminderPopupData, SheetFetchResult } from './contract';
 
 interface HostOptions {
   origin: string;
@@ -25,13 +25,44 @@ interface StoredSettings {
 }
 
 const DEFAULTS: StoredSettings = { runInBackground: true, openAtLogin: true };
+const SHEET_PATTERN = /^https:\/\/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9_-]{20,})(?:[/?#].*)?$/;
+const MAX_SHEET_BYTES = 5 * 1024 * 1024;
 const POPUP_WIDTH = 440;
 const POPUP_HEIGHT = 420;
 
 /**
- * Nhắc việc phía app: cửa sổ nhắc luôn nằm trên mọi ứng dụng, biểu tượng ở khay hệ thống, chạy nền khi đóng cửa sổ,
- * khởi động cùng máy, báo giao diện kiểm tra lại khi máy thức dậy. Lịch nhắc tính ở giao diện (cửa sổ chính chạy ẩn).
+ * Tải file Google Sheet dạng .xlsx (đủ mọi trang: Nhắc việc, Checklist). Chỉ đi tới docs.google.com (và máy chủ tải của Google khi
+ * được chuyển hướng), qua phiên mạng riêng: giao diện app vẫn bị chặn mạng. File chưa chia sẻ cho người có link thì Google trả
+ * trang đăng nhập. Bài kiểm thử đặt STICKER_SHEET_MOCK là đường dẫn tệp .xlsx để không ra mạng.
  */
+export const fetchSheetFile = async (url: string, isTest: boolean): Promise<SheetFetchResult> => {
+  const match = url.trim().match(SHEET_PATTERN);
+  if (!match) return { ok: false, reason: 'invalid-url' };
+  const mock = process.env.STICKER_SHEET_MOCK;
+  if (isTest && mock) {
+    try {
+      return { ok: true, base64: fs.readFileSync(mock).toString('base64') };
+    } catch {
+      return { ok: false, reason: 'not-shared' };
+    }
+  }
+  const exportUrl = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=xlsx`;
+  try {
+    const response = await session.fromPartition('nhac-viec-google-sheet').fetch(exportUrl, { signal: AbortSignal.timeout(30_000), cache: 'no-store' });
+    // Phiên mạng của Electron có lúc trả địa chỉ cuối rỗng: khi đó dùng địa chỉ đã gọi
+    const host = new URL(response.url || exportUrl).hostname;
+    if (!host.endsWith('.google.com') && !host.endsWith('.googleusercontent.com')) return { ok: false, reason: 'error', message: `Chuyển hướng lạ: ${host}` };
+    if (response.status === 404) return { ok: false, reason: 'not-found' };
+    const type = response.headers.get('content-type') ?? '';
+    if (!response.ok || !type.includes('spreadsheetml')) return { ok: false, reason: 'not-shared' };
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length > MAX_SHEET_BYTES) return { ok: false, reason: 'error', message: 'File quá lớn' };
+    return { ok: true, base64: bytes.toString('base64') };
+  } catch (error) {
+    return { ok: false, reason: 'offline', message: error instanceof Error ? error.message : String(error) };
+  }
+};
+
 export class ReminderHost {
   private readonly popups = new Map<string, BrowserWindow>();
   private readonly popupData = new Map<number, ReminderPopupData>();
@@ -248,6 +279,22 @@ export class ReminderHost {
       this.applyLoginItem();
       this.updateTray();
       return this.publicSettings();
+    });
+
+    ipcMain.handle('sheet:fetch', (event, url: string) => {
+      this.assertMain(event);
+      return fetchSheetFile(String(url), this.options.isTest);
+    });
+    // Chỉ trả về khi clipboard là link Google Sheet, không để giao diện đọc nội dung khác trong clipboard
+    ipcMain.handle('sheet:clipboard', async (event) => {
+      this.assertMain(event);
+      const text = String(await clipboard.readText()).trim();
+      return SHEET_PATTERN.test(text) ? text : '';
+    });
+    ipcMain.handle('sheet:open', (event, url: string) => {
+      this.assertMain(event);
+      // Chỉ mở link Google Sheet
+      if (SHEET_PATTERN.test(String(url)) && !this.options.isTest) void shell.openExternal(String(url));
     });
 
     const recheck = () => this.options.getMainWindow()?.webContents.send('reminder:recheck');

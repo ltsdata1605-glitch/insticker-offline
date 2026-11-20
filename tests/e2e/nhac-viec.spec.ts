@@ -33,6 +33,7 @@ test('Nhắc việc: tạo, nhắc trước hạn bằng cửa sổ luôn nằm 
   const { win, app } = s;
   await openNhacViec(win);
   await expect(win.getByRole('button', { name: 'Hôm nay' })).toBeVisible();
+  await expect(win.getByRole('heading', { level: 1 })).toHaveText('Nhắc việc');
 
   // Hạn 3 giờ nữa, giờ chẵn phút
   const deadline = Math.ceil((Date.now() + 3 * 3600_000) / 60_000) * 60_000;
@@ -179,5 +180,113 @@ test('Checklist: tạo mẫu, làm từng việc với ghi chú và ảnh, hoàn
   await win.getByRole('button', { name: 'Thống kê' }).click();
   await expect(win.getByText('Lượt checklist', { exact: true }).locator('..')).toContainText('1');
   await expect(win.getByText('Việc hay có vấn đề').locator('..')).toContainText('Kiểm tem giá khu điện thoại');
+  await s.close();
+});
+
+test('Nhận việc từ Google Sheet: dán link đã sao chép, báo việc mới, checklist từ file, nhắc kèm người xử lý, cập nhật khi quản lý sửa hoặc huỷ, ngắt kết nối', async () => {
+  const dirs = newDirs();
+  const mock = path.join(dirs.inputs, 'google-sheet.xlsx');
+  const taskHeader = ['Mã việc', 'Tiêu đề', 'Nội dung', 'Ngày hạn', 'Giờ hạn', 'Người xử lý', 'Mức độ', 'Nhắc trước', 'Lặp lại', 'Âm thanh', 'Câu đọc', 'Checklist', 'Trạng thái', 'Người giao'];
+  const checklistHeader = ['Tên checklist', 'Việc', 'Hướng dẫn', 'Bắt buộc', 'Cần ảnh', 'Cần ghi chú', 'Lịch làm', 'Giờ bắt đầu', 'Giờ hạn', 'Người làm', 'Trạng thái'];
+  const writeSheet = (tasks: string[][], checklists: string[][]) => {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([taskHeader, ...tasks]), 'Nhắc việc');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([checklistHeader, ...checklists]), 'Checklist');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Người xử lý (nhân viên)'], ['Ngọc - 11443']]), 'Danh mục');
+    XLSX.writeFile(wb, mock);
+  };
+  const deadline = Math.ceil((Date.now() + 3 * 3600_000) / 60_000) * 60_000;
+  const d = new Date(deadline);
+  const day = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const checklists = [
+    ['Kiểm hàng nhận', 'Đếm số thùng', '', 'TRUE', 'FALSE', 'FALSE', 'Không theo lịch', '', '', 'Ngọc - 11443', 'Đang dùng'],
+    ['Kiểm hàng nhận', 'Chụp ảnh thùng móp', '', 'FALSE', 'TRUE', 'FALSE', '', '', '', '', ''],
+  ];
+  writeSheet([
+    ['CV001', 'Kiểm lệnh chuyển hàng Online', 'Giao hàng tiết kiệm gấp', day, time, 'Ngọc - 11443', 'Khẩn', 'Đúng hạn', 'Không lặp', 'Đọc chữ', 'Kiểm tra lệnh chuyển hàng Online', 'Kiểm hàng nhận', 'Đang giao', 'QL Sơn'],
+    ['CV002', 'Dọn kho phụ kiện', '', day, time, '', '', 'Đúng hạn', '', '', '', '', '', 'QL Sơn'],
+    ['CV003', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+  ], checklists);
+  const s = await openApp(dirs, [], { STICKER_SHEET_MOCK: mock });
+  const { win, app } = s;
+  await openNhacViec(win);
+  await win.getByRole('button', { name: 'Cài đặt' }).click();
+  const settings = win.getByRole('dialog', { name: 'Cài đặt nhắc việc' });
+  await expect(settings.getByRole('button', { name: 'Tạo file nhắc việc' })).toBeVisible();
+
+  // Clipboard chưa có link Google Sheet thì nhắc cách sao chép
+  await app.evaluate(({ clipboard }) => clipboard.writeText('nội dung khác'));
+  await settings.getByRole('button', { name: 'Dán link đã sao chép' }).click();
+  await expect(settings.getByRole('alert')).toContainText('Chưa có link Google Sheet');
+
+  // Sao chép link trong Google Sheet rồi bấm một nút là kết nối
+  await app.evaluate(({ clipboard }) => clipboard.writeText('https://docs.google.com/spreadsheets/d/1DrQV5W-YitTXIvEXjRfmqNStHy5MqC2AFDnWsOnCXyg/edit?usp=sharing'));
+  let popup = await nextPopup(app, () => settings.getByRole('button', { name: 'Dán link đã sao chép' }).click());
+  await expect(popup.getByRole('heading', { name: 'Có 2 công việc mới' })).toBeVisible();
+  await expect(popup.getByTestId('cua-so-nhac')).toContainText('Giao cho Ngọc - 11443');
+  await clickInPopup(popup, 'Đóng');
+  await expect(settings.getByTestId('tinh-trang-sheet')).toContainText('2 công việc đang giao, 1 checklist');
+  await win.keyboard.press('Escape');
+
+  await win.getByRole('button', { name: 'Nhắc việc', exact: true }).last().click();
+  const row = win.getByTestId('nhac-viec-dong').filter({ hasText: 'Kiểm lệnh chuyển hàng Online' });
+  await expect(row).toContainText('Google Sheet · CV001');
+  await expect(row).toContainText('Giao cho: Ngọc - 11443 · Người giao: QL Sơn');
+  // Việc từ Google Sheet sửa trong file, không có nút sửa trong app
+  await expect(row.getByRole('button', { name: /^Sửa/ })).toHaveCount(0);
+
+  // Checklist từ file thành mẫu checklist trong app
+  await win.getByRole('button', { name: 'Checklist', exact: true }).click();
+  const template = win.getByTestId('mau-checklist').filter({ hasText: 'Kiểm hàng nhận' });
+  await expect(template).toContainText('Google Sheet');
+  await expect(template).toContainText('2 việc · Làm khi cần · Người làm: Ngọc - 11443');
+
+  // Đến hạn: hai việc cùng hạn nên bật hai cửa sổ; cửa sổ của CV001 ghi người xử lý, người giao và mở được checklist gắn kèm
+  await jumpTo(win, deadline + 5_000);
+  await expect.poll(() => app.windows().filter(page => page !== win && !page.isClosed()).length).toBe(2);
+  const popups = app.windows().filter(page => page !== win && !page.isClosed());
+  for (const page of popups) await page.waitForSelector('[data-testid="cua-so-nhac"]');
+  const texts = await Promise.all(popups.map(page => page.getByTestId('cua-so-nhac').innerText()));
+  popup = popups[texts.findIndex(text => text.includes('Kiểm lệnh chuyển hàng Online'))];
+  const other = popups.find(page => page !== popup)!;
+  await expect(popup.getByTestId('cua-so-nhac')).toContainText('Giao cho: Ngọc - 11443 · Người giao: QL Sơn');
+  await clickInPopup(other, /^30′$/);
+  await clickInPopup(popup, 'Mở checklist liên kết');
+  await expect(win.getByTestId('viec-checklist')).toHaveCount(2);
+  await expect(win.getByText('Kiểm hàng nhận').first()).toBeVisible();
+  await win.getByRole('button', { name: 'Quay lại' }).click();
+  await win.evaluate(() => { (window as unknown as { __nhacViecOffset: number }).__nhacViecOffset = 0; });
+
+  // Quản lý sửa tiêu đề CV001 và ghi Xong, huỷ CV002, giao thêm CV003, ghi sai hạn CV004
+  writeSheet([
+    ['CV001', 'Kiểm lệnh chuyển hàng Online (gấp)', 'Giao hàng tiết kiệm gấp', day, time, 'Ngọc - 11443', 'Khẩn', 'Đúng hạn', '', 'Đọc chữ', '', 'Kiểm hàng nhận', 'Xong', 'QL Sơn'],
+    ['CV002', 'Dọn kho phụ kiện', '', day, time, '', '', '', '', '', '', '', 'Huỷ', 'QL Sơn'],
+    ['CV003', 'Chụp ảnh kệ trưng bày', '', day, time, 'Linh', '', '', '', '', '', '', '', 'QL Sơn'],
+    ['CV004', 'Việc ghi sai hạn', '', 'mai', '', '', '', '', '', '', '', '', '', ''],
+  ], checklists);
+  await win.getByRole('button', { name: 'Cài đặt' }).click();
+  popup = await nextPopup(app, () => settings.getByRole('button', { name: 'Đồng bộ ngay' }).click());
+  await expect(popup.getByRole('heading', { name: 'Có 1 công việc mới' })).toBeVisible();
+  await expect(popup.getByTestId('cua-so-nhac')).toContainText('Chụp ảnh kệ trưng bày');
+  await clickInPopup(popup, 'Đóng');
+  await expect(settings.getByTestId('tinh-trang-sheet')).toContainText('2 công việc đang giao');
+  await expect(settings).toContainText('Trang Nhắc việc, dòng 5: Hạn "mai" không đúng dạng');
+  await win.keyboard.press('Escape');
+  await win.getByRole('button', { name: 'Nhắc việc', exact: true }).last().click();
+  await win.getByRole('group', { name: 'Lọc nhắc việc' }).getByRole('button', { name: /^Chưa xong/ }).click();
+  await expect(win.getByText('Dọn kho phụ kiện')).toHaveCount(0);
+  await win.getByRole('group', { name: 'Lọc nhắc việc' }).getByRole('button', { name: /^Đã xong/ }).click();
+  // Quản lý ghi Xong trong file thì app đánh dấu xong, tiêu đề theo file
+  await expect(win.getByTestId('nhac-viec-dong').filter({ hasText: 'Kiểm lệnh chuyển hàng Online (gấp)' })).toContainText('Đã xong');
+
+  // Ngắt kết nối: bỏ các việc và checklist nhận từ file
+  await win.getByRole('button', { name: 'Cài đặt' }).click();
+  await settings.getByRole('button', { name: 'Ngắt kết nối' }).click();
+  await expect(settings.getByRole('button', { name: 'Tạo file nhắc việc' })).toBeVisible();
+  await win.keyboard.press('Escape');
+  await expect(win.getByTestId('nhac-viec-dong')).toHaveCount(0);
+  await win.getByRole('button', { name: 'Checklist', exact: true }).click();
+  await expect(win.getByTestId('mau-checklist')).toHaveCount(0);
   await s.close();
 });

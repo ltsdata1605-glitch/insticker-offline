@@ -109,24 +109,72 @@ export const playPreset = (preset: PresetSound, loop: boolean): Playback => {
     };
 };
 
-/** Giọng tiếng Việt có sẵn trong máy. Danh sách giọng nạp chậm nên chờ tối đa 1,5 giây. */
-export const vietnameseVoice = (): Promise<SpeechSynthesisVoice | null> => new Promise(resolve => {
-    if (typeof speechSynthesis === 'undefined') {
-        resolve(null);
-        return;
+const isVietnamese = (voice: SpeechSynthesisVoice) => voice.lang.toLowerCase().replace('_', '-').startsWith('vi');
+
+/** Giọng người dùng chọn trong Cài đặt (tên giọng). Lưu ở localStorage để cửa sổ nhắc cũng đọc được. */
+const VOICE_KEY = 'nhacViec.voice';
+export const getPreferredVoiceName = (): string => {
+    try {
+        return localStorage.getItem(VOICE_KEY) ?? '';
+    } catch {
+        return '';
     }
-    const pick = () => speechSynthesis.getVoices().find(voice => voice.lang.toLowerCase().replace('_', '-').startsWith('vi')) ?? null;
-    const found = pick();
-    if (found || speechSynthesis.getVoices().length > 0) {
-        resolve(found);
-        return;
+};
+export const setPreferredVoiceName = (name: string): void => {
+    try {
+        localStorage.setItem(VOICE_KEY, name);
+    } catch {
+        // Không lưu được thì dùng giọng tiếng Việt đầu tiên
     }
-    const timer = window.setTimeout(() => resolve(pick()), 1500);
-    speechSynthesis.addEventListener('voiceschanged', () => {
-        window.clearTimeout(timer);
-        resolve(pick());
-    }, { once: true });
-});
+};
+
+/**
+ * Danh sách giọng của máy. Lúc cửa sổ vừa mở danh sách còn trống và máy nạp chậm (máy bận có thể mất vài giây): chờ đến khi có
+ * giọng tiếng Việt, hoặc danh sách đã nạp mà đứng yên 1,5 giây (máy không có giọng Việt), tối đa 8 giây. Trước đây chỉ chờ 1,5
+ * giây nên có lúc chưa thấy giọng Việt và máy đọc bằng giọng tiếng Anh.
+ */
+let voicesPromise: Promise<SpeechSynthesisVoice[]> | null = null;
+export const loadVoices = (): Promise<SpeechSynthesisVoice[]> => {
+    if (typeof speechSynthesis === 'undefined') return Promise.resolve([]);
+    const current = speechSynthesis.getVoices();
+    if (current.some(isVietnamese)) return Promise.resolve(current);
+    if (!voicesPromise) {
+        voicesPromise = new Promise(resolve => {
+            const started = Date.now();
+            let lastCount = -1;
+            let stableSince = Date.now();
+            const check = () => {
+                const voices = speechSynthesis.getVoices();
+                if (voices.length !== lastCount) {
+                    lastCount = voices.length;
+                    stableSince = Date.now();
+                }
+                const done = voices.some(isVietnamese) || (voices.length > 0 && Date.now() - stableSince > 1500) || Date.now() - started > 8000;
+                if (done) {
+                    voicesPromise = null;
+                    resolve(voices);
+                } else {
+                    window.setTimeout(check, 100);
+                }
+            };
+            check();
+        });
+    }
+    return voicesPromise;
+};
+
+/** Các giọng tiếng Việt có sẵn trong máy */
+export const vietnameseVoices = async (): Promise<SpeechSynthesisVoice[]> => (await loadVoices()).filter(isVietnamese);
+
+/** Giọng tiếng Việt sẽ dùng: giọng đã chọn trong Cài đặt nếu còn, không thì giọng tiếng Việt đầu tiên */
+export const vietnameseVoice = async (): Promise<SpeechSynthesisVoice | null> => {
+    const voices = await vietnameseVoices();
+    const preferred = getPreferredVoiceName();
+    return voices.find(voice => voice.name === preferred) ?? voices[0] ?? null;
+};
+
+// Nạp sẵn danh sách giọng ngay khi app hoặc cửa sổ nhắc mở, để lúc cần đọc đã có giọng tiếng Việt
+if (typeof window !== 'undefined') void loadVoices();
 
 /** Đọc câu chữ; `loop` thì đọc lại sau mỗi lần, có tiếng chuông cửa ngắn trước khi đọc để gây chú ý. */
 export const playSpeech = (text: string, loop: boolean): Playback => {

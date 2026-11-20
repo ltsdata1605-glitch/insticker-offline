@@ -25,7 +25,8 @@ export const soundLabel = (reminder: Reminder): string => {
 
 /** Một nhắc việc trong danh sách: mức độ, hạn, còn bao lâu, lặp lại, âm thanh, nút Xong và Sửa. */
 export const ReminderRow: React.FC<{ view: ReminderView; now: number; onEdit: (reminder: Reminder) => void; highlight?: boolean }> = ({ view, now, onEdit, highlight }) => {
-    const { completeReminder, saveReminder } = useNhacViec();
+    const { completeReminder, saveReminder, sheet } = useNhacViec();
+    const fromSheet = view.reminder.source?.kind === 'sheet';
     const { reminder, state, occ, next } = view;
     const style = STATE_STYLE[state];
     return (
@@ -35,6 +36,7 @@ export const ReminderRow: React.FC<{ view: ReminderView; now: number; onEdit: (r
                 <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[15px] font-bold text-slate-900 break-words">{reminder.title}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${style.className}`}>{style.label}</span>
+                    {fromSheet && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200">Google Sheet · {reminder.source!.taskId}</span>}
                     {reminder.priority !== 'normal' && (
                         <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${reminder.priority === 'urgent' ? 'bg-rose-600 text-white' : 'bg-amber-500 text-white'}`}>
                             {PRIORITY_TEXT[reminder.priority]}
@@ -42,6 +44,11 @@ export const ReminderRow: React.FC<{ view: ReminderView; now: number; onEdit: (r
                     )}
                 </div>
                 {reminder.content && <p className="mt-0.5 text-[13px] text-slate-600 line-clamp-2 break-words">{reminder.content}</p>}
+                {(reminder.assignee || reminder.assigner) && (
+                    <p className="mt-0.5 text-[12px] font-semibold text-slate-700">
+                        {[reminder.assignee && `Giao cho: ${reminder.assignee}`, reminder.assigner && `Người giao: ${reminder.assigner}`].filter(Boolean).join(' · ')}
+                    </p>
+                )}
                 <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-slate-500">
                     {occ !== null && (
                         <span className={state === 'overdue' ? 'font-bold text-rose-600' : 'font-semibold text-slate-700'}>
@@ -61,7 +68,13 @@ export const ReminderRow: React.FC<{ view: ReminderView; now: number; onEdit: (r
                 {state === 'stopped' && (
                     <Button size="sm" variant="secondary" onClick={() => saveReminder({ ...reminder, stopped: false, armedAt: Date.now(), updatedAt: Date.now() })}>Bật lại</Button>
                 )}
-                <Button size="sm" variant="secondary" icon="edit" aria-label={`Sửa ${reminder.title}`} onClick={() => onEdit(reminder)} />
+                {fromSheet ? (
+                    // Việc giao từ Google Sheet: sửa trong file, app tự cập nhật ở lần đồng bộ sau
+                    <Button size="sm" variant="secondary" icon="externalLink" aria-label={`Mở Google Sheet của ${reminder.title}`} title="Sửa việc này trong Google Sheet"
+                        onClick={() => sheet && void window.stickerDesktop.reminders.openSheet(sheet.url)} />
+                ) : (
+                    <Button size="sm" variant="secondary" icon="edit" aria-label={`Sửa ${reminder.title}`} onClick={() => onEdit(reminder)} />
+                )}
             </div>
         </li>
     );
@@ -90,7 +103,7 @@ export const ReminderList: React.FC<{ onCreate: () => void; onEdit: (reminder: R
     const views = useMemo(() => sortedViews(reminders, now), [reminders, now]);
     const key = search.trim().toLowerCase();
     const shown = views.filter(view => FILTERS.find(item => item.id === filter)!.test(view.state)
-        && (!key || view.reminder.title.toLowerCase().includes(key) || view.reminder.content.toLowerCase().includes(key)));
+        && (!key || [view.reminder.title, view.reminder.content, view.reminder.assignee ?? '', view.reminder.assigner ?? ''].some(text => text.toLowerCase().includes(key))));
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-3">
@@ -107,7 +120,7 @@ export const ReminderList: React.FC<{ onCreate: () => void; onEdit: (reminder: R
                         );
                     })}
                 </div>
-                <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm tiêu đề, nội dung…" aria-label="Tìm nhắc việc"
+                <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm tiêu đề, nội dung, người xử lý…" aria-label="Tìm nhắc việc"
                     className="ml-auto h-9 w-56 rounded-control border border-slate-200 px-3 text-[13px] focus:outline-none focus:border-sky-400" />
                 <Button icon="add" onClick={onCreate}>Tạo nhắc việc</Button>
             </div>
