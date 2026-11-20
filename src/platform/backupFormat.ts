@@ -31,6 +31,12 @@ export const SETTING_KEYS = [
   // Kiểm hàng: phiên đang kiểm và các phiên đã kết thúc
   'kiemHangCurrent',
   'kiemHangHistory',
+  // Nhắc việc: nhắc việc, mẫu và lượt checklist, ảnh và âm thanh tự nhập, người thực hiện
+  'nhacViecReminders',
+  'nhacViecTemplates',
+  'nhacViecRuns',
+  'nhacViecMedia',
+  'nhacViecState',
 ] as const;
 
 export interface BackupData {

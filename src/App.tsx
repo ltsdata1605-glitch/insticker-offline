@@ -5,7 +5,10 @@ import StickerPrinterView from './features/sticker-event/StickerPrinterView';
 import { TabAccessDialog } from './features/sticker-event/TabAccessDialog';
 import { isStickerModuleVisible, useHiddenTabs } from './features/sticker-event/tabAccess';
 import KiemHangView from './features/kiem-hang/KiemHangView';
+import NhacViecView from './features/nhac-viec/NhacViecView';
+import { NhacViecProvider, useNhacViec } from './features/nhac-viec/NhacViecProvider';
 import { ModuleRail, RAIL_ITEMS } from './components/layout/ModuleRail';
+import type { RailItem } from './components/layout/ModuleRail';
 import { ActiveTabProvider, useActiveTab } from './contexts/LayoutContext';
 import type { AppModule } from './contexts/LayoutContext';
 import { HeaderSlotProvider } from './platform/HeaderSlot';
@@ -42,7 +45,13 @@ const ModuleLayer: React.FC<{ shown: boolean; children: React.ReactNode }> = ({ 
   </div>
 );
 
-/** Khung app: thanh trên cùng, thanh chức năng bên trái (In sticker, Kiểm hàng) và màn của chức năng đang mở. */
+/** Thanh bên trái kèm số việc quá hạn của Nhắc việc */
+const Rail: React.FC<{ items: readonly RailItem[]; current: AppModule; onSelect: (id: AppModule) => void }> = props => {
+  const { badge } = useNhacViec();
+  return <ModuleRail {...props} badges={{ 'tools-nhac-viec': badge }} />;
+};
+
+/** Khung app: thanh trên cùng, thanh chức năng bên trái (In sticker, Kiểm hàng, Nhắc việc) và màn của chức năng đang mở. */
 export default function App(): React.JSX.Element {
   return (
     <ActiveTabProvider>
@@ -60,20 +69,24 @@ function AppShell(): React.JSX.Element {
   const hiddenTabs = useHiddenTabs();
   const stickerVisible = isStickerModuleVisible(hiddenTabs);
   const kiemHangVisible = !hiddenTabs.includes('kiem-hang');
+  const nhacViecVisible = !hiddenTabs.includes('nhac-viec');
+  const visible: Record<AppModule, boolean> = { 'tools-print-sticker': stickerVisible, 'tools-kiem-hang': kiemHangVisible, 'tools-nhac-viec': nhacViecVisible };
   const { activeTab, setActiveTab } = useActiveTab();
-  const current: AppModule = !kiemHangVisible ? 'tools-print-sticker' : !stickerVisible ? 'tools-kiem-hang' : activeTab;
+  const railItems = RAIL_ITEMS.filter(item => visible[item.id]);
+  const current: AppModule = visible[activeTab] ? activeTab : railItems[0]?.id ?? 'tools-print-sticker';
   useEffect(() => {
     if (current !== activeTab) setActiveTab(current);
   }, [current, activeTab, setActiveTab]);
-  // Kiểm hàng chỉ dựng khi mở lần đầu, sau đó giữ nguyên để không mất ô quét đang dở khi sang In sticker
-  const [kiemHangOpened, setKiemHangOpened] = useState(current === 'tools-kiem-hang');
+  // Kiểm hàng và Nhắc việc chỉ dựng màn khi mở lần đầu, sau đó giữ nguyên để không mất việc đang dở khi chuyển chức năng
+  const [opened, setOpened] = useState<Set<AppModule>>(() => new Set([current]));
   useEffect(() => {
-    if (current === 'tools-kiem-hang') setKiemHangOpened(true);
+    setOpened(set => (set.has(current) ? set : new Set([...set, current])));
   }, [current]);
-  const railItems = RAIL_ITEMS.filter(item => (item.id === 'tools-kiem-hang' ? kiemHangVisible : stickerVisible));
   const showRail = railItems.length > 1;
 
   return (
+    // Lịch nhắc chạy suốt từ lúc mở app, kể cả khi đang ở chức năng khác hoặc cửa sổ đang ẩn
+    <NhacViecProvider enabled={nhacViecVisible} onOpen={() => setActiveTab('tools-nhac-viec')}>
     <HeaderSlotProvider>
       <div className="flex flex-col h-dvh min-w-0">
         <header data-app-chrome="header" className={`block sticky top-0 z-[150] bg-slate-50/90 backdrop-blur-md pt-3 pb-1 border-b border-slate-200/60 ${showRail ? 'pl-3 pr-8' : 'px-8'}`}>
@@ -101,7 +114,7 @@ function AppShell(): React.JSX.Element {
         </header>
 
         <div className="flex-1 min-h-0 flex">
-          {showRail && <ModuleRail items={railItems} current={current} onSelect={setActiveTab} />}
+          {showRail && <Rail items={railItems} current={current} onSelect={setActiveTab} />}
           <main data-app-main className="relative flex-1 min-w-0 min-h-0">
             {stickerVisible && (
               <ModuleLayer shown={current === 'tools-print-sticker'}>
@@ -110,7 +123,14 @@ function AppShell(): React.JSX.Element {
                 </ErrorBoundary>
               </ModuleLayer>
             )}
-            {kiemHangVisible && kiemHangOpened && (
+            {nhacViecVisible && opened.has('tools-nhac-viec') && (
+              <ModuleLayer shown={current === 'tools-nhac-viec'}>
+                <ErrorBoundary name="NhacViec">
+                  <NhacViecView active={current === 'tools-nhac-viec'} />
+                </ErrorBoundary>
+              </ModuleLayer>
+            )}
+            {kiemHangVisible && opened.has('tools-kiem-hang') && (
               <ModuleLayer shown={current === 'tools-kiem-hang'}>
                 <ErrorBoundary name="KiemHang">
                   <KiemHangView active={current === 'tools-kiem-hang'} />
@@ -126,5 +146,6 @@ function AppShell(): React.JSX.Element {
         <AppToaster />
       </div>
     </HeaderSlotProvider>
+    </NhacViecProvider>
   );
 }

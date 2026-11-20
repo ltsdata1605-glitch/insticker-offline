@@ -8,9 +8,9 @@ Dùng và in không cần mạng, không cần đăng nhập. App chỉ vào m�
 
 **Windows 10/11 64-bit:** giải nén tệp zip vào một thư mục cố định rồi chạy `In Sticker.exe`. Nếu hiện cảnh báo SmartScreen: bấm **More info**, rồi **Run anyway**. Cập nhật bản mới bằng cách giải nén đè; dữ liệu không mất vì được lưu riêng trong hồ sơ người dùng.
 
-## Hai chức năng
+## Ba chức năng
 
-Thanh bên trái, ngay dưới logo, chọn chức năng: **In sticker** (năm chế độ bên dưới) và **Kiểm hàng** (đối chiếu hàng nhận với file phiếu chuyển kho, xem mục Kiểm hàng). Chuyển qua lại không mất việc đang làm dở ở chức năng kia.
+Thanh bên trái, ngay dưới logo, chọn chức năng: **In sticker** (năm chế độ bên dưới), **Kiểm hàng** (đối chiếu hàng nhận với file phiếu chuyển kho) và **Nhắc việc** (nhắc việc có chuông, checklist và báo cáo). Chuyển qua lại không mất việc đang làm dở ở chức năng kia. Số đỏ trên biểu tượng Nhắc việc là số việc đang quá hạn.
 
 ## Năm chế độ
 
@@ -161,7 +161,7 @@ Bấm nút hình trụ ở góc trên bên phải (Sao lưu và khôi phục):
 2. Chép file `in-sticker-sao-luu-….json` sang máy mới.
 3. Trên máy mới, bấm **Khôi phục từ file**. Thao tác này thay toàn bộ dữ liệu đang có trên máy mới.
 
-File gồm bảng giá và từng file đã nhập, lịch sử nhập, sản phẩm nhập tay, danh sách đã lưu, lịch sử in, các phiên kiểm hàng và cài đặt.
+File gồm bảng giá và từng file đã nhập, lịch sử nhập, sản phẩm nhập tay, danh sách đã lưu, lịch sử in, các phiên kiểm hàng, nhắc việc, checklist (kèm ảnh) và cài đặt.
 
 ## Kiểm hàng
 
@@ -182,6 +182,45 @@ Dùng khi nhận kiện hàng kèm file Excel phiếu chuyển kho: đối chi�
 5. **Kết thúc:** hiện báo cáo để gửi trước, bấm **Kết thúc và lưu** thì phiên vào **Lịch sử**. Trong Lịch sử có thể xem lại báo cáo, xuất Excel, mở lại để kiểm tiếp hoặc xoá.
 
 Kết quả tự lưu sau mỗi lần quét: lỡ đóng app thì mở lại kiểm tiếp được. Dữ liệu kiểm hàng có trong file sao lưu.
+
+## Nhắc việc
+
+### Tạo nhắc việc
+
+Bấm **Tạo nhắc việc**, điền:
+
+- **Tiêu đề**, **nội dung** và **hạn hoàn tất** (ngày, giờ).
+- **Nhắc trước hạn:** chọn được nhiều mốc: đúng hạn, trước 5, 15, 30 phút, 1 giờ, 1 ngày.
+- **Lặp lại:** không lặp, mỗi ngày, theo thứ trong tuần, mỗi tháng.
+- **Mức độ:** Thường, Quan trọng, Khẩn. Việc khẩn quá hạn mà chưa bấm Đã xong thì nhắc lại mỗi 10 phút, tối đa 3 giờ.
+- **Âm thanh:** 5 chuông có sẵn, **đọc chữ thành tiếng** (để trống thì đọc tiêu đề và hạn, hoặc gõ câu riêng), **file âm thanh** (mp3, wav, m4a, tối đa 5 MB) hoặc **ghi âm bằng micro**. Bấm **Nghe thử** trước khi lưu.
+- **Checklist liên kết:** nút trên cửa sổ nhắc mở thẳng checklist đó.
+
+### Khi đến giờ
+
+- Một cửa sổ nhắc bật lên, luôn nằm trên mọi ứng dụng, kèm chuông kêu lặp lại đến khi bấm (tối đa 5 phút, sau đó tắt tiếng nhưng cửa sổ vẫn còn).
+- **Đã xong:** thôi nhắc lần này. **5′, 10′, 30′:** hoãn, nhắc lại sau số phút đó. **Mở trong app:** mở danh sách hoặc checklist liên kết.
+- App tắt hoặc máy ngủ lúc đến giờ: lần mở sau, một cửa sổ báo gộp các nhắc việc bị lỡ.
+
+### Chạy nền
+
+Đóng cửa sổ thì app **vẫn chạy nền** để nhắc việc; biểu tượng In Sticker nằm ở khay hệ thống (góc phải thanh tác vụ trên Windows, thanh menu trên Mac). Muốn tắt hẳn: bấm biểu tượng đó, chọn **Thoát hẳn**. Trong **Cài đặt** của Nhắc việc:
+
+- Bật tắt **Chạy nền khi đóng cửa sổ** và **Khởi động cùng máy** (bản đã cài; bật máy là app tự chạy nền).
+- Xem giọng đọc tiếng Việt và bấm thử chuông. App không tự tăng âm lượng của máy được, hãy để loa ở mức nghe rõ.
+- Máy chưa có giọng tiếng Việt: Windows vào Settings > Time & language > Speech > Add voices, chọn Tiếng Việt; Mac vào Cài đặt hệ thống > Trợ năng > Nội dung được đọc > Giọng hệ thống > Quản lý giọng, chọn Tiếng Việt (Linh).
+
+### Checklist
+
+1. **Tạo mẫu** một lần ở tab **Checklist**, ví dụ "Mở ca sáng" gồm 10 việc. Mỗi việc có hướng dẫn, và đánh dấu được **Bắt buộc**, **Cần ảnh**, **Cần ghi chú**. Bật **Làm theo lịch** để chọn ngày, giờ bắt đầu và hạn: app nhắc lúc bắt đầu, 15 phút trước hạn và lúc hạn nếu chưa hoàn tất.
+2. **Bắt đầu** một lượt (mỗi ngày một lượt mới). Ghi **Người làm**.
+3. Mỗi việc chọn **Hoàn tất**, **Có vấn đề** hoặc **Không áp dụng**; ghi chú và **Chụp ảnh** (camera) hoặc **Chọn ảnh**. App ghi giờ và người làm từng việc.
+4. **Hoàn tất checklist.** Còn việc bắt buộc chưa làm, hoặc thiếu ảnh, ghi chú, thì app hỏi lại; hãy ghi lý do vào **Ghi chú chung**.
+5. **Báo cáo:** **Sao chép để gửi** (dán Zalo), **Xuất ảnh**, **Xuất Excel**. Báo cáo có từng việc, trạng thái, giờ, ghi chú, ảnh và đúng hạn hay trễ.
+
+Tab **Hôm nay** gom việc quá hạn, việc trong ngày và checklist theo lịch hôm nay. Tab **Thống kê** (7 hoặc 30 ngày) cho biết số lượt hoàn tất, tỉ lệ đúng hạn, trễ hạn, việc hay có vấn đề, nhắc việc đã xong và bị lỡ.
+
+Nhắc việc, checklist, ảnh và âm thanh tự nhập đều có trong file sao lưu.
 
 ## Quét mã
 

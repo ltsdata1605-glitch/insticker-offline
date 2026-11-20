@@ -4,6 +4,7 @@
 //   build/icon.png      512 px, bản Windows (thanh tác vụ, file cài)
 //   public/icon.png     như build/icon.png, icon cửa sổ trên Windows
 //   public/favicon.svg  bản vector, dùng làm logo trên thanh trên cùng của app
+//   public/tray.png, public/tray@2x.png  biểu tượng ở khay hệ thống khi app chạy nền để nhắc việc (16 và 32 px)
 import { app, BrowserWindow } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -76,6 +77,8 @@ app.whenReady().then(async () => {
   fs.writeFileSync(path.join(root, 'build/icon.png'), windows);
   fs.writeFileSync(path.join(root, 'public/icon.png'), windows);
   fs.writeFileSync(path.join(root, 'public/favicon.svg'), iconSvg(100, 0, false));
-  console.log('Đã tạo build/icon-mac.png, build/icon.png, public/icon.png, public/favicon.svg');
+  fs.writeFileSync(path.join(root, 'public/tray.png'), await render(win, iconSvg(64, 0, false), 16));
+  fs.writeFileSync(path.join(root, 'public/tray@2x.png'), await render(win, iconSvg(64, 0, false), 32));
+  console.log('Đã tạo build/icon-mac.png, build/icon.png, public/icon.png, public/favicon.svg, public/tray.png, public/tray@2x.png');
   app.quit();
 });

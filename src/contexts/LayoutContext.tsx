@@ -1,16 +1,17 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
 /**
- * Chức năng đang mở, chọn ở thanh bên trái: In sticker hoặc Kiểm hàng. Giữ tên `activeTab` và giá trị 'tools-print-sticker'
+ * Chức năng đang mở, chọn ở thanh bên trái: In sticker, Kiểm hàng hoặc Nhắc việc. Giữ tên `activeTab` và giá trị 'tools-print-sticker'
  * như bản dashboard để code sticker chép sang không phải đổi.
  */
-export type AppModule = 'tools-print-sticker' | 'tools-kiem-hang';
+export type AppModule = 'tools-print-sticker' | 'tools-kiem-hang' | 'tools-nhac-viec';
 
 const STORAGE_KEY = 'app.activeModule';
 
 const readStored = (): AppModule => {
     try {
-        return localStorage.getItem(STORAGE_KEY) === 'tools-kiem-hang' ? 'tools-kiem-hang' : 'tools-print-sticker';
+        const stored = localStorage.getItem(STORAGE_KEY);
+        return stored === 'tools-kiem-hang' || stored === 'tools-nhac-viec' ? stored : 'tools-print-sticker';
     } catch {
         return 'tools-print-sticker';
     }

@@ -79,6 +79,10 @@ await win.locator('button[title^="Hiển thị: % Giảm"]').first().click();
 await win.waitForTimeout(500);
 await win.screenshot({ path: path.join(OUT, 'man-so-tien.png') });
 await win.getByRole('button', { name: /Bấm để in/ }).first().click();
+// Từ bản 1.3.0: mỗi lần in đặt tên danh sách và chọn số sticker trên 1 trang A4
+const hopIn = win.getByRole('dialog', { name: 'Chọn số sticker trên 1 trang A4' });
+await hopIn.getByLabel('Tên danh sách').fill('Kiểm tra đóng gói');
+await hopIn.getByRole('button', { name: /^1 sticker \/ trang/ }).click();
 await win.locator('[data-testid="print-summary"]').waitFor({ timeout: 60000 });
 const tomTat = (await win.locator('[data-testid="print-summary"]').innerText()).replace(/\s*\n\s*/g, ' | ');
 dat('Bản in từ hàng đợi', /Số trang \| 2/.test(tomTat), tomTat);

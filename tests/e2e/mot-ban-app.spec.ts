@@ -60,24 +60,20 @@ test('Đang có app chạy: mở lần nữa không thêm cửa sổ, đưa cử
   await s.close();
 });
 
-test('Mac: đã đóng cửa sổ nhưng app còn chạy thì mở lần nữa hiện lại cửa sổ, đủ dữ liệu', async () => {
-  test.skip(process.platform !== 'darwin', 'Trên Windows đóng cửa sổ là thoát app');
+test('Đóng cửa sổ thì app chạy nền (để nhắc việc); mở app lần nữa thì hiện lại đúng cửa sổ đó, đủ dữ liệu', async () => {
   const dirs = newDirs();
   const s = await openApp(dirs);
   const { app, win } = s;
   await importPrices(win, dirs);
   await win.waitForTimeout(500);
-  const reopened = app.waitForEvent('window');
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].close());
-  await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(0);
+  // Cửa sổ chỉ ẩn, không bị huỷ: lịch nhắc việc trong cửa sổ vẫn chạy
+  await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(w => w.isVisible()))).toEqual([false]);
 
   expect(await launchAgain(dirs)).toBe(0);
 
-  const next = await reopened;
-  await next.waitForSelector('#global-header-actions button', { timeout: 60_000 });
-  await next.waitForTimeout(800);
-  await chooseMode(next, 'Event');
-  await expect(next.getByTestId('price-table-status')).toContainText('2 SP');
-  expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
+  await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(w => w.isVisible()))).toEqual([true]);
+  await chooseMode(win, 'Event');
+  await expect(win.getByTestId('price-table-status')).toContainText('2 SP');
   await s.close();
 });

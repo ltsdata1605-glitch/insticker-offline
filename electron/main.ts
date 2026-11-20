@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 import type { PrintJobRequest, PrintSendRequest, PrinterSummary, SavePdfRequest } from './contract';
 import { PrintJobs } from './printJobs';
 import { Updater } from './updater';
+import { ReminderHost } from './reminders';
 
 const SCHEME = 'app';
 const HOST = 'sticker';
@@ -23,6 +24,9 @@ protocol.registerSchemesAsPrivileged([
 if (TEST_USER_DATA) app.setPath('userData', TEST_USER_DATA);
 
 let mainWindow: BrowserWindow | null = null;
+let reminderHost: ReminderHost | null = null;
+/** Lần tạo cửa sổ đầu tiên lúc app tự mở khi bật máy: chạy nền, không hiện cửa sổ */
+let startHidden = false;
 const PRINT_PARTITION = 'in-sticker-ban-in';
 const printJobs = new PrintJobs(ORIGIN, () => mainWindow, () => session.fromPartition(PRINT_PARTITION));
 const blockedRequests: string[] = [];
@@ -191,10 +195,23 @@ const createMainWindow = (): void => {
       nodeIntegration: false,
       plugins: true, // bật trình xem PDF cho màn xem trước bản in
       spellcheck: false,
+      // Cửa sổ ẩn (chạy nền) vẫn phải tính giờ nhắc việc đúng lúc
+      backgroundThrottling: false,
     },
   });
 
-  mainWindow.once('ready-to-show', () => mainWindow?.show());
+  const hidden = startHidden;
+  startHidden = false;
+  mainWindow.once('ready-to-show', () => {
+    if (!hidden) mainWindow?.show();
+  });
+  // Chạy nền: đóng cửa sổ thì chỉ ẩn, để vẫn nhắc việc. Thoát hẳn bằng menu ở khay hệ thống hoặc Cmd+Q.
+  mainWindow.on('close', (event) => {
+    if (reminderHost?.hideOnClose()) {
+      event.preventDefault();
+      mainWindow?.hide();
+    }
+  });
   // Giao diện không mở địa chỉ nào ngoài chính nó
   mainWindow.webContents.on('will-navigate', (event, target) => {
     if (!target.startsWith(`${ORIGIN}/`)) event.preventDefault();
@@ -233,7 +250,8 @@ const startApp = (): void => {
   printSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   (globalThis as { __blockedRequests?: string[] }).__blockedRequests = blockedRequests;
 
-  // Giao diện chỉ cần quyền camera (quét mã). Trên Mac phải xin thêm quyền của hệ điều hành.
+  // Giao diện chỉ cần camera (quét mã, chụp ảnh checklist) và micro (ghi âm làm chuông nhắc việc). Trên Mac phải xin thêm
+  // quyền của hệ điều hành.
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback, details) => {
     if (permission !== 'media' || !details.requestingUrl.startsWith(`${ORIGIN}/`)) {
       callback(false);
@@ -241,7 +259,12 @@ const startApp = (): void => {
     }
     // Bài kiểm thử dùng camera giả, không được hiện hộp thoại xin quyền của hệ điều hành.
     if (process.platform === 'darwin' && !TEST_USER_DATA) {
-      systemPreferences.askForMediaAccess('camera').then(callback).catch(() => callback(false));
+      const types = (details as { mediaTypes?: string[] }).mediaTypes ?? ['video'];
+      const asks = [
+        ...(types.includes('video') ? [systemPreferences.askForMediaAccess('camera')] : []),
+        ...(types.includes('audio') ? [systemPreferences.askForMediaAccess('microphone')] : []),
+      ];
+      Promise.all(asks).then((granted) => callback(granted.every(Boolean))).catch(() => callback(false));
       return;
     }
     callback(true);
@@ -251,6 +274,19 @@ const startApp = (): void => {
 
   setupDownloads();
 
+  reminderHost = new ReminderHost({
+    origin: ORIGIN,
+    preload: path.join(__dirname, 'preload.cjs'),
+    iconPath: path.join(distDir(), 'icon.png'),
+    trayIconPath: path.join(distDir(), 'tray.png'),
+    settingsFile: path.join(app.getPath('userData'), 'chay-nen.json'),
+    getMainWindow: () => mainWindow,
+    showMainWindow,
+    isTest: Boolean(TEST_USER_DATA),
+  });
+  reminderHost.register();
+  startHidden = reminderHost.openedAtLogin;
+
   const updater = new Updater((state) => mainWindow?.webContents.send('update:state', state));
   (globalThis as { __updater?: Updater }).__updater = updater;
   registerIpc(updater);
@@ -258,9 +294,8 @@ const startApp = (): void => {
   createMainWindow();
   void updater.start();
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
-  });
+  // Bấm biểu tượng trên Dock: hiện lại cửa sổ chính, kể cả khi đang chạy nền (cửa sổ ẩn)
+  app.on('activate', showMainWindow);
 };
 
 /** Người dùng bấm mở app lần nữa: đưa cửa sổ đang có ra trước, trên Mac có thể đã đóng cửa sổ nhưng app còn chạy. */

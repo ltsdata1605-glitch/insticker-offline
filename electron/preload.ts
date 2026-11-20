@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { DesktopApi, DownloadDone, UpdateState } from './contract';
+import type { DesktopApi, DownloadDone, ReminderAction, UpdateState } from './contract';
 
 const api: DesktopApi = {
   print: {
@@ -28,6 +28,24 @@ const api: DesktopApi = {
       ipcRenderer.on('update:state', handler);
       return () => ipcRenderer.removeListener('update:state', handler);
     },
+  },
+  reminders: {
+    showPopup: (data) => ipcRenderer.invoke('reminder:show', data),
+    closePopup: (key) => ipcRenderer.invoke('reminder:close', key),
+    getPopupData: () => ipcRenderer.invoke('reminder:popup-data'),
+    popupAction: (action) => ipcRenderer.invoke('reminder:popup-action', action),
+    onAction: (listener) => {
+      const handler = (_event: unknown, action: ReminderAction) => listener(action);
+      ipcRenderer.on('reminder:action', handler);
+      return () => ipcRenderer.removeListener('reminder:action', handler);
+    },
+    onRecheck: (listener) => {
+      const handler = () => listener();
+      ipcRenderer.on('reminder:recheck', handler);
+      return () => ipcRenderer.removeListener('reminder:recheck', handler);
+    },
+    getBackground: () => ipcRenderer.invoke('background:get'),
+    setBackground: (settings) => ipcRenderer.invoke('background:set', settings),
   },
 };
 

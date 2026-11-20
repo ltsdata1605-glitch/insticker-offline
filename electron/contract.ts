@@ -94,6 +94,48 @@ export interface UpdateState {
   justUpdatedFrom?: string;
 }
 
+/** Âm thanh của nhắc việc. Trùng cấu trúc với SoundSpec bên giao diện. */
+export type ReminderSound =
+  | { kind: 'preset'; preset: 'chuong' | 'coi' | 'bip' | 'chuong-cua' | 'nhac' }
+  | { kind: 'tts'; text: string }
+  | { kind: 'file'; mediaId: string; name: string };
+
+/** Nội dung một cửa sổ nhắc việc bật lên. */
+export interface ReminderPopupData {
+  /** Khoá lần nhắc: mỗi khoá chỉ có một cửa sổ */
+  key: string;
+  kind: 'reminder' | 'checklist' | 'missed';
+  title: string;
+  content: string;
+  /** Hạn của lần này (ms) */
+  deadline?: number;
+  /** Giờ lúc bật cửa sổ theo đồng hồ của lịch nhắc, để tính còn bao lâu */
+  shownAt: number;
+  priority: 'normal' | 'important' | 'urgent';
+  sound: ReminderSound;
+  /** Câu đọc khi chọn đọc chữ */
+  speech: string;
+  /** Có checklist để mở */
+  hasChecklist?: boolean;
+  /** Nhắc bị lỡ (kind = missed) */
+  missed?: { title: string; at: number }[];
+}
+
+export interface ReminderAction {
+  key: string;
+  action: 'done' | 'snooze' | 'open' | 'dismiss';
+  minutes?: number;
+}
+
+export interface BackgroundSettings {
+  /** Đóng cửa sổ thì app vẫn chạy ở khay hệ thống để nhắc việc */
+  runInBackground: boolean;
+  /** Mở app khi bật máy */
+  openAtLogin: boolean;
+  /** Máy này đặt được khởi động cùng máy (chỉ bản đã cài) */
+  loginItemAvailable: boolean;
+}
+
 export interface DesktopApi {
   print: {
     createJob(request: PrintJobRequest): Promise<PrintJobInfo>;
@@ -114,5 +156,20 @@ export interface DesktopApi {
     setAutoDownload(enabled: boolean): Promise<void>;
     openDownloadPage(): Promise<void>;
     onStateChange(listener: (state: UpdateState) => void): () => void;
+  };
+  reminders: {
+    /** Cửa sổ chính: bật cửa sổ nhắc (có rồi thì đưa lên trước) */
+    showPopup(data: ReminderPopupData): Promise<void>;
+    closePopup(key: string): Promise<void>;
+    /** Cửa sổ nhắc: lấy nội dung của chính nó */
+    getPopupData(): Promise<ReminderPopupData | null>;
+    /** Cửa sổ nhắc: người dùng bấm nút, cửa sổ đóng lại */
+    popupAction(action: ReminderAction): Promise<void>;
+    /** Cửa sổ chính nhận nút đã bấm trên cửa sổ nhắc */
+    onAction(listener: (action: ReminderAction) => void): () => void;
+    /** Máy vừa thức dậy hoặc mở khoá: kiểm tra lại các nhắc đến giờ */
+    onRecheck(listener: () => void): () => void;
+    getBackground(): Promise<BackgroundSettings>;
+    setBackground(settings: Partial<Pick<BackgroundSettings, 'runInBackground' | 'openAtLogin'>>): Promise<BackgroundSettings>;
   };
 }

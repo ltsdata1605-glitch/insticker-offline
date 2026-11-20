@@ -185,7 +185,7 @@ test('Kiểm hàng: nhập nhiều file, quét mã, IMEI, mã lạ, thừa, hoà
   await s.close();
 });
 
-test('Tắt Kiểm hàng trong bảng bật tắt tab thì thanh bên trái ẩn; tắt hết tab In sticker thì chỉ còn Kiểm hàng', async () => {
+test('Tắt Kiểm hàng và Nhắc việc thì thanh bên trái ẩn; tắt hết tab In sticker thì chỉ còn Kiểm hàng', async () => {
   const s = await openApp();
   const { win } = s;
   // Cửa sổ nhỏ nhất (như máy Mac của CI): bảng bật tắt tab cao gần hết cửa sổ, nút Đóng không được bị thanh trên che
@@ -197,8 +197,10 @@ test('Tắt Kiểm hàng trong bảng bật tắt tab thì thanh bên trái ẩn
     return win.getByRole('dialog', { name: 'Bật tắt các tab' });
   };
   let panel = await openPanel();
+  await panel.getByRole('switch', { name: 'Nhắc việc' }).click();
   await panel.getByRole('switch', { name: 'Kiểm hàng' }).click();
   await panel.getByRole('button', { name: /Đóng/ }).first().click();
+  // Chỉ còn In sticker thì không cần thanh bên trái
   await expect(rail(win)).toHaveCount(0);
 
   panel = await openPanel();

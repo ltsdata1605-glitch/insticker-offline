@@ -49,8 +49,9 @@ test('Event mặc định tắt; bấm 7 lần vào logo, nhập mật khẩu đ
   expect(await modeNames(win)).toEqual(['Giờ Vàng', 'Sticker', 'Phiếu']);
   await expect(win.locator('#print-section .sub-header')).toBeVisible();
 
-  // Còn mỗi một tab thì không tắt được tab đó. Kiểm hàng cũng tính là một tab nên tắt trước.
+  // Còn mỗi một tab thì không tắt được tab đó. Kiểm hàng và Nhắc việc cũng tính là tab nên tắt trước.
   await tabSwitch(win, 'Kiểm hàng').click();
+  await tabSwitch(win, 'Nhắc việc').click();
   for (const name of ['Giờ Vàng', 'Sticker']) await tabSwitch(win, name).click();
   expect(await modeNames(win)).toEqual(['Phiếu']);
   await expect(tabSwitch(win, 'Phiếu')).toBeDisabled();
