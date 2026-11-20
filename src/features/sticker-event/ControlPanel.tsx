@@ -8,7 +8,6 @@ import SearchBar from './SearchBar';
 import { Button } from '../../components/shared/ui/Button';
 import { Input } from '../../components/shared/ui/Input';
 import { useActiveTab } from '../../contexts/LayoutContext';
-import { useStickerScope } from './services/scope';
 
 interface ControlPanelProps {
     employeeName: string;
@@ -38,9 +37,6 @@ interface ControlPanelProps {
     priceProductCount: number;
     onOpenPriceHistory: () => void;
     onOpenPriceSources: () => void;
-    /** Tab Sticker: tải file mẫu trống và nhập file mẫu đã điền, thay cho bảng giá. */
-    onDownloadTemplate?: () => void;
-    onTemplateFileChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
     onOpenManualInput: () => void;
     onReset: () => void;
     onOpenImport: () => void;
@@ -61,7 +57,6 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
     const isAdmin = props.userRole === 'admin';
     const isMobileTools = props.isMobile && props.activeTab === 'tools';
     const isMobileHome = props.isMobile && props.activeTab === 'home';
-    const scope = useStickerScope();
     
     return (
         <aside className={`w-full ${props.isMobile ? 'p-0' : 'lg:w-[316px] lg:flex-shrink-0 bg-white/95 dark:bg-slate-900/95 p-3 rounded-card border border-slate-200/90 dark:border-slate-800 shadow-sm lg:sticky lg:top-2 lg:max-h-[calc(100vh-1rem)] lg:overflow-y-auto lg:scrollbar-thin lg:scrollbar-thumb-slate-200 dark:lg:scrollbar-thumb-slate-700 lg:scrollbar-track-transparent self-start flex flex-col gap-2.5 backdrop-blur-xs'}`}>
@@ -95,7 +90,7 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                                     {/* GĐ10: ô dùng chung `dense` (28px — cùng cao nút "Lưu" cạnh bên); viền hồng khi chưa có tên như cũ */}
                                     <Input
                                         dense
-                                        id={scope === 'event' ? 'employee-name-input' : 'sticker-employee-name-input'}
+                                        id="employee-name-input"
                                         type="text"
                                         aria-label="Tên người in"
                                         placeholder="Tên / mã nhân viên..."
@@ -148,71 +143,8 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                         )}
                     </div>
 
-                    {/* 4. DỮ LIỆU NGUỒN, TAB STICKER: FILE MẪU */}
-                    {isAdmin && scope === 'sticker' && (
-                        <div className="bg-slate-50/70 dark:bg-slate-850/60 p-2.5 rounded-popup border border-slate-200/80 dark:border-slate-800 space-y-2">
-                            <div className="flex items-center justify-between">
-                                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                                    <AppIcon name="database" size="xs" className="text-sky-500" />
-                                    Dữ liệu nguồn
-                                </span>
-                                <Button
-                                    variant="ghost" size="icon-inline"
-                                    onClick={props.onOpenUserGuide}
-                                    className="text-slate-400 hover:text-sky-600"
-                                    title="Xem hướng dẫn quy trình in"
-                                >
-                                    <AppIcon name="info" size="sm" />
-                                </Button>
-                            </div>
-                            <div
-                                className={`flex items-center gap-2 py-2 px-2.5 rounded-popup border ${props.uploadTimestamp ? 'bg-white dark:bg-slate-800 border-emerald-300 dark:border-emerald-700/80 text-emerald-800 dark:text-emerald-200' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'}`}
-                            >
-                                <div className="w-6 h-6 rounded-control bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 flex items-center justify-center shrink-0">
-                                    <AppIcon name="fileAdd" size="sm" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <span className="text-xs font-bold block leading-tight truncate" title={props.fileName ?? undefined}>{props.fileName || 'File mẫu'}</span>
-                                    <span className="text-[11px] text-slate-400 dark:text-slate-500 block leading-tight truncate mt-0.5" data-testid="template-status">
-                                        {props.uploadTimestamp
-                                            ? `${props.uploadTimestamp.toLocaleTimeString('vi-VN')} · ${props.priceProductCount.toLocaleString('vi-VN')} SP`
-                                            : 'Chưa nhập'}
-                                    </span>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                <Button
-                                    variant="secondary"
-                                    size="none"
-                                    onClick={props.onDownloadTemplate}
-                                    title="Tải file mẫu để điền sản phẩm, số lượng tem và bố cục in"
-                                    className="h-8 rounded-control text-xs font-semibold gap-1.5 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-100 text-slate-700 dark:text-slate-200"
-                                >
-                                    <AppIcon name="download" size="sm" className="text-slate-500" />
-                                    <span>Tải file mẫu</span>
-                                </Button>
-                                <label
-                                    className={`relative h-8 rounded-control text-xs font-semibold flex items-center justify-center gap-1.5 border transition-colors ${props.isLoading ? 'opacity-50 bg-slate-100 border-slate-200' : 'cursor-pointer bg-sky-600 hover:bg-sky-700 border-sky-600 text-white'}`}
-                                    title="Nhập file mẫu đã điền: trùng mã thì cập nhật, mã mới thì thêm vào danh sách"
-                                >
-                                    <input
-                                        type="file"
-                                        id="template-file-input"
-                                        aria-label="Nhập file mẫu"
-                                        onChange={props.onTemplateFileChange}
-                                        accept=".xlsx, .xls"
-                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                        disabled={props.isLoading}
-                                    />
-                                    <AppIcon name="upload" size="sm" />
-                                    <span>Nhập file mẫu</span>
-                                </label>
-                            </div>
-                        </div>
-                    )}
-
                     {/* 4. DỮ LIỆU NGUỒN: BẢNG GIÁ */}
-                    {isAdmin && scope === 'event' && (
+                    {isAdmin && (
                         <div className="bg-slate-50/70 dark:bg-slate-850/60 p-2.5 rounded-popup border border-slate-200/80 dark:border-slate-800 space-y-2">
                             <div className="flex items-center justify-between">
                                 <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1">
@@ -301,18 +233,10 @@ const ControlPanel: React.FC<ControlPanelProps> = (props) => {
                                 <AppIcon name="info" size="sm" />
                                 Hướng dẫn nạp dữ liệu
                             </h3>
-                            {scope === 'sticker' ? (
-                                <div className="space-y-1 text-[11px] leading-relaxed text-sky-800 dark:text-sky-300">
-                                    <p><strong>B1:</strong> Bấm <strong>&quot;Tải file mẫu&quot;</strong>, điền mã, tên, giá, khuyến mãi, số lượng tem và bố cục (số sticker trên một trang A4).</p>
-                                    <p><strong>B2:</strong> Bấm <strong>&quot;Nhập file mẫu&quot;</strong>. Nhập thêm file sau: mã trùng được cập nhật, mã mới được thêm vào danh sách.</p>
-                                    <p><strong>B3:</strong> Bấm in: mỗi sản phẩm in theo bố cục của nó, mỗi bố cục một lượt in.</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-1 text-[11px] leading-relaxed text-sky-800 dark:text-sky-300">
-                                    <p><strong>B1:</strong> Vào ERP &gt; In giá &gt; Mẫu in 81 &gt; Xuất Data-only(*.xlsx).</p>
-                                    <p><strong>B2:</strong> Tải file vào <strong>&quot;Bảng Giá&quot;</strong>. Có thể chọn nhiều file cùng lúc. Nhập thêm file sau: mã trùng được cập nhật giá, mã mới được thêm, giá cũ vẫn giữ.</p>
-                                </div>
-                            )}
+                            <div className="space-y-1 text-[11px] leading-relaxed text-sky-800 dark:text-sky-300">
+                                <p><strong>B1:</strong> Vào ERP &gt; In giá &gt; Mẫu in 81 &gt; Xuất Data-only(*.xlsx).</p>
+                                <p><strong>B2:</strong> Tải file vào <strong>&quot;Bảng Giá&quot;</strong>. Có thể chọn nhiều file cùng lúc. Nhập thêm file sau: mã trùng được cập nhật giá, mã mới được thêm, giá cũ vẫn giữ.</p>
+                            </div>
                         </div>
                     )}
 

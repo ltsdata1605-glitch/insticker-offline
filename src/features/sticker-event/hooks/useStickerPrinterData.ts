@@ -4,9 +4,16 @@ import { saveSetting, getSetting } from '../services/dbService';
 import { openPrintPreview } from '../../../platform/printPreview';
 import { buildAppStyledDocument } from '../../../platform/printDocument';
 import { StickerPage, SavedStickerList, PrintHistoryEntry, BatchItem, TicketDrawData } from '../stickerprinter/types';
-import { resolvePagePrices, resolveQueuePage, generatePageHtml, isHistoryDuplicate, generateDrawPagesHtml } from '../stickerprinter/pageHtmlUtils';
-import { parsePercentValue, parseBatchItemsFromExcelRows, downloadStickerTemplate, parseTemplateExcelData, parseErpPriceExcelData } from '../stickerprinter/excelParsers';
+import { ghostTagPreview, stickerPageToTagProduct } from '../stickerprinter/tagProducts';
+import { formatPriceChangePercent, normalizeTagQuantity } from '../utils/format';
+import { getHiddenTabs, resolveVisibleSub } from '../tabAccess';
+import type { Product } from '../types';
+import { resolvePagePrices, resolveQueuePage, tagQueueContext, generatePageHtml, isHistoryDuplicate, generateDrawPagesHtml } from '../stickerprinter/pageHtmlUtils';
+import { parsePercentValue, downloadStickerTemplate, parseTemplateExcelData } from '../stickerprinter/excelParsers';
 import { getStickerPreviewStyles } from '../stickerprinter/stickerPreviewStyles';
+import { PRINT_SKIP_ATTR } from '../stickerprinter/BarcodeField';
+import { buildStickerSheets, normalizeStickersPerPage, STICKERS_PER_PAGE_KEY } from '../stickerprinter/stickerSheets';
+import type { StickersPerPage } from '../stickerprinter/stickerSheets';
 import {
     DEFAULT_FIELD_SIZES,
     DRAW_FIELDS,
@@ -45,6 +52,27 @@ function readLastStickerSub(): string {
     }
 }
 
+/** Bản sao khung xem trước không có các phần chỉ để thao tác trên màn hình (ô nhập mã vạch, chỗ bấm để nhập). */
+function withoutScreenOnlyParts(el: HTMLElement): HTMLElement {
+    const copy = el.cloneNode(true) as HTMLElement;
+    copy.querySelectorAll(`[${PRINT_SKIP_ATTR}]`).forEach(part => part.remove());
+    return copy;
+}
+
+/** Số bản in của một sticker trong danh sách (không có là 1). */
+const pageQuantity = (page: StickerPage): number => normalizeTagQuantity(page.quantity ?? 1);
+
+/** Ghi tab con lên địa chỉ trang để mở lại đúng tab. */
+function writeSubQueryParam(sub: string) {
+    try {
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('sub', sub);
+        window.history.replaceState(null, '', newUrl.toString());
+    } catch (e) {
+        console.error("Failed to sync sub-tab to URL:", e);
+    }
+}
+
 /** ID cố định cho entry lịch sử mặc định — không xoá được. */
 export const DEFAULT_HISTORY_ID = '__default_draw_template__';
 
@@ -80,7 +108,6 @@ export const DEFAULT_DRAW_HISTORY_ENTRY: PrintHistoryEntry = {
     headerTextContent: '',
     subHeaderTextContent: '',
     footerTextContent: '',
-    showBarcode: false,
     manualPages: [],
     drawTickets: [
         { ...DEFAULT_DRAW_TICKET_TEMPLATE, id: '1', code: '1' },
@@ -102,10 +129,27 @@ export const DEFAULT_DRAW_HISTORY_ENTRY: PrintHistoryEntry = {
 };
 
 export function useStickerPrinterData() {
-    // 'sticker': Giá Sốc, Giờ Vàng, Phiếu; 'tag': tab Sticker in từ file mẫu; 'event': tab Event in từ bảng giá
+    // 'sticker': Giá Sốc, Giờ Vàng, Phiếu; 'tag': tab Sticker, cùng màn và danh sách với Giá Sốc nhưng in ra tem giá theo
+    // kiểu và bố cục chọn lúc in; 'event': tab Event in từ bảng giá
     const [stickerMode, setStickerMode] = useState<'sticker' | 'event' | 'tag'>('sticker');
     const [eventEverOpened, setEventEverOpened] = useState(false);
-    const [tagEverOpened, setTagEverOpened] = useState(false);
+    // Tem đang chờ chọn kiểu và bố cục in ở tab Sticker; onPrinted ghi lịch sử in khi đã mở màn xem trước
+    const [tagPrint, setTagPrint] = useState<{ products: Product[]; onPrinted: (listName: string) => void } | null>(null);
+    // Giá Sốc, Giờ Vàng: sticker đang chờ chọn số sticker mỗi tờ A4, và cách xếp lần in trước
+    const [sheetPrint, setSheetPrint] = useState<{ count: number; print: (perPage: StickersPerPage, listName: string) => void } | null>(null);
+    const [stickersPerPage, setStickersPerPage] = useState<StickersPerPage>(1);
+    useEffect(() => {
+        getSetting<number>(STICKERS_PER_PAGE_KEY)
+            .then(saved => setStickersPerPage(normalizeStickersPerPage(saved)))
+            .catch(() => {});
+    }, []);
+    const chooseStickersPerPage = (perPage: StickersPerPage, listName: string) => {
+        const pending = sheetPrint;
+        setSheetPrint(null);
+        setStickersPerPage(perPage);
+        saveSetting(STICKERS_PER_PAGE_KEY, perPage).catch(() => {});
+        pending?.print(perPage, listName);
+    };
     const [stickerType, setStickerType] = useState<'gia_soc' | 'gio_vang' | 'draw'>('draw');
     const [bgImage, setBgImage] = useState('/frame/bg_phieu.png');
     const [priceSource, setPriceSource] = useState<'sale' | 'service'>('sale');
@@ -149,10 +193,26 @@ export function useStickerPrinterData() {
     const [subHeaderTextContent, setSubHeaderTextContent] = useState('0 SUẤT/NGÀY');
     const [footerTextContent, setFooterTextContent] = useState('Khuyến mãi áp dụng đến hết ngày 3/5/2026');
     const [searchTerm, setSearchTerm] = useState('');
-    const [showBarcode, setShowBarcode] = useState(false);
     const [barcodeImei, setBarcodeImei] = useState('123456');
+    // Số bản in của sticker đang soạn (chưa thêm vào danh sách); sticker trong danh sách giữ số bản của riêng nó
+    const [composeQuantity, setComposeQuantity] = useState(1);
     const [manualPages, setManualPages] = useState<StickerPage[]>([]);
+    /** Số bản in hiện ở ô số lượng: của sticker đang mở, hoặc của sticker đang soạn. */
+    const editorQuantity = useMemo(() => {
+        const active = activeQueuePageId ? manualPages.find(page => page.id === activeQueuePageId) : undefined;
+        return active ? pageQuantity(active) : composeQuantity;
+    }, [activeQueuePageId, manualPages, composeQuantity]);
+    /** Số bản sẽ in khi bấm in, hiện trên nút Bấm để in. */
+    const stickerPrintCount = useMemo(() => {
+        const listCopies = manualPages.filter(page => page.selected !== false).reduce((sum, page) => sum + pageQuantity(page), 0);
+        if (batchItems.length > 0) return batchItems.filter(item => item.selected).length + listCopies;
+        return manualPages.length > 0 ? listCopies : editorQuantity;
+    }, [manualPages, batchItems, editorQuantity]);
     const [printHistory, setPrintHistory] = useState<PrintHistoryEntry[]>([]);
+    /** Tên các lần in trước (mới nhất trước), gợi ý ở ô tên danh sách khi in. */
+    const listNameSuggestions = useMemo(() => Array.from(new Set(
+        printHistory.filter(entry => entry.id !== DEFAULT_HISTORY_ID && entry.stickerType !== 'draw').map(entry => entry.label),
+    )).slice(0, 20), [printHistory]);
     const [showHistory, setShowHistory] = useState(false);
     const [savedLists, setSavedLists] = useState<SavedStickerList[]>([]);
     // true = savedLists vừa được cập nhật từ storage (indexeddb-change), không phải người
@@ -314,12 +374,15 @@ export function useStickerPrinterData() {
     }, [priceSource, activeQueuePageId, manualPages]);
 
     // Helper to switch and apply sub tab correctly without cross-tab leak
-    const applySubTab = useCallback((sub: string) => {
+    const applySubTab = useCallback((requested: string) => {
+        // Tab đã tắt trong bảng bật tắt tab (bấm 7 lần vào logo) thì mở tab còn bật
+        const sub = resolveVisibleSub(requested, getHiddenTabs());
+        if (sub !== requested) writeSubQueryParam(sub);
         if (STICKER_SUBS.includes(sub)) {
             try { localStorage.setItem(STICKER_LAST_SUB_KEY, sub); } catch { /* chế độ riêng tư */ }
         }
-        if (sub === 'gia-soc') {
-            setStickerMode('sticker');
+        if (sub === 'gia-soc' || sub === 'sticker') {
+            setStickerMode(sub === 'sticker' ? 'tag' : 'sticker');
             setStickerType('gia_soc');
             setBgImage(prev => isValidBgImageForType('gia_soc', prev) ? prev : GIA_SOC_DEFAULT_BG);
             setHeaderTextContent(prev => (prev && !prev.includes('TỪ 00/00')) ? prev : 'QUẠT ĐIỀU HOÀ');
@@ -339,22 +402,11 @@ export function useStickerPrinterData() {
         } else if (sub === 'event') {
             setStickerMode('event');
             setEventEverOpened(true);
-        } else if (sub === 'sticker') {
-            setStickerMode('tag');
-            setTagEverOpened(true);
         }
     }, []);
 
     // Helper to update sub tab in URL
-    const updateSubQueryParam = (sub: string) => {
-        try {
-            const newUrl = new URL(window.location.href);
-            newUrl.searchParams.set('sub', sub);
-            window.history.replaceState(null, '', newUrl.toString());
-        } catch (e) {
-            console.error("Failed to sync sub-tab to URL:", e);
-        }
-    };
+    const updateSubQueryParam = (sub: string) => writeSubQueryParam(resolveVisibleSub(sub, getHiddenTabs()));
 
     // Preload StickerEventApp; read initial sub tab from URL
     useEffect(() => {
@@ -395,8 +447,8 @@ export function useStickerPrinterData() {
                         setStickerMode('sticker');
                         setStickerType('draw');
                         effectiveType = 'draw';
-                    } else if (currentSub === 'gia-soc') {
-                        setStickerMode('sticker');
+                    } else if (currentSub === 'gia-soc' || currentSub === 'sticker') {
+                        setStickerMode(currentSub === 'sticker' ? 'tag' : 'sticker');
                         setStickerType('gia_soc');
                         effectiveType = 'gia_soc';
                     } else if (currentSub === 'gio-vang') {
@@ -410,9 +462,6 @@ export function useStickerPrinterData() {
                     } else if (currentSub === 'event') {
                         setStickerMode('event');
                         setEventEverOpened(true);
-                    } else if (currentSub === 'sticker') {
-                        setStickerMode('tag');
-                        setTagEverOpened(true);
                     }
 
                     // STRICT BG IMAGE BINDING: Chỉ khôi phục bgImage nếu nó thuộc đúng loại tem hiện tại
@@ -455,7 +504,6 @@ export function useStickerPrinterData() {
                     setActiveField(getDefaultActiveFieldForType(effectiveType));
 
                     if (savedState.footerTextContent) setFooterTextContent(savedState.footerTextContent);
-                    if (savedState.showBarcode != null) setShowBarcode(savedState.showBarcode);
                     if (savedState.previewName) setPreviewName(savedState.previewName);
                     if (savedState.previewOldPrice) setPreviewOldPrice(savedState.previewOldPrice);
                     
@@ -644,7 +692,6 @@ export function useStickerPrinterData() {
                 headerTextContent,
                 subHeaderTextContent,
                 footerTextContent,
-                showBarcode,
                 previewName,
                 previewOldPrice,
                 previewNewPrice,
@@ -696,7 +743,6 @@ export function useStickerPrinterData() {
                 headerTextContent,
                 subHeaderTextContent,
                 footerTextContent,
-                showBarcode,
                 previewName,
                 previewOldPrice,
                 previewNewPrice,
@@ -750,7 +796,7 @@ export function useStickerPrinterData() {
         };
     }, [
         isLoaded, stickerMode, stickerType, bgImage, headerTextContent, subHeaderTextContent,
-        footerTextContent, showBarcode, previewName, previewOldPrice, previewNewPrice,
+        footerTextContent, previewName, previewOldPrice, previewNewPrice,
         headerTextSize, subHeaderTextSize, percentTextSize, oldPriceTextSize, nameTextSize,
         newPriceTextSize, footerTextSize, discountDisplayMode, barcodeImei, discountThreshold,
         searchTerm, activeQueuePageId, activeSubTab, manualPages, batchItems, priceSource,
@@ -814,50 +860,14 @@ export function useStickerPrinterData() {
         }
     };
 
-    const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = async (evt) => {
-            try {
-                const bstr = evt.target?.result;
-                const XLSX = await import('xlsx');
-                const wb = XLSX.read(bstr, { type: 'binary' });
-                const wsname = wb.SheetNames[0];
-                const ws = wb.Sheets[wsname];
-                const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
-
-                const items = parseBatchItemsFromExcelRows(data, discountThreshold);
-                setBatchItems(items);
-                setActiveSubTab('data');
-                if (items.length > 0) {
-                    const first = items[0];
-                    setPreviewName(first.name);
-                    setPreviewOldPrice(first.oldPrice);
-                    setPreviewNewPrice(first.newPrice);
-                    setBarcodeImei(first.imei);
-                } else {
-                    // BUG FIX: file rỗng/sai định dạng cột trước đây không báo gì — người dùng
-                    // không biết upload có thành công hay không (parseBatchItemsFromExcelRows
-                    // âm thầm trả về [] nếu không khớp cấu trúc cột cố định của file "giá ĐSD - TBBM").
-                    toast.error("Không tìm thấy dữ liệu hợp lệ trong file. Kiểm tra lại đúng định dạng file giá ĐSD - TBBM.");
-                }
-            } catch (err) {
-                toast.error("Lỗi đọc file Excel");
-            }
-        };
-        reader.readAsBinaryString(file);
-        e.target.value = '';
-    };
-
     const downloadTemplate = () => downloadStickerTemplate(stickerType);
 
     const loadPageToEditor = (page: StickerPage) => {
         if (page.label) setPreviewName(page.label);
         // Sticker không có giá cũ thì ô giá cũ phải trống, không giữ giá của sticker đang mở trước đó
         setPreviewOldPrice(page.oldPrice || '');
-        if (page.code) setBarcodeImei(page.code);
+        // Mã vạch luôn hiện, nên sticker không có mã thì không được giữ mã của sticker đang mở trước đó
+        setBarcodeImei(page.code || '');
         if (page.header != null) setHeaderTextContent(page.header);
         if (page.footer != null) setFooterTextContent(page.footer);
         if (page.subHeader != null) setSubHeaderTextContent(page.subHeader);
@@ -933,44 +943,6 @@ export function useStickerPrinterData() {
         e.target.value = '';
     };
 
-    const handleErpPriceUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'purifier' | 'appliance') => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = async (evt) => {
-            try {
-                const bstr = evt.target?.result;
-                const XLSX = await import('xlsx');
-                const wb = XLSX.read(bstr, { type: 'binary' });
-                const wsname = wb.SheetNames[0];
-                const ws = wb.Sheets[wsname];
-                const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
-
-                const parsed = parseErpPriceExcelData(data, {
-                    type, priceSource, stickerType, bgImage, discountThreshold,
-                });
-                if (parsed.error) {
-                    toast.error(parsed.error);
-                    return;
-                }
-
-                const newPages = parsed.pages;
-                setManualPages(prev => [...prev, ...newPages]);
-                setActiveSubTab('queue');
-                if (newPages.length > 0) {
-                    selectQueuePage(newPages[0]);
-                }
-                toast.success(`Đã thêm ${newPages.length} sticker vào hàng đợi in`);
-            } catch (err) {
-                console.error(err);
-                toast.error('Lỗi đọc file Excel ERP');
-            }
-        };
-        reader.readAsBinaryString(file);
-        e.target.value = '';
-    };
-
     const toggleItemSelection = (id: string) => {
         setBatchItems(prev => prev.map(it => it.id === id ? { ...it, selected: !it.selected } : it));
     };
@@ -985,24 +957,41 @@ export function useStickerPrinterData() {
         loadPageToEditor(page);
     };
 
-    const addCurrentPage = () => {
+    /** Thêm sticker đang hiện vào danh sách. Trả về false khi không thêm. */
+    const addCurrentPage = (): boolean => {
         // Phiếu in theo số lượng, không có danh sách nên không có gì để thêm
-        if (stickerType === 'draw') return;
-        const printSection = document.getElementById('print-section');
-        if (!printSection) return;
-        const firstSticker = printSection.querySelector('.sticker-container') as HTMLElement;
-        if (!firstSticker) return;
-        const label = firstSticker.querySelector('.name')?.textContent || 'Sticker';
-        const oldPrice = firstSticker.querySelector('.old')?.textContent || '';
-        const newPrice = firstSticker.querySelector('.extra2')?.textContent || '';
-        const percent = firstSticker.querySelector('.extra1')?.textContent || '';
+        if (stickerType === 'draw') return false;
+        let html = '';
+        let label: string;
+        let oldPrice: string;
+        let newPrice: string;
+        let percent: string;
+        if (stickerMode === 'tag') {
+            // Tab Sticker không có sticker Giá Sốc trên màn: lấy từ các ô sửa
+            if (!previewName.trim() && !/\d/.test(previewOldPrice) && !/\d/.test(previewNewPrice)) {
+                toast.error('Nhập tên sản phẩm hoặc giá trước khi thêm');
+                return false;
+            }
+            label = previewName.trim() || 'Sticker';
+            oldPrice = previewOldPrice;
+            newPrice = previewNewPrice;
+            percent = formatPriceChangePercent(oldPrice, newPrice);
+        } else {
+            const firstSticker = document.querySelector('#print-section .sticker-container') as HTMLElement | null;
+            if (!firstSticker) return false;
+            html = withoutScreenOnlyParts(firstSticker).outerHTML;
+            label = firstSticker.querySelector('.name')?.textContent || 'Sticker';
+            oldPrice = firstSticker.querySelector('.old')?.textContent || '';
+            newPrice = firstSticker.querySelector('.extra2')?.textContent || '';
+            percent = firstSticker.querySelector('.extra1')?.textContent || '';
+        }
         const cleanInput = discountThreshold.replace(/[^0-9]/g, '');
         const limit = parseInt(cleanInput, 10);
         const isSelected = isNaN(limit) ? true : parsePercentValue(percent) >= limit;
 
         const page: StickerPage = {
             id: `page_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-            html: firstSticker.outerHTML,
+            html,
             label,
             oldPrice,
             newPrice,
@@ -1010,6 +999,7 @@ export function useStickerPrinterData() {
             timestamp: Date.now(),
             code: barcodeImei,
             selected: isSelected,
+            quantity: editorQuantity,
             salePrice: newPrice,
             header: headerTextContent,
             footer: footerTextContent,
@@ -1018,12 +1008,22 @@ export function useStickerPrinterData() {
         setManualPages(prev => [...prev, page]);
         // Khung xem trước thành sticker mới để soạn tiếp: sửa tiếp không làm đổi sticker vừa thêm
         setActiveQueuePageId(null);
+        setComposeQuantity(1);
+        // Tab Sticker: các ô để trống cho sticker tiếp theo
+        if (stickerMode === 'tag') {
+            setPreviewName('');
+            setBarcodeImei('');
+            setPreviewOldPrice('');
+            setPreviewNewPrice('');
+            setFooterTextContent('');
+        }
         const total = manualPages.length + 1;
         if (isSelected) {
             toast.success(`Đã thêm vào danh sách, hiện có ${total} sticker`);
         } else {
             toast.warning(`Đã thêm vào danh sách nhưng chưa chọn in vì % giảm thấp hơn mức lọc ${limit}%`);
         }
+        return true;
     };
 
     // Sửa chữ trên bản xem trước khi đang mở một sticker của danh sách: ghi thẳng vào sticker đó, nếu không bản in vẫn ra nội dung cũ.
@@ -1060,6 +1060,17 @@ export function useStickerPrinterData() {
     const editBarcode = (value: string) => {
         setBarcodeImei(value);
         patchActivePage(() => ({ code: value }));
+    };
+
+    /** Đổi số bản in của một sticker trong danh sách. */
+    const setPageQuantity = (id: string, quantity: number) => {
+        const next = normalizeTagQuantity(quantity);
+        setManualPages(prev => prev.map(page => (page.id === id ? { ...page, quantity: next } : page)));
+    };
+    /** Ô số lượng ở khung sửa: sticker đang mở thì đổi chính sticker đó, đang soạn mới thì nhớ cho lúc bấm Thêm. */
+    const setEditorQuantity = (quantity: number) => {
+        if (activeQueuePageId) setPageQuantity(activeQueuePageId, quantity);
+        else setComposeQuantity(normalizeTagQuantity(quantity));
     };
 
     const removeManualPage = (id: string) => {
@@ -1141,7 +1152,6 @@ export function useStickerPrinterData() {
         setHeaderTextContent(entry.headerTextContent);
         setSubHeaderTextContent(entry.subHeaderTextContent);
         setFooterTextContent(entry.footerTextContent);
-        setShowBarcode(entry.showBarcode);
         setManualPages(entry.manualPages || []);
         if (entry.discountDisplayMode) setDiscountDisplayMode(entry.discountDisplayMode);
         setShowHistory(false);
@@ -1222,6 +1232,51 @@ export function useStickerPrinterData() {
         }
     };
 
+    // Sticker có mã thì luôn in mã: mã vạch ở Giá Sốc và Giờ Vàng, mã QR ở tab Sticker
+    /** Một dòng của file giá thành sticker, theo đầu và chân đang dùng. */
+    const batchItemToPage = useCallback((item: BatchItem): StickerPage => ({
+        id: item.id,
+        html: '',
+        label: item.name,
+        oldPrice: item.oldPrice,
+        newPrice: item.newPrice,
+        percent: item.percent,
+        timestamp: Date.now(),
+        code: item.imei,
+        header: headerTextContent,
+        subHeader: subHeaderTextContent,
+        footer: footerTextContent,
+    }), [headerTextContent, subHeaderTextContent, footerTextContent]);
+
+    /** Sticker đang hiện trên khung xem trước (đang soạn, hoặc sticker của danh sách đang mở). */
+    const editorPage = useMemo((): StickerPage => ({
+        id: activeQueuePageId ?? 'preview',
+        html: '',
+        label: previewName,
+        oldPrice: previewOldPrice,
+        newPrice: previewNewPrice,
+        percent: '',
+        timestamp: 0,
+        code: barcodeImei,
+        header: headerTextContent,
+        subHeader: subHeaderTextContent,
+        footer: footerTextContent,
+        quantity: editorQuantity,
+    }), [activeQueuePageId, previewName, previewOldPrice, previewNewPrice, barcodeImei, headerTextContent, subHeaderTextContent, footerTextContent, editorQuantity]);
+
+    // Tab Sticker: khung xem trước hiện tem của sticker đang soạn, hoặc tối đa 20 dòng đang chọn của file giá như Giá Sốc
+    // Sticker đang soạn còn ô trống thì hiện khung xương mờ: ô trống lấy nội dung mẫu, tagPreviewGhost để biết phần nào là mẫu
+    const { tagPreviewProducts, tagPreviewGhost } = useMemo((): { tagPreviewProducts: Product[]; tagPreviewGhost?: Product[] } => {
+        if (stickerMode !== 'tag') return { tagPreviewProducts: [] };
+        if (batchItems.length > 0) {
+            return { tagPreviewProducts: batchItems.filter(i => i.selected).slice(0, 20).map(item => stickerPageToTagProduct(batchItemToPage(item), priceSource)) };
+        }
+        const ghost = ghostTagPreview(editorPage, priceSource);
+        return ghost
+            ? { tagPreviewProducts: [ghost.product], tagPreviewGhost: [ghost.alternative] }
+            : { tagPreviewProducts: [stickerPageToTagProduct(editorPage, priceSource)] };
+    }, [stickerMode, batchItems, batchItemToPage, editorPage, priceSource]);
+
     const handlePrint = () => {
         if (stickerType === 'draw') {
             const totalPages = Math.ceil((drawTickets?.length || 0) / 4);
@@ -1276,7 +1331,6 @@ export function useStickerPrinterData() {
                 headerTextContent,
                 subHeaderTextContent,
                 footerTextContent,
-                showBarcode,
                 manualPages: [],
                 discountDisplayMode,
                 drawTickets: JSON.parse(JSON.stringify(drawTickets)),
@@ -1316,7 +1370,6 @@ export function useStickerPrinterData() {
                 headerTextContent,
                 subHeaderTextContent,
                 footerTextContent,
-                showBarcode,
                 previewName,
                 previewOldPrice,
                 previewNewPrice,
@@ -1378,21 +1431,86 @@ export function useStickerPrinterData() {
             return;
         }
 
-        const previewPageCount = batchItems.length > 0 ? batchItems.filter(i => i.selected).length : (manualPages.length === 0 ? 1 : 0);
+        // Mỗi sticker in đúng số bản của nó; sticker đang soạn (danh sách trống) in theo ô số lượng
+        const previewPageCount = batchItems.length > 0 ? batchItems.filter(i => i.selected).length : (manualPages.length === 0 ? editorQuantity : 0);
         const selectedManualPages = manualPages.filter(p => p.selected !== false);
-        const totalPages = previewPageCount + selectedManualPages.length;
+        const totalPages = previewPageCount + selectedManualPages.reduce((sum, page) => sum + pageQuantity(page), 0);
 
         if (totalPages === 0) {
             toast.error("Không có trang nào để in!");
             return;
         }
 
-        const printHost = document.createElement('div');
-        printHost.id = 'print-host';
-        
         const effectiveBg = resolveEffectiveBgImage(stickerType, bgImage);
-        printHost.innerHTML = `
-            <style>
+        const queueContext = { stickerType, headerTextContent, subHeaderTextContent, footerTextContent };
+        const queuePage = (page: StickerPage): StickerPage => resolveQueuePage(page, queueContext);
+
+        // Tên danh sách người dùng đặt lúc in, để tra cứu lại ở tab Lịch sử
+        const recordHistory = (listName: string) => {
+            // Chỉ in sticker đang soạn (danh sách trống): lưu chính sticker đó vào lịch sử, mở lại là có đúng sticker đã in
+            const savedPages = batchItems.length === 0 && manualPages.length === 0
+                ? [{
+                    ...editorPage,
+                    id: `page_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                    timestamp: Date.now(),
+                    percent: formatPriceChangePercent(editorPage.oldPrice, editorPage.newPrice),
+                    salePrice: editorPage.newPrice,
+                    selected: true,
+                    quantity: editorQuantity,
+                }]
+                : manualPages;
+            const historyEntry: PrintHistoryEntry = {
+                id: `history_${Date.now()}`,
+                timestamp: Date.now(),
+                label: listName.trim() || headerTextContent || 'Sticker',
+                printedAs: stickerMode === 'tag' ? 'tag' : undefined,
+                pageCount: totalPages,
+                stickerType,
+                bgImage: effectiveBg,
+                headerTextSize,
+                subHeaderTextSize,
+                percentTextSize,
+                oldPriceTextSize,
+                nameTextSize,
+                newPriceTextSize,
+                footerTextSize,
+                batchItems,
+                headerTextContent,
+                subHeaderTextContent,
+                footerTextContent,
+                manualPages: savedPages,
+                discountDisplayMode,
+            };
+            setPrintHistory(prev => {
+                // In lại đúng danh sách cũ với cùng tên: đưa lên đầu. Đặt tên khác thì là một mục riêng để tra cứu.
+                const dupIdx = prev.findIndex(entry => entry.label === historyEntry.label && isHistoryDuplicate(entry, historyEntry));
+                let next;
+                if (dupIdx !== -1) {
+                    const matched = { ...prev[dupIdx], timestamp: Date.now(), printedAs: historyEntry.printedAs };
+                    const filtered = prev.filter((_, idx) => idx !== dupIdx);
+                    next = [matched, ...filtered];
+                } else {
+                    next = [historyEntry, ...prev];
+                }
+                const sliced = next.slice(0, 20);
+                saveSetting(STICKER_HISTORY_KEY, sliced).catch(() => {});
+                return sliced;
+            });
+        };
+
+        // Tab Sticker: in đúng các sticker như tab Giá Sốc, nhưng ra tem giá theo kiểu và bố cục chọn trong hộp chọn bố cục
+        if (stickerMode === 'tag') {
+            const pages = [
+                ...(batchItems.length > 0
+                    ? batchItems.filter(i => i.selected).map(batchItemToPage)
+                    : (manualPages.length === 0 ? [editorPage] : [])),
+                ...selectedManualPages.map(page => resolveQueuePage(page, tagQueueContext(queueContext))),
+            ];
+            setTagPrint({ products: pages.map(page => stickerPageToTagProduct(page, priceSource)), onPrinted: recordHistory });
+            return;
+        }
+
+        const hostStyle = `
                 ${getStickerPreviewStyles({
                     stickerType,
                     bgImage: effectiveBg,
@@ -1415,81 +1533,42 @@ export function useStickerPrinterData() {
                     outline: 1.5px dashed #6366f1;
                     outline-offset: 1px;
                 }
-            </style>
         `;
 
+        // Lấy nội dung ngay lúc bấm in (sticker đang soạn chép từ khung xem trước), rồi mới hỏi số sticker mỗi tờ
+        const stickers: string[] = [];
         if (batchItems.length > 0) {
-            const selectedBatchItems = batchItems.filter(i => i.selected);
-            selectedBatchItems.forEach(item => {
-                const tempPage: StickerPage = {
-                    id: item.id,
-                    html: '',
-                    label: item.name,
-                    oldPrice: item.oldPrice,
-                    newPrice: item.newPrice,
-                    percent: item.percent,
-                    timestamp: Date.now(),
-                    code: showBarcode ? item.imei : undefined,
-                    header: headerTextContent,
-                    subHeader: subHeaderTextContent,
-                    footer: footerTextContent,
-                };
-                printHost.insertAdjacentHTML('beforeend', generatePageHtml(tempPage, priceSource, stickerType, effectiveBg, discountDisplayMode));
+            batchItems.filter(i => i.selected).forEach(item => {
+                stickers.push(generatePageHtml(batchItemToPage(item), priceSource, stickerType, effectiveBg, discountDisplayMode));
             });
         } else if (manualPages.length === 0) {
             const printSection = document.getElementById('print-section');
             if (printSection) {
-                printHost.insertAdjacentHTML('beforeend', printSection.innerHTML);
+                const html = withoutScreenOnlyParts(printSection).innerHTML;
+                for (let copy = 0; copy < editorQuantity; copy++) stickers.push(html);
             }
         }
-
         selectedManualPages.forEach(page => {
-            const tempPage = resolveQueuePage(page, { stickerType, headerTextContent, subHeaderTextContent, footerTextContent, showBarcode });
-            printHost.insertAdjacentHTML('beforeend', generatePageHtml(tempPage, priceSource, stickerType, effectiveBg, discountDisplayMode));
-        });
-
-        const historyEntry: PrintHistoryEntry = {
-            id: `history_${Date.now()}`,
-            timestamp: Date.now(),
-            label: headerTextContent || 'Sticker',
-            pageCount: totalPages,
-            stickerType,
-            bgImage: effectiveBg,
-            headerTextSize,
-            subHeaderTextSize,
-            percentTextSize,
-            oldPriceTextSize,
-            nameTextSize,
-            newPriceTextSize,
-            footerTextSize,
-            batchItems,
-            headerTextContent,
-            subHeaderTextContent,
-            footerTextContent,
-            showBarcode,
-            manualPages,
-            discountDisplayMode,
-        };
-        setPrintHistory(prev => {
-            const dupIdx = prev.findIndex(entry => isHistoryDuplicate(entry, historyEntry));
-            let next;
-            if (dupIdx !== -1) {
-                const matched = { ...prev[dupIdx], timestamp: Date.now() };
-                const filtered = prev.filter((_, idx) => idx !== dupIdx);
-                next = [matched, ...filtered];
-            } else {
-                next = [historyEntry, ...prev];
-            }
-            const sliced = next.slice(0, 20);
-            saveSetting(STICKER_HISTORY_KEY, sliced).catch(() => {});
-            return sliced;
+            const html = generatePageHtml(queuePage(page), priceSource, stickerType, effectiveBg, discountDisplayMode);
+            for (let copy = 0; copy < pageQuantity(page); copy++) stickers.push(html);
         });
 
         const printTitle = headerTextContent || 'Sticker';
-        openPrintPreview({
-            title: printTitle,
-            paper: { kind: 'a4', landscape: false },
-            buildHtml: () => buildAppStyledDocument(printHost.outerHTML, printTitle),
+        setSheetPrint({
+            count: stickers.length,
+            print: (perPage, listName) => {
+                recordHistory(listName);
+                const sheets = buildStickerSheets(stickers, perPage);
+                openPrintPreview({
+                    title: printTitle,
+                    paper: { kind: 'a4', landscape: sheets.landscape },
+                    note: perPage > 1 ? `${stickers.length} sticker, ${perPage} sticker / trang A4.` : undefined,
+                    buildHtml: () => buildAppStyledDocument(
+                        `<div id="print-host"><style>${hostStyle}${sheets.css}</style>${sheets.html}</div>`,
+                        printTitle,
+                    ),
+                });
+            },
         });
     };
 
@@ -1499,7 +1578,14 @@ export function useStickerPrinterData() {
     return {
         stickerMode, setStickerMode,
         eventEverOpened, setEventEverOpened,
-        tagEverOpened,
+        tagPrint,
+        closeTagPrint: () => setTagPrint(null),
+        sheetPrint,
+        closeSheetPrint: () => setSheetPrint(null),
+        stickersPerPage,
+        chooseStickersPerPage,
+        tagPreviewProducts,
+        tagPreviewGhost,
         stickerType, setStickerType,
         bgImage, setBgImage,
         priceSource, setPriceSource,
@@ -1532,10 +1618,11 @@ export function useStickerPrinterData() {
         subHeaderTextContent, setSubHeaderTextContent,
         footerTextContent, setFooterTextContent,
         searchTerm, setSearchTerm,
-        showBarcode, setShowBarcode,
         barcodeImei, setBarcodeImei,
         manualPages, setManualPages,
         printHistory, setPrintHistory,
+        listNameSuggestions,
+        editorQuantity, setEditorQuantity, setPageQuantity, stickerPrintCount,
         showHistory, setShowHistory,
         savedLists, setSavedLists,
         showSavedLists, setShowSavedLists: toggleShowSavedLists,
@@ -1551,11 +1638,9 @@ export function useStickerPrinterData() {
         applySubTab,
         handleDiscountThresholdChange,
         resetAllFontSizes,
-        handleExcelUpload,
         downloadTemplate,
         loadPageToEditor,
         handleTemplateUpload,
-        handleErpPriceUpload,
         toggleItemSelection,
         toggleAllSelection,
         addCurrentPage,

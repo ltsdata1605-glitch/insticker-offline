@@ -8,8 +8,14 @@ import { StickerManualQueue } from './stickerprinter/StickerManualQueue';
 import { StickerQueueStrip } from './stickerprinter/StickerQueueStrip';
 import { StickerPrintControls } from './stickerprinter/StickerPrintControls';
 import { StickerModeToolbar } from './stickerprinter/StickerModeToolbar';
+import { TagPrintDialog } from './stickerprinter/TagPrintDialog';
+import { StickerPerPageDialog } from './stickerprinter/StickerPerPageDialog';
+import { TagPreviewPanel } from './stickerprinter/TagPreviewPanel';
+import { useTagPrintSettings } from './stickerprinter/useTagPrintSettings';
 import { Button } from '../../components/shared/ui/Button';
 import { useStickerPrinterData } from './hooks/useStickerPrinterData';
+import { useHiddenTabs } from './tabAccess';
+import { useActiveTab } from '../../contexts/LayoutContext';
 
 import ErrorBoundary from '../../components/shared/ui/ErrorBoundary';
 
@@ -23,7 +29,8 @@ export default function StickerPrinterView() {
     const {
         stickerMode, setStickerMode,
         eventEverOpened, setEventEverOpened,
-        tagEverOpened,
+        tagPrint, closeTagPrint, tagPreviewProducts, tagPreviewGhost,
+        sheetPrint, closeSheetPrint, stickersPerPage, chooseStickersPerPage, listNameSuggestions,
         stickerType, setStickerType,
         bgImage, setBgImage,
         priceSource, setPriceSource,
@@ -56,7 +63,6 @@ export default function StickerPrinterView() {
         subHeaderTextContent, setSubHeaderTextContent,
         footerTextContent, setFooterTextContent,
         searchTerm, setSearchTerm,
-        showBarcode, setShowBarcode,
         barcodeImei, setBarcodeImei,
         manualPages, setManualPages,
         printHistory,
@@ -75,11 +81,9 @@ export default function StickerPrinterView() {
         applySubTab,
         handleDiscountThresholdChange,
         resetAllFontSizes,
-        handleExcelUpload,
         downloadTemplate,
         loadPageToEditor,
         handleTemplateUpload,
-        handleErpPriceUpload,
         toggleItemSelection,
         toggleAllSelection,
         addCurrentPage,
@@ -92,6 +96,7 @@ export default function StickerPrinterView() {
         editFooterText,
         editBarcode,
         removeManualPage,
+        editorQuantity, setEditorQuantity, setPageQuantity, stickerPrintCount,
         clearManualPages,
         togglePageSelection,
         toggleAllPagesSelection,
@@ -104,6 +109,26 @@ export default function StickerPrinterView() {
         handleReset,
         handlePrint,
     } = useStickerPrinterData();
+    const isTagMode = stickerMode === 'tag';
+    // Đang mở Kiểm hàng thì màn này vẫn giữ trạng thái nhưng không được đặt nút lên thanh trên
+    const moduleActive = useActiveTab().activeTab === 'tools-print-sticker';
+    const tag = useTagPrintSettings(isTagMode);
+
+    // Tab đang mở vừa bị tắt trong bảng bật tắt tab: chuyển sang tab còn bật
+    const hiddenTabs = useHiddenTabs();
+    const currentSub = stickerMode === 'event' ? 'event' : isTagMode ? 'sticker'
+        : stickerType === 'gia_soc' ? 'gia-soc' : stickerType === 'gio_vang' ? 'gio-vang' : 'draw';
+    useEffect(() => {
+        if ((hiddenTabs as readonly string[]).includes(currentSub)) applySubTab(currentSub);
+    }, [hiddenTabs, currentSub, applySubTab]);
+
+    const editingNote = stickerType !== 'draw' && batchItems.length === 0 && manualPages.length > 0 && (
+        <p data-testid="sticker-editing-note" className="no-print shrink-0 text-xs text-slate-500 text-center">
+            {activeQueuePageId
+                ? `Đang sửa sticker ${manualPages.findIndex((page) => page.id === activeQueuePageId) + 1}/${manualPages.length}. Thay đổi được lưu ngay.`
+                : 'Sticker đang soạn, chưa có trong danh sách in. Bấm Thêm để đưa vào.'}
+        </p>
+    );
 
     return (
         <div className="print-wrapper w-full h-[calc(100dvh-64px)] bg-slate-100 dark:bg-slate-900 relative overflow-hidden flex flex-col">
@@ -130,35 +155,29 @@ export default function StickerPrinterView() {
                     applySubTab('sticker');
                     updateSubQueryParam('sticker');
                 }}
+                hiddenTabs={hiddenTabs}
             />
 
-            {/* Vùng nội dung: chiếm phần còn lại dưới hàng chế độ. Lớp Event, lớp Sticker và lớp tem chồng nhau; lớp không mở thì ẩn hẳn
-                (invisible) để không bấm hay tab nhầm vào lớp đó, vẫn giữ nguyên trạng thái của nó. */}
+            {/* Vùng nội dung: chiếm phần còn lại dưới hàng chế độ. Lớp Event và lớp tem chồng nhau; lớp không mở thì ẩn hẳn
+                (invisible) để không bấm hay tab nhầm vào lớp đó, vẫn giữ nguyên trạng thái của nó. Tab Sticker dùng lớp tem của Giá Sốc. */}
             <div className="relative flex-1 min-h-0">
             {eventEverOpened && (
                 <div className={`absolute inset-0 z-10 w-full h-full overflow-y-auto transition-opacity duration-200 ${stickerMode === 'event' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none invisible'}`}>
                     <ErrorBoundary name="Event">
-                        <StickerEventApp scope="event" isActive={stickerMode === 'event'} />
-                    </ErrorBoundary>
-                </div>
-            )}
-            {/* Tab Sticker: cùng màn với Event nhưng lấy sản phẩm từ file mẫu, dữ liệu lưu riêng */}
-            {tagEverOpened && (
-                <div className={`absolute inset-0 z-10 w-full h-full overflow-y-auto transition-opacity duration-200 ${stickerMode === 'tag' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none invisible'}`}>
-                    <ErrorBoundary name="Sticker">
-                        <StickerEventApp scope="sticker" isActive={stickerMode === 'tag'} />
+                        <StickerEventApp isActive={stickerMode === 'event' && moduleActive} />
                     </ErrorBoundary>
                 </div>
             )}
 
             {/* Xem trước và khung điều khiển cùng chiều cao, chừa lại một phần cửa sổ cho thoáng. Cửa sổ nhỏ thì giữ cỡ tối thiểu và cuộn. */}
-            <div className={`w-full h-full overflow-y-auto p-3 sm:p-4 lg:p-5 flex flex-col lg:flex-row gap-4 lg:gap-5 justify-start lg:justify-center items-center lg:items-start ${stickerMode === 'sticker' ? 'visible' : 'invisible'}`}>
+            <div className={`w-full h-full overflow-y-auto p-3 sm:p-4 lg:p-5 flex flex-col lg:flex-row gap-4 lg:gap-5 justify-start lg:justify-center items-center lg:items-start ${stickerMode === 'sticker' || stickerMode === 'tag' ? 'visible' : 'invisible'}`}>
                 {stickerType !== 'draw' && (
                     <StickerQueueStrip
                         pages={manualPages}
                         activeId={activeQueuePageId}
                         onSelect={selectQueuePage}
                         onRemove={removeManualPage}
+                        onQuantity={setPageQuantity}
                         stickerType={stickerType}
                         bgImage={bgImage}
                         priceSource={priceSource}
@@ -166,15 +185,43 @@ export default function StickerPrinterView() {
                         headerTextContent={headerTextContent}
                         subHeaderTextContent={subHeaderTextContent}
                         footerTextContent={footerTextContent}
-                        showBarcode={showBarcode}
+                        tagView={isTagMode ? { settings: tag.settings, employeeName: tag.employeeName } : undefined}
                     />
                 )}
-                {/* Phiếu chừa chỗ cho thanh chuyển trang; nhập File giá thì nhiều tem xếp chồng nên cuộn trong cột này */}
+                {/* Tab Sticker: tem giá theo kiểu đang chọn và các ô sửa, không dùng sticker nền Giá Sốc */}
+                {isTagMode ? (
+                    <div className="flex flex-col gap-2 w-full max-w-xl shrink-0 lg:w-[44%] lg:max-w-[560px] lg:h-[max(556px,82%)] lg:overflow-hidden">
+                        <TagPreviewPanel
+                            products={tagPreviewProducts}
+                            ghostAlternative={tagPreviewGhost}
+                            settings={tag.settings}
+                            employeeName={tag.employeeName}
+                            onEmployeeNameChange={tag.setEmployeeName}
+                            onStickerStyleChange={tag.setStickerStyle}
+                            editor={batchItems.length > 0 ? undefined : {
+                                name: previewName,
+                                oldPrice: previewOldPrice,
+                                newPrice: previewNewPrice,
+                                promotion: footerTextContent,
+                                code: barcodeImei,
+                                onName: editPreviewName,
+                                onOldPrice: editPreviewOldPrice,
+                                onNewPrice: editPreviewNewPrice,
+                                onPromotion: editFooterText,
+                                onCode: editBarcode,
+                                onAdd: addCurrentPage,
+                                quantity: editorQuantity,
+                                onQuantity: setEditorQuantity,
+                            }}
+                        />
+                        {editingNote}
+                    </div>
+                ) : (
+                /* Phiếu chừa chỗ cho thanh chuyển trang; nhập File giá thì nhiều tem xếp chồng nên cuộn trong cột này */
                 <div className={`flex flex-col gap-2 w-full max-w-sm shrink-0 lg:w-auto lg:aspect-[197/285] lg:max-w-[50%] ${stickerType === 'draw' ? 'lg:h-[max(500px,calc(82%-4rem))]' : 'lg:h-[max(556px,82%)]'} ${batchItems.length > 0 ? 'lg:overflow-y-auto' : ''}`}>
                     <StickerPrintPreview
                         batchItems={batchItems}
                         stickerType={stickerType}
-                        showBarcode={showBarcode}
                         discountDisplayMode={discountDisplayMode}
                         headerTextContent={headerTextContent}
                         subHeaderTextContent={subHeaderTextContent}
@@ -213,14 +260,9 @@ export default function StickerPrinterView() {
                         drawCodeSize={drawCodeSize}
                         drawFooterSize={drawFooterSize}
                     />
-                    {stickerType !== 'draw' && batchItems.length === 0 && manualPages.length > 0 && (
-                        <p data-testid="sticker-editing-note" className="no-print shrink-0 text-xs text-slate-500 text-center">
-                            {activeQueuePageId
-                                ? `Đang sửa sticker ${manualPages.findIndex((page) => page.id === activeQueuePageId) + 1}/${manualPages.length}. Thay đổi được lưu ngay.`
-                                : 'Sticker đang soạn, chưa có trong danh sách in. Bấm Thêm để đưa vào.'}
-                        </p>
-                    )}
+                    {editingNote}
                 </div>
+                )}
                 <StickerPrintControls
                     manualPages={manualPages}
                     batchItems={batchItems}
@@ -231,12 +273,12 @@ export default function StickerPrinterView() {
                     clearManualPages={clearManualPages}
                     loadPageToEditor={loadPageToEditor}
                     removeManualPage={removeManualPage}
+                    setPageQuantity={setPageQuantity}
+                    stickerPrintCount={stickerPrintCount}
                     loadSavedList={loadSavedList}
                     deleteSavedList={deleteSavedList}
                     togglePageSelection={togglePageSelection}
                     toggleAllPagesSelection={toggleAllPagesSelection}
-                    showBarcode={showBarcode}
-                    setShowBarcode={setShowBarcode}
                     discountDisplayMode={discountDisplayMode}
                     setDiscountDisplayMode={setDiscountDisplayMode}
                     searchTerm={searchTerm}
@@ -246,7 +288,6 @@ export default function StickerPrinterView() {
                     setShowHistory={setShowHistory}
                     handlePrint={handlePrint}
                     addCurrentPage={addCurrentPage}
-                    handleExcelUpload={handleExcelUpload}
                     handleTemplateUpload={handleTemplateUpload}
                     downloadTemplate={downloadTemplate}
                     handleReset={handleReset}
@@ -264,7 +305,6 @@ export default function StickerPrinterView() {
                     setActiveSubTab={setActiveSubTab}
                     priceSource={priceSource}
                     setPriceSource={setPriceSource}
-                    handleErpPriceUpload={handleErpPriceUpload}
                     stickerType={stickerType}
                     drawStartNumber={drawStartNumber}
                     setDrawStartNumber={setDrawStartNumber}
@@ -274,9 +314,33 @@ export default function StickerPrinterView() {
                     setDrawAutoIncrement={setDrawAutoIncrement}
                     bgImage={bgImage}
                     setBgImage={setBgImage}
+                    choosesLayoutOnPrint={stickerMode === 'tag'}
                 />
             </div>
             </div>
+
+            {tagPrint && (
+                <TagPrintDialog
+                    products={tagPrint.products}
+                    settings={tag.settings}
+                    employeeName={tag.employeeName}
+                    onStickerStyleChange={tag.setStickerStyle}
+                    onTagsPerPageChosen={tag.setTagsPerPage}
+                    onClose={closeTagPrint}
+                    onPrinted={tagPrint.onPrinted}
+                    nameSuggestions={listNameSuggestions}
+                />
+            )}
+
+            {sheetPrint && (
+                <StickerPerPageDialog
+                    count={sheetPrint.count}
+                    current={stickersPerPage}
+                    onSelect={chooseStickersPerPage}
+                    nameSuggestions={listNameSuggestions}
+                    onClose={closeSheetPrint}
+                />
+            )}
 
             {isSaveListModalOpen && (
                 <SaveListModal

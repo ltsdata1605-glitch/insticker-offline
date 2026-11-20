@@ -7,7 +7,6 @@ import {
   saveDisplayedProducts,
   saveManualProducts,
 } from '../services/fileParser';
-import type { StickerScope } from '../services/scope';
 
 interface UseStickerEventDbProps {
   employeeName: string;
@@ -21,7 +20,6 @@ interface UseStickerEventDbProps {
   setAllProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   manualProducts: ManualProductWithId[];
   setManualProducts: React.Dispatch<React.SetStateAction<ManualProductWithId[]>>;
-  scope: StickerScope;
 }
 
 const toManualProduct = (doc: ManualProductDoc): ManualProductWithId => ({
@@ -76,7 +74,6 @@ export function useStickerEventDb({
   setAllProducts,
   manualProducts,
   setManualProducts,
-  scope,
 }: UseStickerEventDbProps) {
   // Bản mới nhất để hai thao tác liên tiếp không ghi đè nhau bằng dữ liệu cũ
   const manualRef = useRef(manualProducts);
@@ -85,20 +82,20 @@ export function useStickerEventDb({
   const persist = useCallback(async (next: ManualProductWithId[]) => {
     manualRef.current = next;
     try {
-      await saveManualProducts(next.map((p) => toManualDoc(p, employeeName || 'Không tên')), scope);
+      await saveManualProducts(next.map((p) => toManualDoc(p, employeeName || 'Không tên')));
     } catch (err) {
       console.error('Không lưu được sản phẩm nhập tay:', err);
       showAlert('Chưa lưu được sản phẩm nhập tay vào máy. Hãy thử lại.', 'Lưu thất bại');
     }
-  }, [employeeName, showAlert, scope]);
+  }, [employeeName, showAlert]);
 
   const loadStoredManualProducts = useCallback(async () => {
-    const docs = await loadManualProducts(scope);
+    const docs = await loadManualProducts();
     const products = docs.map(toManualProduct);
     manualRef.current = products;
     setManualProducts(products);
     setAllProducts((prev) => [...prev.filter((p) => !isManual(p)), ...products]);
-  }, [setAllProducts, setManualProducts, scope]);
+  }, [setAllProducts, setManualProducts]);
 
   const handleManualSave = useCallback(async (product: ManualProductWithId): Promise<string> => {
     const id = `manual_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -109,13 +106,13 @@ export function useStickerEventDb({
     setAllProducts((prev) => [...prev, created]);
     setDisplayedProducts((prev) => {
       const updated = [{ ...created, selected: false, quantity: created.quantity || 1 }, ...prev];
-      saveDisplayedProducts(updated, scope).catch(console.error);
+      saveDisplayedProducts(updated).catch(console.error);
       return updated;
     });
 
     await persist(next);
     return id;
-  }, [persist, setAllProducts, setDisplayedProducts, setManualProducts, scope]);
+  }, [persist, setAllProducts, setDisplayedProducts, setManualProducts]);
 
   const handleManualDelete = useCallback(async (id: string) => {
     const next = manualRef.current.filter((p) => p.firebaseId !== id);
@@ -124,12 +121,12 @@ export function useStickerEventDb({
     setAllProducts((prev) => prev.filter((p) => (p as ManualProductWithId).firebaseId !== id));
     setDisplayedProducts((prev) => {
       const updated = prev.filter((p) => (p as ManualProductWithId).firebaseId !== id);
-      saveDisplayedProducts(updated, scope).catch(console.error);
+      saveDisplayedProducts(updated).catch(console.error);
       return updated;
     });
 
     await persist(next);
-  }, [persist, setAllProducts, setDisplayedProducts, setManualProducts, scope]);
+  }, [persist, setAllProducts, setDisplayedProducts, setManualProducts]);
 
   const handleManualUpdate = useCallback(async (product: ManualProductWithId) => {
     if (!product.firebaseId) return;
@@ -144,21 +141,21 @@ export function useStickerEventDb({
   const executeClearAll = useCallback(async () => {
     setIsLoading(true);
     try {
-      await clearPriceData(scope);
+      await clearPriceData();
       // Sản phẩm nhập tay không thuộc bảng giá nên vẫn còn và vẫn tìm được
       setAllProducts(manualRef.current);
       setDisplayedProducts([]);
       setFileName(null);
       setUploadTimestamp(null);
       setFileExportDate(null);
-      showAlert(scope === 'event' ? 'Đã xóa toàn bộ dữ liệu bảng giá.' : 'Đã xóa toàn bộ sản phẩm đã nhập từ file mẫu.');
+      showAlert('Đã xóa toàn bộ dữ liệu bảng giá.');
     } catch (err) {
       console.error(err);
       setError('Lỗi khi xóa dữ liệu.');
     } finally {
       setIsLoading(false);
     }
-  }, [setAllProducts, setDisplayedProducts, setError, setFileExportDate, setFileName, setIsLoading, setUploadTimestamp, showAlert, scope]);
+  }, [setAllProducts, setDisplayedProducts, setError, setFileExportDate, setFileName, setIsLoading, setUploadTimestamp, showAlert]);
 
   return {
     loadStoredManualProducts,

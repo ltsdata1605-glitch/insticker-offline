@@ -20,7 +20,7 @@ const caiDat = (kieu: PrintSettings['stickerStyle'], showBonus: boolean, showEmp
 const NV = '1234 - Nguyễn Văn An';
 
 describe('tem in — công tắc Hiện thưởng / Hiện tên NV', () => {
-    for (const kieu of ['modern', 'default'] as const) {
+    for (const kieu of ['modern', 'default', 'big', 'coupon'] as const) {
         it(`${kieu}: tắt cả hai → không in số thưởng (87) lẫn tên NV`, () => {
             const html = generatePriceTagHTML(sp, NV, caiDat(kieu, false, false), '');
             expect(html).not.toMatch(/\b87\b/);

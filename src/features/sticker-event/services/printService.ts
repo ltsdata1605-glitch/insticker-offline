@@ -4,6 +4,8 @@ import QRCode from 'qrcode';
 import { openPrintPreview } from '../../../platform/printPreview';
 import { calculateDiscountPercent, normalizeTagQuantity } from '../utils/format';
 import { escapeHtml } from './batchImageExportService';
+import { CANVAS_HEIGHT, CANVAS_WIDTH, canvasTagCss, generateCanvasTagHTML, isCanvasTagStyle } from './canvasTagStyles';
+import type { CanvasTagStyle } from './canvasTagStyles';
 
 /**
  * Audit 2026-10-07 (S12): tên/mã/khuyến mãi lấy từ file Excel nhập vào — escape mọi trường CHỮ trước
@@ -37,6 +39,8 @@ export interface PrintSettings {
   showBonus: boolean;
   showQrCode: boolean;
   showEmployeeName: boolean;
+  /** Luôn in ngày giờ in cạnh mã QR, kể cả khi không in tên người in (tab Sticker). Không lưu vào cài đặt. */
+  showPrintTime?: boolean;
   tagsPerPage: 1 | 2 | 4 | 8 | 16 | 24 | 80;
   shortenPrice: boolean;
   sortByName: boolean;
@@ -49,8 +53,52 @@ export interface PrintSettings {
   customSecondaryFontData?: string | null;
   customSecondaryFontName?: string | null;
 
-  stickerStyle: 'default' | 'modern';
+  stickerStyle: StickerStyle;
 }
+
+export type StickerStyle = 'default' | 'modern' | CanvasTagStyle;
+
+/**
+ * Các kiểu tem, theo thứ tự hiện ở ô chọn kiểu. Giá to và Phiếu giảm giá chỉ dùng chữ và đường viền trên nền trắng để in
+ * trắng đen không tốn mực. Kiểu đã lưu không còn trong danh sách (các mẫu thử ở bản trước) thì về kiểu có sẵn.
+ */
+export const STICKER_STYLES: readonly { id: StickerStyle; label: string }[] = [
+  { id: 'default', label: 'Kiểu có sẵn' },
+  { id: 'modern', label: 'Kiểu hiện đại' },
+  { id: 'big', label: 'Kiểu giá to' },
+  { id: 'coupon', label: 'Kiểu phiếu giảm giá' },
+];
+
+export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
+  showOriginalPrice: true,
+  showPromotion: true,
+  showBonus: true,
+  showQrCode: true,
+  showEmployeeName: true,
+  sortByName: true,
+  shortenPrice: true,
+  tagsPerPage: 4,
+  customFontData: null,
+  customFontName: null,
+  customSecondaryFontData: null,
+  customSecondaryFontName: null,
+  stickerStyle: 'default',
+};
+
+/** Cài đặt tem đã lưu (khoá printSettings), dùng chung cho tab Event và tab Sticker. Chỉ giữ lại các mục được nhớ giữa các lần mở app. */
+export const restorePrintSettings = (saved: Partial<PrintSettings> | null | undefined): PrintSettings => {
+  if (!saved) return { ...DEFAULT_PRINT_SETTINGS };
+  return {
+    ...DEFAULT_PRINT_SETTINGS,
+    shortenPrice: typeof saved.shortenPrice === 'boolean' ? saved.shortenPrice : DEFAULT_PRINT_SETTINGS.shortenPrice,
+    tagsPerPage: saved.tagsPerPage || DEFAULT_PRINT_SETTINGS.tagsPerPage,
+    customFontData: saved.customFontData || null,
+    customFontName: saved.customFontName || null,
+    customSecondaryFontData: saved.customSecondaryFontData || null,
+    customSecondaryFontName: saved.customSecondaryFontName || null,
+    stickerStyle: STICKER_STYLES.some((style) => style.id === saved.stickerStyle) ? saved.stickerStyle as StickerStyle : 'default',
+  };
+};
 
 const getLayoutConfig = (tagsPerPage: PrintSettings['tagsPerPage']) => {
     switch (tagsPerPage) {
@@ -156,8 +204,11 @@ const generateModernPriceTagHTML = (product: Product, employeeName: string, sett
     const isShortName = nameLength < 35; // Threshold for "short" name
     const discountSeparator = isShortName ? '<br/>' : ' ';
 
+    // Máy in bill: tem cao theo nội dung nên phải đặt chiều cao bằng khung đã thu nhỏ, nếu không tem cao bằng khung gốc 540px
+    const billHeight = settings.tagsPerPage === 80 ? ` style="height:${Math.ceil(contentHeight * scale) + 8}px;min-height:0"` : '';
+
     return `
-    <div class="price-tag modern">
+    <div class="price-tag modern"${billHeight}>
         <div class="modern-wrapper" style="${wrapperStyle}">
             <div class="modern-outer-border" style="${borderStyle}">
                 <div class="modern-inner-border">
@@ -258,7 +309,7 @@ const generateModernPriceTagHTML = (product: Product, employeeName: string, sett
                         
                         <!-- QR Code and Metadata Area -->
                         <div class="w-32 border-l-2 border-black flex flex-col items-center justify-center shrink-0 p-1 bg-white h-full box-border overflow-hidden">
-                            ${settings.showQrCode ? `
+                            ${settings.showQrCode && qrCodeUrl ? `
                             <div class="w-16 h-16 mb-1 shrink-0 flex items-center justify-center">
                                 <img alt="QR" class="max-w-full max-h-full object-contain block" src="${qrCodeUrl}"/>
                             </div>
@@ -304,15 +355,43 @@ const shortenAndFormatPrice = (priceString: string): string => {
   return new Intl.NumberFormat('vi-VN').format(Math.round(shortenedValue));
 };
 
+/** Các kiểu vẽ trên khung 800 x 540: tính sẵn số liệu rồi thu phóng cho vừa tem. */
+const generateCanvasStyleTagHTML = (style: CanvasTagStyle, product: Product, employeeName: string, settings: PrintSettings, qrCodeUrl: string): string => {
+  const { width, height } = calculateTagDimensions(settings);
+  const scale = Math.min((width * 3.78) / CANVAS_WIDTH, (height * 3.78) / CANVAS_HEIGHT) * 0.95;
+  const originalPrice = parseCurrency(product.giaGoc);
+  const finalPrice = parseCurrency(product.giaGiam);
+  const name = settings.showEmployeeName ? abbreviateName(employeeName) : '';
+  const bonus = settings.showBonus && product.tongThuong > 0 ? `${Math.round(product.tongThuong / 1000)}` : '';
+  const now = new Date();
+  const timestamp = `${now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })} ${now.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`;
+  return generateCanvasTagHTML(style, {
+    name: product.sanPham.trim() || 'TÊN SẢN PHẨM',
+    promotion: settings.showPromotion ? product.khuyenMai.trim() : '',
+    originalPrice: settings.showOriginalPrice && originalPrice > finalPrice ? originalPrice : 0,
+    finalPrice,
+    discountPercent: calculateDiscountPercent(originalPrice, finalPrice),
+    employeeInfo: [name, bonus].filter(Boolean).join(' - '),
+    timestamp,
+    qrCodeUrl: settings.showQrCode ? qrCodeUrl : '',
+    scale,
+    isBill: settings.tagsPerPage === 80,
+  });
+};
+
 export const generatePriceTagHTML = (product: Product, employeeName: string, settings: PrintSettings, qrCodeUrl: string): string => {
   if (settings.stickerStyle === 'modern') {
       return generateModernPriceTagHTML(product, employeeName, settings, qrCodeUrl);
+  }
+  if (isCanvasTagStyle(settings.stickerStyle)) {
+      return generateCanvasStyleTagHTML(settings.stickerStyle, product, employeeName, settings, qrCodeUrl);
   }
 
   const cleanedProductName = product.sanPham.trim().replace(/\(IMEI\)/gi, '').trim();
   const productName = cleanedProductName || 'TÊN SẢN PHẨM';
 
-  const qrCodeHTML = settings.showQrCode
+  // Sticker từ tab Sticker có thể không có mã: không có ảnh QR thì bỏ hẳn thẻ ảnh để không in ô ảnh hỏng
+  const qrCodeHTML = settings.showQrCode && qrCodeUrl
     ? `<img src="${qrCodeUrl}" alt="QR Code for ${product.msp}" class="qr-code" />`
     : '';
 
@@ -326,11 +405,11 @@ export const generatePriceTagHTML = (product: Product, employeeName: string, set
   const timestamp = `${formattedTime} ${formattedDate}`;
 
   let employeeBonusInfoHTML = '';
-  if (employeeText || bonusText) {
+  if (employeeText || bonusText || settings.showPrintTime) {
       const parts = [employeeText, bonusText].filter(Boolean);
       employeeBonusInfoHTML = `
-        <div class="employee-bonus-info">${parts.join(' - ')}</div>
-        <div class="employee-bonus-info" style="margin-top: 1px; opacity: 0.8;">${timestamp}</div>
+        ${parts.length > 0 ? `<div class="employee-bonus-info">${parts.join(' - ')}</div>` : ''}
+        <div class="employee-bonus-info print-time" style="margin-top: 1px; opacity: 0.8;">${timestamp}</div>
       `;
   }
     
@@ -515,6 +594,7 @@ const getPrintStyles = (settings: PrintSettings): string => {
     return `
       ${pageSetupCSS}
       ${fontFaceCSS}
+      ${canvasTagCss()}
 
       body, .print-page {
         margin: 0;
@@ -531,11 +611,14 @@ const getPrintStyles = (settings: PrintSettings): string => {
       .price-tag.modern {
         border: 1px dashed #d1d5db;
         padding: 0;
-        display: flex;
+        display: flex !important;
         align-items: center;
         justify-content: center;
         overflow: hidden;
       }
+      /* Máy in bill đặt tem thành khối thường và thêm lề 2mm: tem vẽ trên khung thu phóng phải giữ căn giữa, không lề */
+      .size-bill .price-tag.modern, .size-bill .price-tag.canvas-tag { padding: 0; border: none; }
+      .modern-wrapper { flex-shrink: 0; }
       
       .modern-wrapper {
         width: 800px;
@@ -1259,6 +1342,75 @@ const getPrintStyles = (settings: PrintSettings): string => {
     `;
 }
 
+/** Ảnh mã QR theo mã sản phẩm, tạo ngay trên máy. Lỗi hoặc không có mã thì không có ảnh. */
+const makeQrCodeUrls = async (products: Product[], settings: PrintSettings): Promise<Map<string, string>> => {
+  const qrCodeUrls = new Map<string, string>();
+  if (!settings.showQrCode) return qrCodeUrls;
+  for (const p of products) {
+    if (p.msp && !qrCodeUrls.has(p.msp)) {
+      try {
+        qrCodeUrls.set(p.msp, await QRCode.toDataURL(p.msp, { margin: 1, width: 150, color: { dark: '#000000', light: '#ffffff' } }));
+      } catch (err) {
+        console.error(`Error generating QR code for ${p.msp}:`, err);
+        qrCodeUrls.set(p.msp, '');
+      }
+    }
+  }
+  return qrCodeUrls;
+};
+
+export interface PriceTagPreview {
+  /** CSS của bản in, gồm cả cỡ chữ theo bố cục. */
+  css: string;
+  /** Lớp bố cục phải bọc ngoài các tem để nhận đúng cỡ chữ. */
+  sizeClass: string;
+  /** Chiều rộng một tem (mm). */
+  widthMm: number;
+  /** HTML từng tem, mỗi sản phẩm một tem. */
+  tags: string[];
+}
+
+/** Tem để xem trước ngay trong app: dựng bằng đúng các hàm của bản in nên thấy sao in ra vậy. */
+export const buildPriceTagPreview = async (products: Product[], employeeName: string, settings: PrintSettings): Promise<PriceTagPreview> => {
+  const qrCodeUrls = await makeQrCodeUrls(products, settings);
+  const name = escapeHtml(abbreviateName(employeeName));
+  return {
+    css: getPrintStyles(settings),
+    sizeClass: getLayoutConfig(settings.tagsPerPage).sizeClass,
+    widthMm: calculateTagDimensions(settings).width,
+    tags: products.map((p) => generatePriceTagHTML(escapeProductText(p), name, settings, qrCodeUrls.get(p.msp) || '')),
+  };
+};
+
+/**
+ * Đường cắt nét đứt trên một trang tem: chạy giữa khe 4 mm giữa các tem và quanh mép ngoài khối tem, chỉ trong phần có tem
+ * (trang cuối ít tem thì đường ngắn lại). Cắt theo đường là tách được từng tem. Máy in bill không cần.
+ */
+export const cutLinesHtml = (tagCount: number, settings: PrintSettings): string => {
+  if (settings.tagsPerPage === 80 || tagCount <= 0) return '';
+  const { cols } = getLayoutConfig(settings.tagsPerPage);
+  const { width, height } = calculateTagDimensions(settings);
+  const margin = 10;
+  const gap = 4;
+  const usedCols = Math.min(cols, tagCount);
+  const usedRows = Math.ceil(tagCount / cols);
+  const mm = (value: number) => `${Math.round(value * 100) / 100}mm`;
+  const edgeX = (i: number) => margin + i * (width + gap) - gap / 2;
+  const edgeY = (j: number) => margin + j * (height + gap) - gap / 2;
+  // Các hàng đều đủ tem trừ hàng cuối
+  const lastCols = tagCount - (usedRows - 1) * cols;
+  const lines: string[] = [];
+  for (let i = 0; i <= usedCols; i++) {
+    const bottom = i <= lastCols ? edgeY(usedRows) : edgeY(usedRows - 1);
+    lines.push(`<div class="cut-line cut-v" style="left:${mm(edgeX(i))};top:${mm(edgeY(0))};height:${mm(bottom - edgeY(0))}"></div>`);
+  }
+  for (let j = 0; j <= usedRows; j++) {
+    const lineCols = j === usedRows ? lastCols : usedCols;
+    lines.push(`<div class="cut-line cut-h" style="top:${mm(edgeY(j))};left:${mm(edgeX(0))};width:${mm(edgeX(lineCols) - edgeX(0))}"></div>`);
+  }
+  return lines.join('');
+};
+
 export const printPriceTags = async (
   products: Product[],
   employeeName: string,
@@ -1266,29 +1418,7 @@ export const printPriceTags = async (
   { title = 'In Bảng Giá', note }: { title?: string; note?: string } = {},
 ): Promise<void> => {
   const abbreviatedEmployeeName = abbreviateName(employeeName);
-
-  // Generate QR Code data URLs for all products offline
-  const qrCodeUrls = new Map<string, string>();
-  if (settings.showQrCode) {
-    for (const p of products) {
-      if (p.msp && !qrCodeUrls.has(p.msp)) {
-        try {
-          const url = await QRCode.toDataURL(p.msp, { 
-            margin: 1, 
-            width: 150,
-            color: {
-              dark: '#000000',
-              light: '#ffffff'
-            }
-          });
-          qrCodeUrls.set(p.msp, url);
-        } catch (err) {
-          console.error(`Error generating QR code for ${p.msp}:`, err);
-          qrCodeUrls.set(p.msp, '');
-        }
-      }
-    }
-  }
+  const qrCodeUrls = await makeQrCodeUrls(products, settings);
 
   const allTags = products.flatMap(p => Array(normalizeTagQuantity(p.quantity)).fill(p)).map(p => {
     const qrUrl = qrCodeUrls.get(p.msp) || '';
@@ -1306,8 +1436,9 @@ export const printPriceTags = async (
   const totalPages = Math.ceil(allTags.length / tagsPerPage);
   let allPagesHTML = '';
   for (let i = 0; i < totalPages; i++) {
-    const pageTags = allTags.slice(i * tagsPerPage, (i + 1) * tagsPerPage).join('');
-    allPagesHTML += `<div class="print-page ${sizeClass}">${pageTags}</div>`;
+    const tagsOnPage = allTags.slice(i * tagsPerPage, (i + 1) * tagsPerPage);
+    // Đường cắt đặt sau các tem để không đổi thứ tự tem trong trang
+    allPagesHTML += `<div class="print-page ${sizeClass}">${tagsOnPage.join('')}${cutLinesHtml(tagsOnPage.length, settings)}</div>`;
   }
 
   const html = `
@@ -1327,7 +1458,12 @@ export const printPriceTags = async (
               page-break-after: always;
               break-after: page;
               background-color: #fff;
+              position: relative;
           }
+          /* Đường cắt: nét đứt xám mảnh, nằm giữa khe giữa các tem nên không đè lên tem */
+          .cut-line { position: absolute; pointer-events: none; box-sizing: border-box; }
+          .cut-v { width: 0; border-left: 0.3mm dashed #6b7280; }
+          .cut-h { height: 0; border-top: 0.3mm dashed #6b7280; }
           ${commonStyles}
         </style>
       </head>

@@ -1,7 +1,6 @@
 import { generateBarcodeDataUrl } from './BarcodeCanvas';
-import { StickerPage, BatchItem } from './types';
-import { cleanWaterPurifierName, generatePageHtml } from './pageHtmlUtils';
-import { formatPriceChangePercent, normalizeStickerPriceUnit } from '../utils/format';
+import { StickerPage } from './types';
+import { formatPriceChangePercent, normalizeStickerPriceUnit, normalizeTagQuantity } from '../utils/format';
 
 export const parsePercentValue = (percentStr: string | undefined): number => {
     if (!percentStr) return 0;
@@ -9,73 +8,6 @@ export const parsePercentValue = (percentStr: string | undefined): number => {
     const val = parseInt(clean, 10);
     return isNaN(val) ? 0 : val;
 };
-
-// any: dữ liệu Excel thô, mỗi ô có thể là string/number/Date/null tùy nội dung file
-export function parseBatchItemsFromExcelRows(data: any[][], discountThreshold: string): BatchItem[] {
-    const items: BatchItem[] = [];
-    for (let i = 0; i < data.length; i++) {
-        const row = data[i];
-        if (!row || row.length < 9) continue;
-
-        const e = row[4] ? String(row[4]).trim() : '';
-        const f = row[5] ? String(row[5]).trim() : '';
-        const aq = row[42] ? String(row[42]).trim() : '';
-
-        let imeiRaw = '';
-        const aqUpper = aq.toUpperCase();
-        if (aqUpper.includes('IMEI:')) {
-            imeiRaw = aq.substring(aqUpper.indexOf('IMEI:') + 5).trim();
-            imeiRaw = imeiRaw.replace(/\)$/, '').trim();
-        } else if (aqUpper.includes('CODE:')) {
-            imeiRaw = aq.substring(aqUpper.indexOf('CODE:') + 5).trim();
-            imeiRaw = imeiRaw.replace(/\)$/, '').trim();
-        } else if (aq) {
-            if (/^[A-Za-z0-9]+$/.test(aq) && aq.length > 3) {
-                imeiRaw = aq;
-            }
-        }
-
-        const nameParts = [e, f].filter(Boolean);
-        if (aq) {
-            nameParts.push(aq.startsWith('(') ? aq : `(${aq})`);
-        }
-        const name = nameParts.join(' ');
-        if (!name || name === 'TÊN SẢN PHẨM') continue;
-
-        let percent = '';
-        if (row[8]) {
-            const match = String(row[8]).match(/\((-\d+%)\)/);
-            if (match) percent = match[1];
-        }
-
-        let oldPrice = '';
-        if (row[7]) {
-            const digits = String(row[7]).replace(/\D/g, '');
-            if (digits) oldPrice = Number(digits).toLocaleString('vi-VN');
-        }
-
-        let newPrice = '';
-        if (row[6]) {
-            const digits = String(row[6]).replace(/\D/g, '');
-            if (digits) newPrice = Number(Math.floor(Number(digits) / 1000)).toLocaleString('vi-VN');
-        }
-
-        const cleanInput = discountThreshold.replace(/[^0-9]/g, '');
-        const limit = parseInt(cleanInput, 10);
-        const isSelected = isNaN(limit) ? true : parsePercentValue(percent) >= limit;
-
-        items.push({
-            id: `item_${i}_${Date.now()}`,
-            name,
-            oldPrice,
-            newPrice,
-            percent,
-            imei: imeiRaw,
-            selected: isSelected
-        });
-    }
-    return items;
-}
 
 export async function downloadStickerTemplate(stickerType: 'gia_soc' | 'gio_vang' | 'draw'): Promise<void> {
     const XLSX = await import('xlsx');
@@ -86,14 +18,14 @@ export async function downloadStickerTemplate(stickerType: 'gia_soc' | 'gio_vang
     let cols: { wch: number }[];
 
     if (stickerType === 'gia_soc') {
-        header = ['TIÊU ĐỀ', 'CODE', 'TÊN SẢN PHẨM', 'GIÁ GỐC', 'GIÁ GIẢM', 'KHUYẾN MÃI'];
+        header = ['TIÊU ĐỀ', 'CODE', 'TÊN SẢN PHẨM', 'GIÁ GỐC', 'GIÁ GIẢM', 'KHUYẾN MÃI', 'SỐ BẢN IN'];
         sampleData = [
-            ['QUẠT ĐIỀU HOÀ', 'ABC123', 'Quạt điều hoà Daikiosan DMI03', '5490000', '3490000', 'Khuyến mãi áp dụng đến hết ngày 3/5/2026'],
-            ['TỦ LẠNH', 'DEF456', 'Tủ lạnh Samsung RT29K5012S8', '8990000', '6990000', 'Khuyến mãi áp dụng đến hết ngày 3/5/2026'],
+            ['QUẠT ĐIỀU HOÀ', 'ABC123', 'Quạt điều hoà Daikiosan DMI03', '5490000', '3490000', 'Khuyến mãi áp dụng đến hết ngày 3/5/2026', '1'],
+            ['TỦ LẠNH', 'DEF456', 'Tủ lạnh Samsung RT29K5012S8', '8990000', '6990000', 'Khuyến mãi áp dụng đến hết ngày 3/5/2026', '2'],
         ];
         filename = 'Sticker_Template_Gia_Soc.xlsx';
         cols = [
-            { wch: 20 }, { wch: 15 }, { wch: 40 }, { wch: 18 }, { wch: 18 }, { wch: 45 }
+            { wch: 20 }, { wch: 15 }, { wch: 40 }, { wch: 18 }, { wch: 18 }, { wch: 45 }, { wch: 12 }
         ];
     } else {
         const today = new Date();
@@ -108,14 +40,14 @@ export async function downloadStickerTemplate(stickerType: 'gia_soc' | 'gio_vang
         const sundayStr = `${pad(sunday.getDate())}/${pad(sunday.getMonth() + 1)}`;
         const timeRangeStr = `TỪ ${fridayStr} ĐẾN ${sundayStr}`;
 
-        header = ['CODE', 'SẢN PHẨM', 'GIÁ NIÊM YẾT', 'GIÁ GIẢM', 'THỜI GIAN ÁP DỤNG', 'SỐ LƯỢNG SUẤT'];
+        header = ['CODE', 'SẢN PHẨM', 'GIÁ NIÊM YẾT', 'GIÁ GIẢM', 'THỜI GIAN ÁP DỤNG', 'SỐ LƯỢNG SUẤT', 'SỐ BẢN IN'];
         sampleData = [
-            ['ABC123', 'Quạt điều hoà Daikiosan DMI03', '5490000', '3490000', timeRangeStr, '5 SUẤT/NGÀY'],
-            ['DEF456', 'Tủ lạnh Samsung RT29K5012S8', '8990000', '6990000', timeRangeStr, '5 SUẤT/NGÀY'],
+            ['ABC123', 'Quạt điều hoà Daikiosan DMI03', '5490000', '3490000', timeRangeStr, '5 SUẤT/NGÀY', '1'],
+            ['DEF456', 'Tủ lạnh Samsung RT29K5012S8', '8990000', '6990000', timeRangeStr, '5 SUẤT/NGÀY', '2'],
         ];
         filename = 'Sticker_Template_Gio_Vang.xlsx';
         cols = [
-            { wch: 15 }, { wch: 40 }, { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 18 }
+            { wch: 15 }, { wch: 40 }, { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 18 }, { wch: 12 }
         ];
     }
 
@@ -169,6 +101,8 @@ export function parseTemplateExcelData(
     let thoiGianIndex = -1;
     let soLuongIndex = -1;
     let khuyenMaiIndex = -1;
+    // Cột số bản in (thêm từ bản có số lượng in): không có thì mỗi sản phẩm in 1 bản. Khác cột SỐ LƯỢNG SUẤT của Giờ Vàng.
+    let quantityIndex = headers.findIndex(h => h === 'SỐ BẢN IN' || h === 'SỐ LƯỢNG IN');
 
     if (stickerType === 'gia_soc') {
         codeIndex = headers.findIndex(h => h === 'CODE' || h === 'CODE:');
@@ -187,6 +121,7 @@ export function parseTemplateExcelData(
             retailPriceIndex = 3;
             salePriceIndex = 4;
             khuyenMaiIndex = 5;
+            quantityIndex = 6;
         }
     } else {
         // gio_vang
@@ -206,6 +141,7 @@ export function parseTemplateExcelData(
             salePriceIndex = 3;
             thoiGianIndex = 4;
             soLuongIndex = 5;
+            quantityIndex = 6;
         }
     }
 
@@ -336,6 +272,8 @@ export function parseTemplateExcelData(
             header: rowHeader,
             subHeader: rowSubHeader,
             footer: rowFooter,
+            quantity: quantityIndex !== -1 && row[quantityIndex] != null && String(row[quantityIndex]).trim() !== ''
+                ? normalizeTagQuantity(row[quantityIndex]) : 1,
         });
     }
 
@@ -349,124 +287,4 @@ export function parseTemplateExcelData(
         subHeaderTextContent: resultSubHeaderTextContent,
         footerTextContent: resultFooterTextContent,
     };
-}
-
-const formatPriceInThousands = (rawVal: unknown): string => {
-    if (rawVal == null || rawVal === '') return '';
-    const digits = String(rawVal).replace(/\D/g, '');
-    if (!digits) return '';
-    const val = Number(digits);
-    return Number(Math.floor(val / 1000)).toLocaleString('vi-VN');
-};
-
-const formatFullPrice = (rawVal: unknown): string => {
-    if (rawVal == null || rawVal === '') return '';
-    const digits = String(rawVal).replace(/\D/g, '');
-    if (!digits) return '';
-    return Number(digits).toLocaleString('vi-VN');
-};
-
-interface ErpParseContext {
-    type: 'purifier' | 'appliance';
-    priceSource: 'sale' | 'service';
-    stickerType: 'gia_soc' | 'gio_vang' | 'draw';
-    bgImage: string;
-    discountThreshold: string;
-}
-
-interface ErpParseResult {
-    pages: StickerPage[];
-    // Khác rỗng nếu parse thất bại — tránh discriminated union { ok: true|false } vì
-    // dự án không bật strictNullChecks nên TS không thu hẹp kiểu đúng bên trong try/catch.
-    error?: string;
-}
-
-// any: dữ liệu Excel thô, mỗi ô có thể là string/number/Date/null tùy nội dung file
-export function parseErpPriceExcelData(
-    data: any[][],
-    { type, priceSource, stickerType, bgImage, discountThreshold }: ErpParseContext
-): ErpParseResult {
-    if (!data || data.length < 2) {
-        return { pages: [], error: 'File không chứa đủ dữ liệu' };
-    }
-
-    const newPages: StickerPage[] = [];
-    for (let i = 1; i < data.length; i++) {
-        const row = data[i];
-        if (!row || row.length === 0) continue;
-
-        let rawCode = '';
-        let rawName = '';
-        let rawOldPrice = '';
-        let rawSalePrice = '';
-        let rawServicePrice = '';
-        let rawPromo = '';
-        let header = '';
-
-        if (type === 'purifier') {
-            header = 'MÁY LỌC NƯỚC';
-            rawCode = row[55] != null ? String(row[55]).trim() : '';
-            rawName = row[44] != null ? String(row[44]).trim() : '';
-            rawOldPrice = row[33] != null ? String(row[33]).trim() : '';
-            rawSalePrice = row[20] != null ? String(row[20]).trim() : '';
-            rawServicePrice = row[1] != null ? String(row[1]).trim() : '';
-            rawPromo = row[31] != null ? String(row[31]).trim() : '';
-
-            if (rawName) {
-                rawName = cleanWaterPurifierName(rawName);
-            }
-        } else {
-            header = 'DUY NHẤT HÔM NAY';
-            rawCode = row[28] != null ? String(row[28]).trim() : '';
-            rawName = row[27] != null ? String(row[27]).trim() : '';
-            rawOldPrice = row[16] != null ? String(row[16]).trim() : '';
-            rawSalePrice = row[17] != null ? String(row[17]).trim() : '';
-            rawServicePrice = row[8] != null ? String(row[8]).trim() : '';
-            rawPromo = row[31] != null ? String(row[31]).trim() : '';
-        }
-
-        if (!rawName) continue;
-
-        let code = rawCode;
-        if (code.includes('-')) {
-            code = code.split('-')[0].trim();
-        }
-
-        const oldPrice = formatFullPrice(rawOldPrice);
-        const salePrice = formatPriceInThousands(rawSalePrice);
-        const servicePrice = formatPriceInThousands(rawServicePrice);
-
-        const currentPrice = priceSource === 'service' ? (servicePrice || salePrice) : (salePrice || servicePrice);
-
-        const percent = formatPriceChangePercent(oldPrice, currentPrice);
-
-        const cleanInput = discountThreshold.replace(/[^0-9]/g, '');
-        const limit = parseInt(cleanInput, 10);
-        const isSelected = isNaN(limit) ? true : parsePercentValue(percent) >= limit;
-
-        const page: StickerPage = {
-            id: `erp_${type}_${i}_${Date.now()}`,
-            html: '',
-            label: rawName,
-            oldPrice,
-            newPrice: currentPrice,
-            percent,
-            timestamp: Date.now(),
-            code,
-            selected: isSelected,
-            salePrice,
-            servicePrice,
-            header,
-            footer: rawPromo,
-        };
-
-        page.html = generatePageHtml(page, priceSource, stickerType, bgImage);
-        newPages.push(page);
-    }
-
-    if (newPages.length === 0) {
-        return { pages: [], error: 'Không tìm thấy dữ liệu hợp lệ trong file.' };
-    }
-
-    return { pages: newPages };
 }

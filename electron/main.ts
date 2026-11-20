@@ -220,6 +220,10 @@ const blockNetwork = (target: Session): void => {
 };
 
 const startApp = (): void => {
+  // Bản đóng gói lấy icon từ file .icns. Bản chạy thử (npm start) chạy bằng Electron gốc nên Dock hiện icon Electron: đặt lại icon của app.
+  if (process.platform === 'darwin' && !app.isPackaged) {
+    app.dock?.setIcon(path.join(app.getAppPath(), 'build', 'icon-mac.png'));
+  }
   protocol.handle(SCHEME, handleAppRequest);
   blockNetwork(session.defaultSession);
 

@@ -3,7 +3,7 @@ import type { PrintPaper } from '../../electron/contract';
 export interface PrintPreviewRequest {
   title: string;
   paper: PrintPaper;
-  /** Dòng nhắc trên màn xem trước, ví dụ đang ở lượt mấy khi in nhiều lượt. */
+  /** Dòng nhắc trên màn xem trước, ví dụ số sticker và bố cục đang in. */
   note?: string;
   /** Dựng tài liệu in. Gọi sau khi màn chờ đã hiện, vì lô lớn tốn vài giây. */
   buildHtml: () => string;
@@ -32,23 +32,6 @@ export const setPrintPreviewOpen = (open: boolean): void => {
   previewOpen = open;
   openListeners.forEach((notify) => notify(open));
 };
-
-/**
- * Chờ màn xem trước vừa yêu cầu được mở rồi đóng lại (đã in, đã lưu PDF hoặc bấm đóng).
- * Dùng khi in nhiều lượt liên tiếp, mỗi lượt một khổ giấy.
- */
-export const waitForPrintPreviewClosed = (): Promise<void> => new Promise((resolve) => {
-  let seenOpen = false;
-  let unsubscribe: () => void = () => undefined;
-  unsubscribe = subscribePrintPreviewOpen((open) => {
-    if (open) {
-      seenOpen = true;
-    } else if (seenOpen) {
-      unsubscribe();
-      resolve();
-    }
-  });
-});
 
 /** Theo dõi màn in có đang mở không, để việc khoá app cập nhật chờ người dùng in xong. */
 export const subscribePrintPreviewOpen = (next: (open: boolean) => void): (() => void) => {

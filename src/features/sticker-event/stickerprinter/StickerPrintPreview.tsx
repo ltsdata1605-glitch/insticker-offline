@@ -3,6 +3,7 @@ import { SectionCard } from '../../../components/shared/ui/SectionCard';
 import { Button } from '../../../components/shared/ui/Button';
 import { AppIcon } from '../../../components/shared/ui/icon/AppIcon';
 import BarcodeCanvas from './BarcodeCanvas';
+import { BarcodeField } from './BarcodeField';
 import { BatchItem, TicketDrawData } from './types';
 import { DrawTicketBlock } from './DrawTicketBlock';
 import { useContentEditable } from './useContentEditable';
@@ -15,7 +16,6 @@ import { resolveEffectiveBgImage } from './stickerBackgroundHelpers';
 interface StickerPrintPreviewProps {
     batchItems: BatchItem[];
     stickerType: 'gia_soc' | 'gio_vang' | 'draw';
-    showBarcode: boolean;
     discountDisplayMode: 'percent' | 'amount';
     headerTextContent: string;
     subHeaderTextContent: string;
@@ -60,7 +60,6 @@ interface StickerPrintPreviewProps {
 export const StickerPrintPreview: React.FC<StickerPrintPreviewProps> = ({
     batchItems,
     stickerType,
-    showBarcode,
     discountDisplayMode,
     headerTextContent,
     subHeaderTextContent,
@@ -293,7 +292,7 @@ export const StickerPrintPreview: React.FC<StickerPrintPreviewProps> = ({
                     <>
                         {batchItems.filter(it => it.selected).slice(0, 20).map((item, index, arr) => (
                             <div key={item.id} className="sticker-container" data-type={stickerType} style={{ pageBreakAfter: index < arr.length - 1 ? 'always' : 'auto', backgroundImage: `url(${effectiveBgImage})` }}>
-                                {showBarcode && item.imei && (
+                                {item.imei && (
                                 <div className="barcode">
                                     <BarcodeCanvas value={item.imei} />
                                 </div>
@@ -348,11 +347,7 @@ export const StickerPrintPreview: React.FC<StickerPrintPreviewProps> = ({
                     </>
                 ) : (
                     <div className="sticker-container" data-type={stickerType} style={{ backgroundImage: `url(${effectiveBgImage})` }}>
-                        {showBarcode && barcodeImei && (
-                            <div className="barcode">
-                                <BarcodeCanvas value={barcodeImei} />
-                            </div>
-                        )}
+                        <BarcodeField value={barcodeImei} onChange={setBarcodeImei} />
                         {/* Render without React children to prevent React reconciliation from resetting the caret during typing */}
                         <div className={`header-text ${activeField === 'header' ? 'active-field' : ''}`} style={stickerType === 'gia_soc' ? { color: 'white', backgroundColor: 'transparent' } : { color: 'black', backgroundColor: 'transparent' }} ref={headerEditable.ref} onInput={headerEditable.handleInput} contentEditable suppressContentEditableWarning onClick={() => setActiveField('header')} />
                         {stickerType === 'gio_vang' && (

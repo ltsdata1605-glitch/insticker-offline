@@ -83,7 +83,7 @@ test('Nút xoá bảng giá: trên thanh trên giữa nút sao lưu và nút phi
   expect(clearAllX).toBeGreaterThan(await x('Sao lưu và khôi phục dữ liệu'));
   expect(clearAllX).toBeLessThan(await x(/Cập nhật ứng dụng/));
 
-  // Chỉ xoá bảng giá của màn Event nên các chế độ khác không có nút này (tab Sticker có nút riêng, xoá sản phẩm từ file mẫu)
+  // Chỉ xoá bảng giá của màn Event nên các chế độ khác không có nút này
   for (const mode of ['Giá Sốc', 'Giờ Vàng', 'Phiếu', 'Sticker'] as const) {
     await chooseMode(win, mode);
     await expect(clearAll).toHaveCount(0);

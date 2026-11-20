@@ -50,7 +50,8 @@ const READY_SCRIPT = `(async () => {
   })();
   const timedOut = await Promise.race([wait.then(() => false), new Promise((r) => setTimeout(() => r(true), ${ASSET_WAIT_MS}))]);
   const tagPages = document.querySelectorAll('.print-page');
-  const hostPages = document.querySelectorAll('#print-host > .sticker-container');
+  // Giá Sốc, Giờ Vàng in nhiều sticker mỗi tờ thì mỗi .sticker-sheet là một trang
+  const hostPages = document.querySelectorAll('#print-host > .sticker-container, #print-host > .sticker-sheet');
   const pages = tagPages.length || hostPages.length || 1;
   let maxHeightPx = 0;
   for (const el of tagPages) maxHeightPx = Math.max(maxHeightPx, el.getBoundingClientRect().height);

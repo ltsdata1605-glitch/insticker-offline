@@ -14,23 +14,23 @@ export const APP_DATA_KEYS = [
   // Từng file bảng giá đã nhập và lịch sử nhập. File sao lưu cũ không có hai khoá này: app coi bảng giá là một file.
   'priceSources',
   'priceImportHistory',
-  // Tab Sticker (sản phẩm lấy từ file mẫu). File sao lưu cũ không có các khoá này.
-  'sticker.products',
-  'sticker.fileInfo',
-  'sticker.displayedProducts',
-  'sticker.displayedProductsLastModified',
-  'sticker.manualProducts',
 ] as const;
 
 export const SETTING_KEYS = [
   'stickerPrinterState',
   'stickerPrintHistory',
   'stickerSavedLists',
+  // Số sticker mỗi tờ A4 khi in Giá Sốc, Giờ Vàng
+  'stickerPerPage',
   'stickerEventSavedLists',
-  'stickerTagSavedLists',
+  // Người in của tab Sticker
+  'stickerTagEmployeeName',
   'printSettings',
   'modernPositions',
   'globalFont',
+  // Kiểm hàng: phiên đang kiểm và các phiên đã kết thúc
+  'kiemHangCurrent',
+  'kiemHangHistory',
 ] as const;
 
 export interface BackupData {

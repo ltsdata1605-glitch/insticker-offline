@@ -104,28 +104,6 @@ export const generateDrawPagesHtml = (opts: DrawPrintOptions): string => {
     return pages.join('');
 };
 
-export const cleanWaterPurifierName = (nameStr: string): string => {
-    if (!nameStr) return '';
-    let cleaned = nameStr;
-    cleaned = cleaned.replace(/Máy lọc nước/gi, 'MLN');
-    const removeSubstrings = [
-        'RO nóng lạnh tủ đứng',
-        '\\(IMEI\\)',
-        'nước nóng lạnh',
-        'RO âm tủ',
-        'RO tủ đứng',
-        'điện giải nóng nguội',
-        'nóng lạnh RO',
-        'RO nóng nguội lạnh tủ đứng'
-    ];
-    for (const sub of removeSubstrings) {
-        const regex = new RegExp(sub, 'gi');
-        cleaned = cleaned.replace(regex, '');
-    }
-    cleaned = cleaned.replace(/\s+/g, ' ').trim();
-    return cleaned;
-};
-
 export const resolvePagePrices = (page: StickerPage, priceSource: 'sale' | 'service') => {
     let newPrice = page.newPrice;
     let percent = page.percent;
@@ -149,12 +127,17 @@ export interface QueuePageContext {
     headerTextContent: string;
     subHeaderTextContent: string;
     footerTextContent: string;
-    showBarcode: boolean;
 }
+
+/**
+ * Tab Sticker: khuyến mãi là ô riêng của từng sticker, nên sticker để trống khuyến mãi không lấy chân sticker chung.
+ * Nếu lấy, gõ khuyến mãi cho sticker đang soạn sẽ làm đổi cả các sticker đã thêm.
+ */
+export const tagQueueContext = (context: QueuePageContext): QueuePageContext => ({ ...context, footerTextContent: '' });
 
 /** Nội dung thật của một sticker trong danh sách khi hiện ra. Bản in và ảnh thu nhỏ dùng chung để thấy sao in ra vậy. */
 export const resolveQueuePage = (page: StickerPage, context: QueuePageContext): StickerPage => {
-    const { stickerType, headerTextContent, subHeaderTextContent, footerTextContent, showBarcode } = context;
+    const { stickerType, headerTextContent, subHeaderTextContent, footerTextContent } = context;
     let finalHeader = page.header || '';
     let finalSubHeader = page.subHeader || '';
     const finalFooter = page.footer || '';
@@ -176,8 +159,6 @@ export const resolveQueuePage = (page: StickerPage, context: QueuePageContext): 
 
     return {
         ...page,
-        // Bản web luôn in mã vạch cho tem trong hàng đợi, kể cả khi nút Mã Vạch đang tắt và khung xem trước không hiện.
-        code: showBarcode ? page.code : undefined,
         header: finalHeader,
         subHeader: finalSubHeader,
         footer: finalFooter || footerTextContent,
@@ -268,7 +249,6 @@ export const isHistoryDuplicate = (a: PrintHistoryEntry, b: PrintHistoryEntry): 
     if (a.headerTextContent !== b.headerTextContent) return false;
     if (a.subHeaderTextContent !== b.subHeaderTextContent) return false;
     if (a.footerTextContent !== b.footerTextContent) return false;
-    if (a.showBarcode !== b.showBarcode) return false;
     if (a.discountDisplayMode !== b.discountDisplayMode) return false;
     if (a.pageCount !== b.pageCount) return false;
 
@@ -323,7 +303,8 @@ export const isHistoryDuplicate = (a: PrintHistoryEntry, b: PrintHistoryEntry): 
             pA.header !== pB.header ||
             pA.subHeader !== pB.subHeader ||
             pA.footer !== pB.footer ||
-            pA.selected !== pB.selected) {
+            pA.selected !== pB.selected ||
+            (pA.quantity ?? 1) !== (pB.quantity ?? 1)) {
             return false;
         }
     }

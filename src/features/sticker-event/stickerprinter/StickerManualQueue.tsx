@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AppIcon } from '../../../components/shared/ui/icon/AppIcon';
+import { QuantityStepper } from './QuantityStepper';
 
 import { StickerPage, SavedStickerList } from './types';
 import { Button, Input, EmptyState } from '../../../components/shared/ui';
@@ -25,6 +26,7 @@ interface StickerManualQueueProps {
     clearManualPages: () => void;
     loadPageToEditor: (page: StickerPage) => void;
     removeManualPage: (id: string) => void;
+    setPageQuantity: (id: string, quantity: number) => void;
     loadSavedList: (list: SavedStickerList) => void;
     deleteSavedList: (list: SavedStickerList) => void;
     togglePageSelection: (id: string) => void;
@@ -35,8 +37,6 @@ interface StickerManualQueueProps {
     setActiveQueuePageId: (id: string | null) => void;
     discountDisplayMode: 'percent' | 'amount';
     setDiscountDisplayMode: (mode: 'percent' | 'amount') => void;
-    showBarcode: boolean;
-    setShowBarcode: (show: boolean) => void;
     priceSource: 'sale' | 'service';
     setPriceSource: (source: 'sale' | 'service') => void;
 }
@@ -50,6 +50,7 @@ export const StickerManualQueue: React.FC<StickerManualQueueProps> = ({
     clearManualPages,
     loadPageToEditor,
     removeManualPage,
+    setPageQuantity,
     loadSavedList,
     deleteSavedList,
     togglePageSelection,
@@ -60,8 +61,6 @@ export const StickerManualQueue: React.FC<StickerManualQueueProps> = ({
     setActiveQueuePageId,
     discountDisplayMode,
     setDiscountDisplayMode,
-    showBarcode,
-    setShowBarcode,
     priceSource,
     setPriceSource,
 }) => {
@@ -148,21 +147,6 @@ export const StickerManualQueue: React.FC<StickerManualQueueProps> = ({
                                 </div>
                             )}
                         </div>
-
-                        {/* Barcode Toggle Button */}
-                        <Button 
-                            onClick={() => setShowBarcode(!showBarcode)} 
-                            size="icon"
-                            variant="secondary"
-                            className={`h-[var(--btn-height-icon)] w-[var(--btn-height-icon)] transition-colors ${
-                                showBarcode 
-                                    ? '!bg-sky-50 dark:!bg-sky-950/50 !text-sky-600 dark:!text-sky-400 font-bold !border-sky-200 dark:!border-sky-800' 
-                                    : 'text-slate-500 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/30 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
-                            }`}
-                            title={showBarcode ? "Mã Vạch: Đang bật (Click để tắt)" : "Mã Vạch: Đang tắt (Click để bật)"}
-                        >
-                            <AppIcon name="barcode" size="sm" />
-                        </Button>
                     </div>
                 </div>
             )}
@@ -230,20 +214,6 @@ export const StickerManualQueue: React.FC<StickerManualQueueProps> = ({
                                 )}
                             </div>
 
-                            {/* Barcode Toggle Button */}
-                            <Button 
-                                onClick={() => setShowBarcode(!showBarcode)} 
-                                size="icon"
-                                variant="secondary"
-                                className={`h-7 w-7 transition-colors ${
-                                    showBarcode 
-                                        ? '!bg-sky-50 dark:!bg-sky-950/50 !text-sky-600 dark:!text-sky-400 font-bold !border-sky-200 dark:!border-sky-800' 
-                                        : 'text-slate-500 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/30 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
-                                }`}
-                                title={showBarcode ? "Mã Vạch: Đang bật (Click để tắt)" : "Mã Vạch: Đang tắt (Click để bật)"}
-                            >
-                                <AppIcon name="barcode" size="sm" />
-                            </Button>
 
                             {/* Divider line */}
                             <div className="h-5 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1 shrink-0" />
@@ -272,8 +242,8 @@ export const StickerManualQueue: React.FC<StickerManualQueueProps> = ({
                         </div>
                     </div>
 
-                    {/* Price toggle (Segmented control) for ERP prices */}
-                    {manualPages.some(p => p.servicePrice || p.salePrice) && (
+                    {/* Chọn giá giảm hay giá dịch vụ: chỉ sticker nhập từ file ERP mẫu 97, 99 (bản trước) mới có giá dịch vụ */}
+                    {manualPages.some(p => p.servicePrice) && (
                         <Tabs
                             variant="segment"
                             size="sm"
@@ -375,6 +345,12 @@ export const StickerManualQueue: React.FC<StickerManualQueueProps> = ({
                                         </div>
                                     </div>
                                 </div>
+                                <QuantityStepper
+                                    value={page.quantity ?? 1}
+                                    onChange={(quantity) => setPageQuantity(page.id, quantity)}
+                                    label={`Số bản in của sticker ${idx + 1}`}
+                                    className="shrink-0 mr-1"
+                                />
                                 <Button
                                     variant="ghost"
                                     size="icon"

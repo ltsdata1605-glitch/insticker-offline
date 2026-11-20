@@ -1,18 +1,14 @@
 import type { SavedList, SavedListItem } from '../types';
 import { getSetting, saveSetting } from './dbService';
-import type { StickerScope } from './scope';
 
 /**
- * Danh sách đã lưu của tab Event và tab Sticker, mỗi tab một khoá. Bản web lưu ở Firestore theo mã kho, app offline lưu trên máy.
+ * Danh sách đã lưu của tab Sticker. Bản web lưu ở Firestore theo mã kho, app offline lưu trên máy.
  */
-const SAVED_LISTS_KEYS: Record<StickerScope, string> = {
-  event: 'stickerEventSavedLists',
-  sticker: 'stickerTagSavedLists',
-};
+const SAVED_LISTS_KEY = 'stickerEventSavedLists';
 
-const readAll = async (scope: StickerScope): Promise<SavedList[]> => (await getSetting<SavedList[]>(SAVED_LISTS_KEYS[scope])) ?? [];
+const readAll = async (): Promise<SavedList[]> => (await getSetting<SavedList[]>(SAVED_LISTS_KEY)) ?? [];
 
-export const saveList = async (name: string, items: SavedListItem[], scope: StickerScope = 'event'): Promise<string> => {
+export const saveList = async (name: string, items: SavedListItem[]): Promise<string> => {
   const list: SavedList = {
     id: `list_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     name,
@@ -20,13 +16,13 @@ export const saveList = async (name: string, items: SavedListItem[], scope: Stic
     items,
     totalItems: items.length,
   };
-  await saveSetting(SAVED_LISTS_KEYS[scope], [list, ...(await readAll(scope))]);
+  await saveSetting(SAVED_LISTS_KEY, [list, ...(await readAll())]);
   return list.id;
 };
 
-export const fetchSavedLists = async (scope: StickerScope = 'event'): Promise<SavedList[]> =>
-  (await readAll(scope)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+export const fetchSavedLists = async (): Promise<SavedList[]> =>
+  (await readAll()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
-export const deleteSavedList = async (id: string, scope: StickerScope = 'event'): Promise<void> => {
-  await saveSetting(SAVED_LISTS_KEYS[scope], (await readAll(scope)).filter((list) => list.id !== id));
+export const deleteSavedList = async (id: string): Promise<void> => {
+  await saveSetting(SAVED_LISTS_KEY, (await readAll()).filter((list) => list.id !== id));
 };

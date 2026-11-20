@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
-import { chooseMode, chooseSubTab, closePreview, evalInPrintDoc, newDirs, openApp, printSummary } from './helpers';
+import { chooseMode, chooseStickersPerPage, chooseSubTab, closePreview, evalInPrintDoc, newDirs, openApp, printSummary } from './helpers';
 
 test('Số bắt đầu, số lượng và công tắc tự nhảy số', async () => {
   const s = await openApp();
@@ -99,8 +99,14 @@ test('Giá Sốc, Giờ Vàng, Phiếu: xem trước và khung điều khiển c
           previewRight: box.right,
           buttonLeft: button.getBoundingClientRect().left,
           panelWidth: panel.width,
-          leftGap: box.left,
+          // Tính trong vùng nội dung, bên phải thanh chức năng
+          leftGap: box.left - (document.querySelector('[data-app-main]') as HTMLElement).getBoundingClientRect().left,
           rightGap: innerWidth - panel.right,
+          // Thẻ Dữ liệu của khung điều khiển phải hiện đủ, không có thanh cuộn
+          panelScroll: (() => {
+            const area = button.closest('.no-print')!.querySelector('.scrollbar-thin') as HTMLElement;
+            return area.scrollHeight - area.clientHeight;
+          })(),
         };
       });
       console.log(`${label}: xem trước ${layout.previewWidth.toFixed(1)}, đáy ${layout.previewBottom.toFixed(0)}/${layout.height}, khung ${layout.panelWidth.toFixed(0)}, trái ${layout.leftGap.toFixed(0)}, phải ${layout.rightGap.toFixed(0)}`);
@@ -115,10 +121,11 @@ test('Giá Sốc, Giờ Vàng, Phiếu: xem trước và khung điều khiển c
         expect(layout.previewBottom, `${label}: xem trước nằm gọn trong màn hình`).toBeLessThanOrEqual(layout.height);
       }
       expect(layout.buttonLeft, `${label}: khung điều khiển nằm bên phải xem trước`).toBeGreaterThan(layout.previewRight);
+      expect(layout.panelScroll, `${label}: khung điều khiển không phải cuộn`).toBeLessThanOrEqual(0);
       expect(layout.panelWidth, `${label}: khung điều khiển không quá rộng`).toBeLessThanOrEqual(480);
       expect(layout.panelWidth, `${label}: khung điều khiển đủ chỗ cho các nút`).toBeGreaterThan(400);
       // Xem trước và khung điều khiển nằm giữa cửa sổ, khoảng trống hai bên cân nhau
-      expect(Math.abs(layout.leftGap - layout.rightGap), `${label}: cân giữa cửa sổ`).toBeLessThan(30);
+      expect(Math.abs(layout.leftGap - layout.rightGap), `${label}: cân giữa vùng nội dung`).toBeLessThan(30);
       if (size.width === 1440) {
         fs.mkdirSync('tests/output', { recursive: true });
         await win.screenshot({ path: `tests/output/ui-rong-${mode === 'Phiếu' ? 'phieu' : mode === 'Giá Sốc' ? 'gia-soc' : 'gio-vang'}.png` });
@@ -216,6 +223,7 @@ test('Chọn phông giao diện: áp dụng ngay, bản in nhận theo, còn sau
   expect(loaded, 'Phông Oswald có sẵn trong app').toBe(true);
 
   await win.getByRole('button', { name: /Bấm để in/ }).first().click();
+  await chooseStickersPerPage(win);
   await printSummary(win);
   const family = await evalInPrintDoc<string>(s, `getComputedStyle(document.querySelector('#print-host')).fontFamily`);
   expect(family).toContain('Oswald');

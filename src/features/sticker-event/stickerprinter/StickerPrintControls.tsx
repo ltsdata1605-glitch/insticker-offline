@@ -3,6 +3,7 @@ import { AppIcon } from '../../../components/shared/ui/icon/AppIcon';
 import { StickerPage, BatchItem, PrintHistoryEntry, SavedStickerList } from './types';
 import { DEFAULT_HISTORY_ID, DEFAULT_DRAW_HISTORY_ENTRY } from '../hooks/useStickerPrinterData';
 import { StickerManualQueue } from './StickerManualQueue';
+import { searchKey } from './ListNameField';
 import { Button, Input, Tabs, EmptyState, SectionCard, Switch } from '../../../components/shared/ui';
 import type { TabItem } from '../../../components/shared/ui';
 import { Checkbox } from '../../../components/shared/ui/Checkbox';
@@ -10,8 +11,6 @@ import { Checkbox } from '../../../components/shared/ui/Checkbox';
 interface StickerPrintControlsProps {
     manualPages: StickerPage[];
     batchItems: BatchItem[];
-    showBarcode: boolean;
-    setShowBarcode: (show: boolean) => void;
     searchTerm: string;
     setSearchTerm: (term: string) => void;
     printHistory: PrintHistoryEntry[];
@@ -19,7 +18,6 @@ interface StickerPrintControlsProps {
     setShowHistory: (show: boolean) => void;
     handlePrint: () => void;
     addCurrentPage: () => void;
-    handleExcelUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
     handleTemplateUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
     downloadTemplate: () => void;
     handleReset: () => void;
@@ -37,6 +35,10 @@ interface StickerPrintControlsProps {
     clearManualPages: () => void;
     loadPageToEditor: (page: StickerPage) => void;
     removeManualPage: (id: string) => void;
+    /** Đổi số bản in của một sticker trong danh sách. */
+    setPageQuantity: (id: string, quantity: number) => void;
+    /** Tổng số bản sẽ in (mỗi sticker nhân số bản của nó). */
+    stickerPrintCount: number;
     loadSavedList: (list: SavedStickerList) => void;
     deleteSavedList: (list: SavedStickerList) => void;
     togglePageSelection: (id: string) => void;
@@ -49,7 +51,6 @@ interface StickerPrintControlsProps {
     setActiveSubTab: (tab: 'data' | 'queue' | 'history') => void;
     priceSource: 'sale' | 'service';
     setPriceSource: (source: 'sale' | 'service') => void;
-    handleErpPriceUpload: (e: React.ChangeEvent<HTMLInputElement>, type: 'purifier' | 'appliance') => void;
     stickerType: 'gia_soc' | 'gio_vang' | 'draw';
     drawStartNumber: number;
     setDrawStartNumber: (num: number) => void;
@@ -60,13 +61,13 @@ interface StickerPrintControlsProps {
     bgImage: string;
     setBgImage: (img: string) => void;
     onResetFontSizes: () => void;
+    /** Tab Sticker: bấm in thì chọn kiểu tem và bố cục trang thay cho in A4 một sticker mỗi trang. */
+    choosesLayoutOnPrint?: boolean;
 }
 
 export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
     manualPages,
     batchItems,
-    showBarcode,
-    setShowBarcode,
     discountDisplayMode,
     setDiscountDisplayMode,
     searchTerm,
@@ -76,7 +77,6 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
     setShowHistory,
     handlePrint,
     addCurrentPage,
-    handleExcelUpload,
     handleTemplateUpload,
     downloadTemplate,
     handleReset,
@@ -92,6 +92,8 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
     clearManualPages,
     loadPageToEditor,
     removeManualPage,
+    setPageQuantity,
+    stickerPrintCount,
     loadSavedList,
     deleteSavedList,
     togglePageSelection,
@@ -104,7 +106,6 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
     setActiveSubTab,
     priceSource,
     setPriceSource,
-    handleErpPriceUpload,
     stickerType,
     drawStartNumber,
     setDrawStartNumber,
@@ -115,6 +116,7 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
     bgImage,
     setBgImage,
     onResetFontSizes,
+    choosesLayoutOnPrint = false,
 }) => {
     const selectedCount = batchItems.filter(i => i.selected).length;
     const selectedManualPagesCount = manualPages.filter(p => p.selected !== false).length;
@@ -145,6 +147,7 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
         return () => clearTimeout(timer);
     }, [localTotalTickets]);  
 
+    const [historyQuery, setHistoryQuery] = useState('');
     const filteredHistory = useMemo(() => {
         const userEntries = printHistory.filter(entry => entry.stickerType === stickerType && entry.id !== DEFAULT_HISTORY_ID);
         // Ở chế độ draw, luôn gắn entry mẫu mặc định ở trên cùng danh sách (cố định ở trên)
@@ -153,6 +156,27 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
         }
         return userEntries;
     }, [printHistory, stickerType]);
+
+    const shownHistory = useMemo(() => {
+        const q = searchKey(historyQuery);
+        return q ? filteredHistory.filter(entry => searchKey(entry.label).includes(q)) : filteredHistory;
+    }, [filteredHistory, historyQuery]);
+
+    const guideItems: { lead: string; text: React.ReactNode }[] = choosesLayoutOnPrint ? [
+        { lead: 'Khi bấm in', text: <>Đặt <strong>tên danh sách</strong> (lưu vào Lịch sử), chọn <strong>kiểu sticker</strong> và <strong>bố cục trang</strong>: 1 đến 24 sticker mỗi trang A4 hoặc máy in bill 80mm. Xem trước bản in, chọn máy in rồi bấm <strong>In ngay</strong>.</> },
+        { lead: 'Kiểu sticker', text: 'Chọn ngay trên khung xem trước. Kiểu giá to và Kiểu phiếu giảm giá chỉ dùng chữ và đường viền nên in trắng đen ít tốn mực. Trang in có đường cắt nét đứt giữa các tem.' },
+        { lead: 'Sửa nhanh', text: 'Sửa tên, mã QR, giá cũ, giá mới, khuyến mãi ở các ô dưới tem. Tem luôn in mã QR khi có mã.' },
+        { lead: 'Thêm', text: 'Nút Thêm nằm ngay trên các ô. Thêm xong các ô để trống để soạn sticker tiếp theo.' },
+    ] : stickerType === 'draw' ? [
+        { lead: 'Khi bấm in', text: <>App tự đặt khổ <strong>A4</strong>, <strong>không lề</strong>, <strong>có in nền</strong>. Xem trước rồi bấm <strong>In ngay</strong>.</> },
+        { lead: 'Sửa nhanh', text: 'Sửa chữ ở phiếu số 1, các phiếu còn lại đổi theo.' },
+        { lead: 'Cỡ chữ', text: <>Bôi đen chữ trên phiếu để tăng giảm. Nút <strong>Cỡ chữ gốc</strong> đưa về mặc định.</> },
+    ] : [
+        { lead: 'Khi bấm in', text: <>Đặt <strong>tên danh sách</strong> (lưu vào Lịch sử) và chọn <strong>số sticker trên 1 trang A4</strong>: 1, 2, 4, 8 hoặc 16. App tự đặt <strong>không lề</strong> và <strong>có in nền</strong>. Xem trước bản in, chọn máy in rồi bấm <strong>In ngay</strong>.</> },
+        { lead: 'Cỡ chữ', text: <>Bôi đen chữ trên bản xem trước để tăng giảm. Nút <strong>Cỡ chữ gốc</strong> đưa tất cả về mặc định.</> },
+        { lead: 'Sửa nhanh', text: 'Click trực tiếp vào chữ trên sticker ở khung preview.' },
+        { lead: 'Tính % tự động', text: 'Chỉ cần nhập Giá cũ & Giá mới.' },
+    ];
 
     const tabItems: TabItem[] = [
         { id: 'data', label: 'Dữ liệu' },
@@ -170,9 +194,10 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
                     leftIcon={<AppIcon name="print" size="md" />}
                 >
                     {/* Vàng = màu nút IN của chủ dự án (giữ); chữ viết như câu thay IN HOA (GĐ7) */}
-                    Bấm để in ({stickerType === 'draw' ? Math.ceil(drawTotalTickets / 4) : (batchItems.length > 0 ? selectedCount + selectedManualPagesCount : (manualPages.length > 0 ? selectedManualPagesCount : 1))})
+                    Bấm để in ({stickerType === 'draw' ? Math.ceil(drawTotalTickets / 4) : stickerPrintCount})
                 </Button>
-                {stickerType !== 'draw' && (
+                {/* Tab Sticker đặt nút Thêm ngay trên các ô sửa ở khung xem trước */}
+                {stickerType !== 'draw' && !choosesLayoutOnPrint && (
                     <Button
                         onClick={addCurrentPage}
                         className="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs py-2 px-3 rounded-control flex items-center justify-center gap-1 shrink-0"
@@ -182,7 +207,8 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
                         Thêm
                     </Button>
                 )}
-                <Button
+                {/* Tab Sticker in tem giá theo mẫu, không chỉnh cỡ chữ trên sticker */}
+                {!choosesLayoutOnPrint && <Button
                     variant="secondary"
                     onClick={onResetFontSizes}
                     className="font-bold text-xs py-2 px-3 rounded-control flex items-center justify-center gap-1 shrink-0"
@@ -190,7 +216,7 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
                     leftIcon={<AppIcon name="reset" size="md" />}
                 >
                     Cỡ chữ gốc
-                </Button>
+                </Button>}
             </div>
 
             {/* Tab Navigation */}
@@ -210,9 +236,9 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
                     <div className="space-y-2.5 animate-in fade-in duration-200 pb-2">
                         {stickerType === 'draw' ? (
                             /* Cấu hình phiếu rút thăm chuyên nghiệp */
-                            <div className="p-4 bg-rose-50 dark:bg-rose-900/10 rounded-popup border border-rose-100 dark:border-rose-800/30 space-y-4">
-                                <div className="flex items-center justify-between border-b border-rose-200/40 dark:border-rose-800/40 pb-2">
-                                    <p className="text-[11px] lg:text-xs font-bold text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
+                            <div className="p-3 bg-rose-50 dark:bg-rose-900/10 rounded-popup border border-rose-100 dark:border-rose-800/30 space-y-2.5">
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="text-xs font-bold text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
                                         <AppIcon name="settings" size="sm" />
                                         Cấu hình in phiếu rút thăm
                                     </p>
@@ -232,12 +258,10 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
                                         Mặc định
                                     </Button>
                                 </div>
-                                
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1">
-                                        <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                                            Số bắt đầu
-                                        </label>
+
+                                <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                                    <label className="flex flex-col gap-1">
+                                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400">Số bắt đầu</span>
                                         <Input
                                             type="number" inputMode="decimal"
                                             min="1"
@@ -245,11 +269,9 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
                                             onChange={(e) => setLocalStartNumber(Math.max(1, parseInt(e.target.value) || 1))}
                                             className="text-xs font-semibold"
                                         />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                                            Số lượng cần in
-                                        </label>
+                                    </label>
+                                    <label className="flex flex-col gap-1">
+                                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400">Số lượng cần in</span>
                                         <Input
                                             type="number" inputMode="decimal"
                                             min="1"
@@ -257,84 +279,59 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
                                             onChange={(e) => setLocalTotalTickets(Math.max(1, parseInt(e.target.value) || 1))}
                                             className="text-xs font-semibold"
                                         />
+                                    </label>
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400">Mã số</span>
+                                        <div className="flex items-center gap-2 min-h-7">
+                                            <Switch checked={drawAutoIncrement ?? true} onChange={setDrawAutoIncrement} aria-labelledby="phieu-tu-nhay-so" />
+                                            <span id="phieu-tu-nhay-so" className="text-[13px] font-medium text-slate-700">Tự động nhảy số</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400">Nền in</span>
+                                        <Tabs
+                                            variant="segment"
+                                            size="sm"
+                                            fullWidth
+                                            activeId={bgImage}
+                                            onChange={setBgImage}
+                                            items={[
+                                                { id: '/frame/bg_phieu.png', label: 'ĐMX' },
+                                                { id: '/frame/bg_phieutgd.png', label: 'TGĐ' },
+                                            ]}
+                                        />
                                     </div>
                                 </div>
 
-                                <div className="flex items-center justify-between gap-3 min-h-11 sm:min-h-0 py-1">
-                                    <span id="phieu-tu-nhay-so" className="text-[13px] font-medium text-slate-700">Tự động nhảy số liên tục</span>
-                                    <Switch checked={drawAutoIncrement ?? true} onChange={setDrawAutoIncrement} aria-labelledby="phieu-tu-nhay-so" />
-                                </div>
-
-                                {/* Chọn nền in */}
-                                <div className="space-y-1.5">
-                                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                                        Nền in
-                                    </label>
-                                    <Tabs
-                                        variant="segment"
-                                        size="sm"
-                                        fullWidth
-                                        activeId={bgImage}
-                                        onChange={setBgImage}
-                                        items={[
-                                            { id: '/frame/bg_phieu.png', label: 'ĐMX' },
-                                            { id: '/frame/bg_phieutgd.png', label: 'TGĐ' },
-                                        ]}
-                                    />
-                                </div>
-
-                                <div className="bg-white/80 dark:bg-slate-900/40 p-2.5 rounded-control border border-slate-100 dark:border-slate-800/40 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                                    <span className="font-bold text-sky-600 dark:text-sky-400">Gợi ý in:</span> {localTotalTickets} phiếu rút thăm sẽ được in trên <span className="font-bold text-slate-800 dark:text-white">{Math.ceil(localTotalTickets / 4)} trang A4</span> (mỗi trang 4 phiếu). Các số thứ tự sẽ tự động điền từ <span className="font-bold text-slate-800 dark:text-white">{localStartNumber}</span> đến <span className="font-bold text-slate-800 dark:text-white">{localStartNumber + localTotalTickets - 1}</span>.
-                                </div>
+                                <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400">
+                                    In <strong className="text-slate-800 dark:text-white">{Math.ceil(localTotalTickets / 4)} trang A4</strong>, mỗi trang 4 phiếu.{' '}
+                                    {(drawAutoIncrement ?? true) ? (
+                                        <>Mã số từ <strong className="text-slate-800 dark:text-white">{localStartNumber}</strong> đến <strong className="text-slate-800 dark:text-white">{localStartNumber + localTotalTickets - 1}</strong>.</>
+                                    ) : (
+                                        'Mã số không tự tăng, sửa trực tiếp trên phiếu.'
+                                    )}
+                                </p>
                             </div>
                         ) : (
                             <>
-                                {/* Nhập dữ liệu — GĐ7: một kiểu nút (trước 5 nút 5 màu: xanh, xanh lá, đỏ, cam…). Nút nhấn chính duy nhất là file
-                                    giá ĐSD; các nguồn khác là nút phụ xám, gom theo nhóm có tiêu đề nhỏ. */}
-                                <div className="flex gap-2">
-                                    <label className="flex-1 inline-flex items-center justify-center gap-1.5 h-9 max-sm:min-h-11 pointer-coarse:min-h-11 px-3 bg-sky-600 hover:bg-sky-700 text-white rounded-control font-semibold cursor-pointer transition-colors text-xs">
-                                        <AppIcon name="upload" size="md" />
-                                        File giá ĐSD - TBBM
-                                        <input type="file" accept=".xlsx, .xls, .csv" onChange={handleExcelUpload} className="hidden" />
-                                    </label>
-                                    <Button onClick={handleReset} variant="secondary" size="md" className="text-xs px-3" title="Xoá danh sách đã nhập, về mẫu ban đầu">
-                                        Đặt lại
-                                    </Button>
-                                </div>
-
+                                {/* Nhập dữ liệu: nhập file mẫu là nút chính, tải file mẫu và đặt lại là nút phụ, cùng một hàng */}
                                 <div className="space-y-1.5">
                                     <p className="text-[12px] font-medium text-slate-500 flex items-center gap-1.5 px-0.5">
                                         <AppIcon name="spreadsheet" size="sm" />
                                         Nhập từ file mẫu
                                     </p>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <Button variant="secondary" size="md" icon="download" onClick={downloadTemplate} className="text-xs px-2">
-                                            Tải file mẫu
-                                        </Button>
-                                        <label className="inline-flex items-center justify-center gap-1.5 h-9 max-sm:min-h-11 pointer-coarse:min-h-11 px-2 bg-slate-100 hover:bg-slate-200/80 text-slate-800 rounded-control font-semibold text-xs cursor-pointer transition-colors">
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <label className="inline-flex items-center justify-center gap-1.5 h-9 max-sm:min-h-11 pointer-coarse:min-h-11 px-2 bg-sky-600 hover:bg-sky-700 text-white rounded-control font-semibold text-xs cursor-pointer transition-colors">
                                             <AppIcon name="upload" size="md" />
                                             Nhập file mẫu
                                             <input type="file" accept=".xlsx, .xls, .csv" onChange={handleTemplateUpload} className="hidden" />
                                         </label>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <p className="text-[12px] font-medium text-slate-500 flex items-center gap-1.5 px-0.5">
-                                        <AppIcon name="product" size="sm" />
-                                        Nhập file in giá từ ERP
-                                    </p>
-                                    <div className="grid grid-cols-1 gap-2">
-                                        <label className="inline-flex items-center justify-center gap-1.5 h-9 max-sm:min-h-11 pointer-coarse:min-h-11 px-3 bg-slate-100 hover:bg-slate-200/80 text-slate-800 rounded-control font-semibold text-xs cursor-pointer transition-colors text-center">
-                                            <AppIcon name="upload" size="md" />
-                                            Máy lọc nước (mẫu in 99)
-                                            <input type="file" accept=".xlsx, .xls, .csv" onChange={(e) => handleErpPriceUpload(e, 'purifier')} className="hidden" />
-                                        </label>
-                                        <label className="inline-flex items-center justify-center gap-1.5 h-9 max-sm:min-h-11 pointer-coarse:min-h-11 px-3 bg-slate-100 hover:bg-slate-200/80 text-slate-800 rounded-control font-semibold text-xs cursor-pointer transition-colors text-center">
-                                            <AppIcon name="upload" size="md" />
-                                            Điện tử/Lạnh (mẫu in 97)
-                                            <input type="file" accept=".xlsx, .xls, .csv" onChange={(e) => handleErpPriceUpload(e, 'appliance')} className="hidden" />
-                                        </label>
+                                        <Button variant="secondary" size="md" icon="download" onClick={downloadTemplate} className="text-xs px-2">
+                                            Tải file mẫu
+                                        </Button>
+                                        <Button onClick={handleReset} variant="secondary" size="md" className="text-xs px-2" title="Xoá danh sách đã nhập, về mẫu ban đầu">
+                                            Đặt lại
+                                        </Button>
                                     </div>
                                 </div>
 
@@ -385,43 +382,20 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
                             </>
                         )}
 
-                        {/* Guide Section */}
-                        <div className="mt-4 border-t border-slate-100 dark:border-slate-700/60 pt-4 space-y-2.5">
+                        {/* Hướng dẫn: mỗi ý một dòng, gọn để cột không phải cuộn */}
+                        <div className="mt-3 border-t border-slate-100 dark:border-slate-700/60 pt-3 space-y-2">
                             <div className="flex items-center gap-1.5">
                                 <AppIcon name="settings" size="sm" className="text-sky-500" />
                                 <span className="text-[13px] font-semibold text-slate-800">Hướng dẫn in & sử dụng</span>
                             </div>
-                            
-                            <div className="p-3 bg-slate-50 dark:bg-slate-900/20 rounded-popup border border-slate-100 dark:border-slate-800/60 space-y-3">
-                                <div className="space-y-1.5">
-                                    <p className="text-[12px] font-semibold text-slate-600">Khi bấm in</p>
-                                    <ul className="space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
-                                        <li className="flex items-center gap-1.5">
-                                            <span className="w-1 h-1 rounded-full bg-sky-500 shrink-0" />
-                                            <span>App tự đặt khổ <strong>A4</strong>, <strong>không lề</strong> và <strong>có in nền</strong></span>
-                                        </li>
-                                        <li className="flex items-center gap-1.5">
-                                            <span className="w-1 h-1 rounded-full bg-sky-500 shrink-0" />
-                                            <span>Xem trước bản in, chọn máy in rồi bấm <strong>In ngay</strong></span>
-                                        </li>
-                                    </ul>
-                                </div>
-                                
-                                <div className="border-t border-slate-200/60 dark:border-slate-700/60 pt-2 space-y-1.5 text-[11px] text-slate-600 dark:text-slate-300">
-                                    <p className="flex items-start gap-1.5"><AppIcon name="quick" size="xs" className="mt-0.5 shrink-0 text-amber-500" /><span><strong>Cỡ chữ:</strong> Bôi đen chữ trên bản xem trước để tăng giảm. Nút <strong>Cỡ chữ gốc</strong> đưa tất cả về mặc định.</span></p>
-                                    {stickerType === 'draw' ? (
-                                        <>
-                                            <p className="flex items-start gap-1.5"><AppIcon name="quick" size="xs" className="mt-0.5 shrink-0 text-amber-600" /><span><strong>Sửa nhanh:</strong> Nhập nội dung ở phiếu số 1 (trang 1). Các phiếu còn lại tự động đồng bộ theo.</span></p>
-                                            <p className="flex items-start gap-1.5"><AppIcon name="quick" size="xs" className="mt-0.5 shrink-0 text-amber-600" /><span><strong>Nhảy số:</strong> Bật chế độ "Tự động nhảy số" để hệ thống tự động tăng dần từ số bắt đầu.</span></p>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <p className="flex items-start gap-1.5"><AppIcon name="quick" size="xs" className="mt-0.5 shrink-0 text-amber-600" /><span><strong>Sửa nhanh:</strong> Click trực tiếp vào chữ trên sticker ở khung preview.</span></p>
-                                            <p className="flex items-start gap-1.5"><AppIcon name="quick" size="xs" className="mt-0.5 shrink-0 text-amber-600" /><span><strong>Tính % tự động:</strong> Chỉ cần nhập Giá cũ & Giá mới.</span></p>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
+                            <ul className="p-2.5 bg-slate-50 dark:bg-slate-900/20 rounded-popup border border-slate-100 dark:border-slate-800/60 space-y-1.5 text-[11px] leading-snug text-slate-600 dark:text-slate-300">
+                                {guideItems.map(item => (
+                                    <li key={item.lead} className="flex items-start gap-1.5">
+                                        <AppIcon name="quick" size="xs" className="mt-0.5 shrink-0 text-amber-600" />
+                                        <span><strong>{item.lead}:</strong> {item.text}</span>
+                                    </li>
+                                ))}
+                            </ul>
                         </div>
                     </div>
                 )}
@@ -437,6 +411,7 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
                             clearManualPages={clearManualPages}
                             loadPageToEditor={loadPageToEditor}
                             removeManualPage={removeManualPage}
+                            setPageQuantity={setPageQuantity}
                             loadSavedList={loadSavedList}
                             deleteSavedList={deleteSavedList}
                             togglePageSelection={togglePageSelection}
@@ -447,8 +422,6 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
                             setActiveQueuePageId={setActiveQueuePageId}
                             discountDisplayMode={discountDisplayMode}
                             setDiscountDisplayMode={setDiscountDisplayMode}
-                            showBarcode={showBarcode}
-                            setShowBarcode={setShowBarcode}
                             priceSource={priceSource}
                             setPriceSource={setPriceSource}
                         />
@@ -457,10 +430,26 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
 
                 {activeSubTab === 'history' && (
                     <div className="space-y-2 animate-in fade-in duration-200 pb-2">
+                        {/* Tra cứu theo tên danh sách đặt lúc in, không phân biệt dấu và chữ hoa */}
+                        {stickerType !== 'draw' && filteredHistory.length > 0 && (
+                            <Input
+                                type="text"
+                                aria-label="Tìm theo tên danh sách"
+                                placeholder="Tìm theo tên danh sách..."
+                                value={historyQuery}
+                                onChange={(e) => setHistoryQuery(e.target.value)}
+                                className="h-8 text-xs bg-slate-50 border-slate-200 placeholder-slate-400 text-slate-700"
+                                fullWidth={true}
+                                rightIcon={historyQuery ? 'x' : undefined}
+                                onRightIconClick={historyQuery ? () => setHistoryQuery('') : undefined}
+                            />
+                        )}
                         {filteredHistory.length === 0 ? (
                             <EmptyState icon={<AppIcon name="history" size="lg" />} title="Chưa có lịch sử in" compact />
+                        ) : shownHistory.length === 0 ? (
+                            <p className="text-xs text-slate-500 text-center py-4">Không có danh sách nào tên giống "{historyQuery.trim()}".</p>
                         ) : (
-                            filteredHistory.map(entry => {
+                            shownHistory.map(entry => {
                                 const isDefault = entry.id === DEFAULT_HISTORY_ID;
                                 return (
                                 <div 
@@ -486,7 +475,9 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
                                             <span>{entry.pageCount} trang</span>
                                             <span>•</span>
                                             <span>
-                                                {entry.stickerType === 'gia_soc' 
+                                                {entry.printedAs === 'tag'
+                                                    ? 'Sticker'
+                                                    : entry.stickerType === 'gia_soc' 
                                                     ? 'Giá Sốc' 
                                                     : entry.stickerType === 'draw' 
                                                         ? 'Phiếu' 

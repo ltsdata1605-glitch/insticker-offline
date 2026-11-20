@@ -13,11 +13,17 @@ interface StickerModeToolbarProps {
     onSelectDraw: () => void;
     onSelectEvent: () => void;
     onSelectTag: () => void;
+    /** Tab đã tắt trong bảng bật tắt tab, theo tên tab con ('gia-soc', 'gio-vang', 'sticker', 'draw'). */
+    hiddenTabs: readonly string[];
 }
 
+/** Tên tab con của từng nút trên thanh chọn. */
+const SUB_OF: Record<string, string> = { gia_soc: 'gia-soc', gio_vang: 'gio-vang', tag: 'sticker', draw: 'draw', event: 'event' };
+
 export const StickerModeToolbar: React.FC<StickerModeToolbarProps> = ({
-    stickerMode, stickerType, onSelectGiaSoc, onSelectGioVang, onSelectDraw, onSelectEvent, onSelectTag,
+    stickerMode, stickerType, onSelectGiaSoc, onSelectGioVang, onSelectDraw, onSelectEvent, onSelectTag, hiddenTabs,
 }) => {
+    const isShown = (id: string) => !hiddenTabs.includes(SUB_OF[id]);
     const { activeTab } = useActiveTab();
     const [mounted, setMounted] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
@@ -53,10 +59,10 @@ export const StickerModeToolbar: React.FC<StickerModeToolbarProps> = ({
                     items={[
                         { id: 'gia_soc', label: 'Giá sốc' },
                         { id: 'gio_vang', label: 'Giờ vàng' },
-                        { id: 'draw', label: 'Phiếu' },
                         { id: 'tag', label: 'Sticker' },
+                        { id: 'draw', label: 'Phiếu' },
                         { id: 'event', label: 'Event' },
-                    ]}
+                    ].filter(item => isShown(item.id))}
                 />
                 </div>
             </div>
@@ -66,10 +72,10 @@ export const StickerModeToolbar: React.FC<StickerModeToolbarProps> = ({
     const stickerTabs = [
         { id: 'gia_soc', label: 'Giá Sốc', icon: 'quick' as const, color: 'sky', onClick: onSelectGiaSoc, isActive: stickerMode === 'sticker' && stickerType === 'gia_soc' },
         { id: 'gio_vang', label: 'Giờ Vàng', icon: 'clock' as const, color: 'amber', onClick: onSelectGioVang, isActive: stickerMode === 'sticker' && stickerType === 'gio_vang' },
-        { id: 'draw', label: 'Phiếu', icon: 'coupon' as const, color: 'rose', onClick: onSelectDraw, isActive: stickerMode === 'sticker' && stickerType === 'draw' },
         { id: 'tag', label: 'Sticker', icon: 'tag' as const, color: 'violet', onClick: onSelectTag, isActive: stickerMode === 'tag' },
+        { id: 'draw', label: 'Phiếu', icon: 'coupon' as const, color: 'rose', onClick: onSelectDraw, isActive: stickerMode === 'sticker' && stickerType === 'draw' },
         { id: 'event', label: 'Event', icon: 'product' as const, color: 'emerald', onClick: onSelectEvent, isActive: stickerMode === 'event' },
-    ];
+    ].filter(tab => isShown(tab.id));
 
     const getModeColorClasses = (color: string, isActive: boolean) => {
         if (!isActive) return 'text-slate-500 hover:text-slate-700 hover:bg-slate-50 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/50';

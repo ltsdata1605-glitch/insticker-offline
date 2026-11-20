@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { AppIcon } from '../../components/shared/ui/icon/AppIcon';
 import { SavedList, SavedListItem } from './types';
 import { fetchSavedLists, deleteSavedList } from './services/localDataService';
-import { useStickerScope } from './services/scope';
 import ConfirmModal from './ConfirmModal';
 import AlertModal from './AlertModal';
 import { Button } from '../../components/shared/ui/Button';
@@ -15,7 +14,6 @@ interface SavedListsModalProps {
 }
 
 const SavedListsModal: React.FC<SavedListsModalProps> = ({ onClose, onLoadList }) => {
-    const scope = useStickerScope();
     const [lists, setLists] = useState<SavedList[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -34,7 +32,7 @@ const SavedListsModal: React.FC<SavedListsModalProps> = ({ onClose, onLoadList }
         setIsLoading(true);
         setError(null);
         try {
-            setLists(await fetchSavedLists(scope));
+            setLists(await fetchSavedLists());
         } catch (err) {
             setError('Lỗi khi tải danh sách đã lưu.');
             console.error(err);
@@ -57,7 +55,7 @@ const SavedListsModal: React.FC<SavedListsModalProps> = ({ onClose, onLoadList }
         if (!listToDelete) return;
 
         try {
-            await deleteSavedList(listToDelete.id, scope);
+            await deleteSavedList(listToDelete.id);
             setLists(lists.filter(l => l.id !== listToDelete.id));
         } catch (err) {
             setAlertConfig({ isOpen: true, message: 'Lỗi khi xóa danh sách.' });

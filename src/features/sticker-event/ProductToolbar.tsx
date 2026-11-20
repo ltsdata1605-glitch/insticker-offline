@@ -4,7 +4,6 @@ import { Product } from './types';
 import SearchBar from './SearchBar';
 import { Button } from '../../components/shared/ui/Button';
 import { Select } from '../../components/shared/ui/Select';
-import { useStickerScope } from './services/scope';
 
 export type SortField = 'none' | 'giaGoc' | 'giaGiam' | 'tongThuong' | 'discount' | 'sanPham';
 export type SortDirection = 'asc' | 'desc';
@@ -49,7 +48,6 @@ const ProductToolbar: React.FC<ProductToolbarProps> = ({
   onSearchSubmit,
   showNoResults,
 }) => {
-  const scope = useStickerScope();
   const handleSortFieldChange = (field: SortField) => {
     if (!onSortChange) return;
     if (field === sortField && field !== 'none') {
@@ -93,7 +91,7 @@ const ProductToolbar: React.FC<ProductToolbarProps> = ({
             value={sortField}
             onChange={(e) => handleSortFieldChange(e.target.value as SortField)}
             className="h-8 pl-2 text-xs font-medium text-slate-700 border-slate-200"
-            options={scope === 'sticker' ? SORT_OPTIONS.filter((option) => option.value !== 'tongThuong') : SORT_OPTIONS}
+            options={SORT_OPTIONS}
           />
           {sortField !== 'none' && (
             <Button

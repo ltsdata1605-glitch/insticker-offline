@@ -2,9 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AppIcon } from '../../components/shared/ui/icon/AppIcon';
 import { toast } from '../../components/shared/ui/toast';
 import { Product, SavedListItem } from './types';
-import { loadData, loadEmployeeName, saveDisplayedProducts, saveTemplateProducts } from './services/fileParser';
-import { downloadStickerTemplateFile, mergeTemplateImport, readTemplateFile } from './services/stickerTemplate';
-import type { TagLayout } from './types';
+import { loadData, saveDisplayedProducts } from './services/fileParser';
 import { saveList } from './services/localDataService';
 import { applyImport, downloadImportWorkbook } from './services/productListImport';
 import type { ImportEntry, ImportMode } from './services/productListImport';
@@ -37,17 +35,9 @@ import { useStickerEventPrint } from './hooks/useStickerEventPrint';
 import { useStickerEventState } from './hooks/useStickerEventState';
 import { Overlay } from '../../components/shared/ui/Overlay';
 import { HeaderSlot } from '../../platform/HeaderSlot';
-import { StickerScopeContext } from './services/scope';
-import type { StickerScope } from './services/scope';
 
-interface StickerEventAppProps {
-  /** Tab Event lấy giá từ bảng giá ERP, tab Sticker lấy từ file mẫu. Dữ liệu mỗi tab lưu riêng. */
-  scope?: StickerScope;
-  /** Đang mở tab này. Màn vẫn giữ trong cây khi sang chế độ khác nên phải biết để ẩn nút trên thanh trên. */
-  isActive?: boolean;
-}
-
-export default function App({ scope = 'event', isActive = true }: StickerEventAppProps): React.JSX.Element {
+/** `isActive`: đang ở chế độ Sticker. Màn vẫn giữ trong cây khi sang chế độ khác nên phải biết để ẩn nút trên thanh trên. */
+export default function App({ isActive = true }: { isActive?: boolean }): React.JSX.Element {
   const [isInitializing, setIsInitializing] = useState(true);
 
   // 1b. Lifted Database & File States
@@ -106,7 +96,6 @@ export default function App({ scope = 'event', isActive = true }: StickerEventAp
   } = useStickerEventState({
     isInitializing,
     allProducts,
-    scope,
   });
 
   // 3. Database operations Hook
@@ -128,7 +117,6 @@ export default function App({ scope = 'event', isActive = true }: StickerEventAp
     setAllProducts,
     manualProducts,
     setManualProducts,
-    scope,
   });
 
   // 4. File operations Hook
@@ -162,15 +150,12 @@ export default function App({ scope = 'event', isActive = true }: StickerEventAp
     handlePrintSelected,
     handlePrintAll,
     handleManualPrintSelected,
-    printList,
     executePrint,
-    executePrintByLayout,
     cancelPrintSession,
   } = useStickerEventPrint({
     employeeName,
     displayedProducts,
     setError,
-    scope,
   });
 
   // Simple UI state variables
@@ -222,7 +207,7 @@ export default function App({ scope = 'event', isActive = true }: StickerEventAp
   // Nạp dữ liệu đã lưu trên máy khi mở app
   useEffect(() => {
     const initialize = async () => {
-      const savedData = await loadData(scope);
+      const savedData = await loadData();
 
       if (savedData) {
         setAllProducts(savedData.products || []);
@@ -256,18 +241,6 @@ export default function App({ scope = 'event', isActive = true }: StickerEventAp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Tên người in dùng chung giữa hai tab: mở lại tab thì lấy tên mới nhất, phòng khi vừa đổi ở tab kia
-  useEffect(() => {
-    if (!isActive || isInitializing || isEditingEmployeeName) return;
-    let active = true;
-    loadEmployeeName().then((name) => {
-      if (active && name && name !== employeeName) setEmployeeName(name);
-    }).catch(() => { /* giữ tên đang có */ });
-    return () => { active = false; };
-    // Chỉ khi chuyển sang tab này
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, isInitializing]);
-
   const handleSaveList = () => {
     if (displayedProducts.length === 0) {
       showAlert('Không có sản phẩm nào để lưu.');
@@ -291,9 +264,8 @@ export default function App({ scope = 'event', isActive = true }: StickerEventAp
         thuongERP: p.thuongERP || 0,
         thuongNong: p.thuongNong || 0,
         quantity: p.quantity || 1,
-        ...(p.layout ? { layout: p.layout } : {}),
       }));
-      await saveList(listName, itemsToSave, scope);
+      await saveList(listName, itemsToSave);
       toast.success(`Đã lưu danh sách "${listName}"`);
     } catch (err) {
       console.error('Error saving list:', err);
@@ -314,57 +286,6 @@ export default function App({ scope = 'event', isActive = true }: StickerEventAp
     });
   };
 
-  const handleDownloadTemplate = () => {
-    downloadStickerTemplateFile().catch((err) => {
-      console.error('Không tải được file mẫu:', err);
-      toast.error('Không tải được file mẫu.');
-    });
-  };
-
-  // Tab Sticker: sản phẩm lấy từ file mẫu, vào thẳng danh sách đang in
-  const handleTemplateFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    setIsLoading(true);
-    try {
-      const { products, errors, fatal } = await readTemplateFile(file);
-      if (fatal) {
-        setError(fatal);
-        return;
-      }
-      const skipped = errors.length > 0
-        ? `Bỏ qua ${errors.length} dòng lỗi trong ${file.name}:\n${errors.slice(0, 8).join('\n')}${errors.length > 8 ? `\n… và ${errors.length - 8} dòng khác` : ''}`
-        : null;
-      if (products.length === 0) {
-        setError(skipped ?? `File ${file.name} không có sản phẩm nào.`);
-        return;
-      }
-      const catalog = allProducts.filter((p) => !(p as ManualProductWithId).firebaseId);
-      const merged = mergeTemplateImport(catalog, displayedProducts, products);
-      const fileInfo = { fileName: file.name, uploadTimestamp: new Date(), fileExportDate: null };
-      setAllProducts([...merged.catalog, ...manualProducts]);
-      setDisplayedProducts(merged.displayed);
-      setFileName(file.name);
-      setUploadTimestamp(fileInfo.uploadTimestamp);
-      setShowManagerInstructions(false);
-      setDuplicateError(false);
-      setError(skipped);
-      await saveTemplateProducts(merged.catalog, fileInfo);
-      await saveDisplayedProducts(merged.displayed, scope);
-      toast.success(`Đã nhập ${file.name}: ${merged.added} sản phẩm mới, ${merged.updated} cập nhật`);
-    } catch (err) {
-      console.error('Không đọc được file mẫu:', err);
-      setError(`Không đọc được file ${file.name}. Hãy dùng file tải từ nút Tải file mẫu.`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSetLayout = (msp: string, layout: TagLayout) => {
-    setDisplayedProducts((current) => current.map((p) => (p.msp === msp ? { ...p, layout } : p)));
-  };
-
   const handleImportList = (entries: ImportEntry[], mode: ImportMode, notFound: string[]) => {
     setDisplayedProducts((current) => applyImport(current, entries, mode));
     setDuplicateError(false);
@@ -379,7 +300,7 @@ export default function App({ scope = 'event', isActive = true }: StickerEventAp
     for (const item of savedItems) {
       const product = allProducts.find(p => p.msp === item.msp);
       if (product) {
-        reconstructedProducts.push({ ...product, quantity: item.quantity || 1, layout: item.layout ?? product.layout, selected: false });
+        reconstructedProducts.push({ ...product, quantity: item.quantity || 1, selected: false });
       } else if (item.sanPham) {
         // Định dạng cũ: item đã có đủ field Product (không chỉ msp+quantity)
         reconstructedProducts.push({ ...item, selected: false, quantity: item.quantity || 1 } as Product);
@@ -388,7 +309,7 @@ export default function App({ scope = 'event', isActive = true }: StickerEventAp
     
     if (reconstructedProducts.length > 0) {
       setDisplayedProducts(reconstructedProducts);
-      saveDisplayedProducts(reconstructedProducts, scope);
+      saveDisplayedProducts(reconstructedProducts);
       showAlert(`Đã tải danh sách "${reconstructedProducts.length}" sản phẩm.`);
     } else {
       showAlert('Không tìm thấy dữ liệu chi tiết của các sản phẩm trong danh sách này trên hệ thống.');
@@ -404,7 +325,6 @@ export default function App({ scope = 'event', isActive = true }: StickerEventAp
   }
 
   return (
-    <StickerScopeContext.Provider value={scope}>
     <ErrorBoundary>
       {/* BUG FIX: min-h-screen (100vh) đo theo viewport LỚN NHẤT (lúc thanh địa chỉ trình
           duyệt mobile đã thu gọn) — lúc trang vừa tải/thanh địa chỉ đang hiện, viewport thực tế
@@ -476,8 +396,6 @@ export default function App({ scope = 'event', isActive = true }: StickerEventAp
               priceProductCount={priceProductCount}
               onOpenPriceHistory={() => setIsPriceHistoryOpen(true)}
               onOpenPriceSources={() => setIsPriceSourcesOpen(true)}
-              onDownloadTemplate={handleDownloadTemplate}
-              onTemplateFileChange={handleTemplateFileChange}
               onOpenManualInput={() => setIsManualInputOpen(true)}
               onReset={() => setIsResetConfirmOpen(true)}
               onOpenImport={() => setIsImportOpen(true)}
@@ -553,7 +471,6 @@ export default function App({ scope = 'event', isActive = true }: StickerEventAp
                 onSetQuantity={handleSetQuantity}
                 onPrintSingle={handlePrintSingle}
                 onDelete={handleDeleteProduct}
-                onSetLayout={handleSetLayout}
                 isMobile={isMobile}
               />
               </div>
@@ -640,11 +557,6 @@ export default function App({ scope = 'event', isActive = true }: StickerEventAp
                 onStickerStyleChange={(style) => setPrintSettings({ ...printSettings, stickerStyle: style })}
                 modernPositions={modernPositions}
                 onModernPositionsChange={setModernPositions}
-                perProduct={scope === 'sticker' ? {
-                  products: printList,
-                  onSetLayout: handleSetLayout,
-                  onPrint: executePrintByLayout,
-                } : undefined}
                 onClose={cancelPrintSession}
             />
         )}
@@ -688,8 +600,8 @@ export default function App({ scope = 'event', isActive = true }: StickerEventAp
                 size="none"
                 onClick={() => setIsClearAllConfirmOpen(true)}
                 disabled={isLoading}
-                title={scope === 'event' ? 'Xóa toàn bộ dữ liệu bảng giá trên máy này' : 'Xóa toàn bộ sản phẩm đã nhập từ file mẫu'}
-                aria-label={scope === 'event' ? 'Xóa toàn bộ dữ liệu bảng giá' : 'Xóa toàn bộ sản phẩm đã nhập'}
+                title="Xóa toàn bộ dữ liệu bảng giá trên máy này"
+                aria-label="Xóa toàn bộ dữ liệu bảng giá"
                 className="relative w-9 h-9 flex items-center justify-center text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
               >
                 <AppIcon name="delete" size="md" />
@@ -703,9 +615,7 @@ export default function App({ scope = 'event', isActive = true }: StickerEventAp
           onClose={() => setIsClearAllConfirmOpen(false)}
           onConfirm={executeClearAll}
           title="Xác nhận Xóa Dữ Liệu"
-          message={scope === 'event'
-            ? 'Hành động này sẽ xóa TOÀN BỘ dữ liệu bảng giá trên máy này. Sản phẩm nhập tay và danh sách đã lưu vẫn còn. Bạn có chắc chắn muốn tiếp tục?'
-            : 'Hành động này sẽ xóa TOÀN BỘ sản phẩm đã nhập từ file mẫu và danh sách đang in của tab Sticker. Sản phẩm nhập tay và danh sách đã lưu vẫn còn. Bạn có chắc chắn muốn tiếp tục?'}
+          message="Hành động này sẽ xóa TOÀN BỘ dữ liệu bảng giá trên máy này. Sản phẩm nhập tay và danh sách đã lưu vẫn còn. Bạn có chắc chắn muốn tiếp tục?"
           confirmText="Xác nhận Xóa"
           cancelText="Hủy"
           type="danger"
@@ -757,6 +667,5 @@ export default function App({ scope = 'event', isActive = true }: StickerEventAp
 
       </div>
     </ErrorBoundary>
-    </StickerScopeContext.Provider>
   );
 }

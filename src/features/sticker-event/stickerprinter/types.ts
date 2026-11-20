@@ -14,6 +14,8 @@ export interface StickerPage {
     footer?: string;
     code?: string;
     selected?: boolean;
+    /** Số bản in của sticker này (Giá Sốc, Giờ Vàng, Sticker). Không có là 1. */
+    quantity?: number;
 }
 
 export interface SavedStickerList {
@@ -46,7 +48,10 @@ export interface PrintHistoryEntry {
     headerTextContent: string;
     subHeaderTextContent: string;
     footerTextContent: string;
-    showBarcode: boolean;
+    /** Bản cũ có nút bật tắt mã vạch. Nay mã vạch luôn in khi sticker có mã, trường này chỉ còn trong lịch sử cũ. */
+    showBarcode?: boolean;
+    /** In từ tab Sticker (tem giá); không có là in từ Giá Sốc, Giờ Vàng hoặc Phiếu. */
+    printedAs?: 'tag';
     manualPages: StickerPage[];
     discountDisplayMode?: 'percent' | 'amount';
     drawTickets?: TicketDrawData[];

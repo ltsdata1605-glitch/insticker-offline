@@ -38,7 +38,7 @@ Chép từ dashboard tại commit `37ee99b`. Khi web có bản sửa mới, so v
 Những file đã thay hoặc sửa:
 
 - Viết lại gọn: `contexts/LayoutContext.tsx`, `utils/dataUtils.ts`, `utils/localDbScope.ts`, `services/dbService.ts`, `components/layout/HeaderSystemGroup.tsx`, `components/shared/ui/googleFonts.ts`.
-- `features/sticker-event/hooks/useStickerPrinterData.ts`: bỏ Firebase, in qua `openPrintPreview`, mã vạch trên tem trong hàng đợi đi theo nút bật tắt (web luôn in).
+- `features/sticker-event/hooks/useStickerPrinterData.ts`: bỏ Firebase, in qua `openPrintPreview`, sticker có mã luôn in mã vạch (đã bỏ nút bật tắt).
 - `features/sticker-event/services/printService.ts`: bỏ nhánh điện thoại và iframe, in qua `openPrintPreview`, dùng phông trong app.
 - `features/sticker-event/stickerprinter/pageHtmlUtils.ts`: sửa lệch ô số tiền giảm giữa xem trước và bản in.
 - `features/sticker-event/stickerprinter/StickerPrintControls.tsx`: đổi hướng dẫn in.
@@ -47,10 +47,18 @@ Những file đã thay hoặc sửa:
 - Bỏ theo yêu cầu: nạp tồn kho, link lấy file tồn, file mẫu theo ngành hàng, bộ lọc ngành/nhóm hàng, số tem và sắp xếp theo tồn. `InventoryToolbar.tsx` đổi thành `ProductToolbar.tsx`, `FilterModal.tsx` chỉ còn sắp xếp.
 - Mới: `services/localDataService.ts`, thư mục `platform/` (xem trước bản in, sao lưu, thông báo tệp tải về).
 - Bảng giá ghép từ nhiều file (`services/priceSources.ts`): mỗi file đã nhập lưu riêng ở khoá `priceSources`, `products` là bản đã ghép, file nhập sau ghi đè giá khi trùng mã. Bản web nhập file mới là thay cả bảng. Lịch sử nhập ở khoá `priceImportHistory`. Màn mới: `PriceSourcesModal.tsx`, `PriceImportHistoryModal.tsx`.
-- Nút xoá bảng giá (bản web là nút "Xóa DL" trong `ControlPanel.tsx`) chuyển lên cụm nút cuối thanh trên, chỉ có biểu tượng thùng rác, chỉ hiện ở tab Event; tab Sticker có nút cùng chỗ để xoá sản phẩm từ file mẫu. Màn Event và màn Sticker đặt nút vào chỗ trống của cụm qua `platform/HeaderSlot.tsx`.
-- Tab Sticker của web đổi tên thành **Event**. Tab **Sticker** mới (chỉ có ở app) dùng lại màn Event qua `StickerEventApp scope="sticker"`: sản phẩm lấy từ file mẫu tự điền (`services/stickerTemplate.ts`) thay cho bảng giá ERP, không in thưởng, mỗi sản phẩm một bố cục và in mỗi bố cục một lượt (`services/tagLayouts.ts`, `executePrintByLayout` trong `hooks/useStickerEventPrint.ts`). Dữ liệu của tab này lưu ở các khoá có tiền tố `sticker.` (`services/scope.ts`), danh sách đã lưu ở `stickerTagSavedLists`; tab Event giữ tên khoá cũ.
+- Nút xoá bảng giá (bản web là nút "Xóa DL" trong `ControlPanel.tsx`) chuyển lên cụm nút cuối thanh trên, chỉ có biểu tượng thùng rác, chỉ hiện ở tab Event. Màn Event đặt nút vào chỗ trống của cụm qua `platform/HeaderSlot.tsx`.
+- Tab Sticker của web đổi tên thành **Event**. Tab **Sticker** mới (chỉ có ở app, nằm giữa Giờ Vàng và Phiếu) dùng danh sách và các nút nhập của Giá Sốc (`stickerMode === 'tag'`, `stickerType` là `gia_soc`). Khung xem trước là `stickerprinter/TagPreviewPanel.tsx`: tem giá dựng bằng chính HTML và CSS bản in (`buildPriceTagPreview` trong `services/printService.ts`, hiện trong shadow DOM qua `stickerprinter/TagRender.tsx`), chọn kiểu tem và sửa nội dung ở các ô. Bấm in thì `stickerprinter/TagPrintDialog.tsx` mở hộp chọn kiểu và bố cục của tab Event rồi in bằng `printPriceTags`; mỗi sticker đổi sang một tem qua `stickerprinter/tagProducts.ts`. Kiểu tem và bố cục lần in trước lưu ở `printSettings`, dùng chung với Event (`stickerprinter/useTagPrintSettings.ts`).
+- Chức năng **Kiểm hàng** (chỉ có ở app) nằm ở `src/features/kiem-hang/`: đọc file phiếu chuyển kho và tính toán ở `kiemHangData.ts` (không đụng giao diện, có test ở `tests/unit/kiem-hang.test.ts`), xuất Excel ở `kiemHangExport.ts`, lưu phiên đang kiểm và lịch sử ở khoá `kiemHangCurrent`, `kiemHangHistory` (`kiemHangStore.ts`, có trong file sao lưu). File chi tiết không có số hoá đơn nên ghép với file phiếu theo `STORECHANGEID` = Mã phiếu chuyển. Thanh chức năng bên trái là `components/layout/ModuleRail.tsx`; chức năng đang mở lưu trong `contexts/LayoutContext.tsx`. Chức năng không mở vẫn giữ trong cây nhưng trong suốt và `inert` (`ModuleLayer` trong `App.tsx`).
 - `SearchBar.tsx`: chọn gợi ý bằng phím mũi tên, Enter để thêm, con trỏ về lại ô tìm kiếm sau khi thêm; mã khớp đúng đứng đầu gợi ý.
 - Không chép: `Login.tsx`, `UserManagementModal.tsx`, `SuperAdminModal.tsx`, `ChangePasswordModal.tsx`, `PdfPreviewModal.tsx`, `firebase.ts`, `services/firebaseService.ts`, `services/sessionService.ts`, `services/adminUserService.ts`, `services/sessionSyncPolicy.ts`, `hooks/useStickerEventAuth.ts`.
+
+## Bật tắt tab (dành cho người quản lý)
+
+- Bấm 7 lần liên tiếp vào logo (mỗi lần cách nhau dưới 1,5 giây), nhập mật khẩu để mở bảng bật tắt các tab Giá Sốc, Giờ Vàng, Sticker, Phiếu, Event và chức năng Kiểm hàng. Tab Event mặc định tắt; luôn phải còn ít nhất một tab. Tắt Kiểm hàng hoặc tắt hết các tab In sticker thì thanh bên trái ẩn đi vì chỉ còn một chức năng. Mật khẩu mặc định `12345`, đổi được ngay trong bảng.
+- Mã ở `src/features/sticker-event/tabAccess.ts` và `TabAccessDialog.tsx`. Tab bị tắt và mật khẩu (chỉ lưu dạng băm SHA-256 có muối) nằm trong localStorage, tức thư mục dữ liệu của app. Hai mục này cố ý không có trong file sao lưu, nên khôi phục file sao lưu không mở lại được tab.
+- Quên mật khẩu thì không lấy lại được. Chỉ xoá app thôi chưa đủ vì dữ liệu nằm riêng trong hồ sơ người dùng: phải xoá cả thư mục dữ liệu (Mac: `~/Library/Application Support/In Sticker`, Windows: `%APPDATA%\In Sticker`) rồi cài lại. Thao tác này xoá luôn bảng giá, danh sách và lịch sử; khôi phục lại bằng file sao lưu nếu có. Mật khẩu về `12345`, các tab về mặc định (Event tắt).
+- Cố ý không ghi vào HUONG_DAN_SU_DUNG.md để nhân viên không biết cách mở.
 
 ## Cập nhật và phát hành
 

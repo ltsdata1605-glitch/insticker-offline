@@ -2,9 +2,6 @@
 import React, { useState, useEffect, memo } from 'react';
 import { AppIcon } from '../../components/shared/ui/icon/AppIcon';
 import { Product } from './types';
-import type { TagLayout } from './types';
-import { useStickerScope } from './services/scope';
-import { DEFAULT_TAG_LAYOUT, TAG_LAYOUTS } from './services/tagLayouts';
 import { Button } from '../../components/shared/ui/Button';
 import { Input } from '../../components/shared/ui/Input';
 import { EmptyState } from '../../components/shared/ui/EmptyState';
@@ -19,8 +16,6 @@ interface ResultsDisplayProps {
   onSetQuantity: (msp: string, quantity: number) => void;
   onPrintSingle: (product: Product) => void;
   onDelete: (msp: string) => void;
-  /** Tab Sticker: đổi bố cục in của từng sản phẩm. */
-  onSetLayout?: (msp: string, layout: TagLayout) => void;
   isMobile: boolean;
 }
 
@@ -34,9 +29,6 @@ interface ProductCardProps {
   onSetQuantity: (msp: string, quantity: number) => void;
   onPrintSingle: (product: Product) => void;
   onDelete: (msp: string) => void;
-  onSetLayout?: (msp: string, layout: TagLayout) => void;
-  /** Tab Sticker không có thưởng nên không hiện ô thưởng. */
-  showBonus: boolean;
   isMobile: boolean;
 }
 
@@ -45,7 +37,7 @@ const parsePrice = (priceStr: string): number => {
   return parseInt(priceStr.replace(/[^\d]/g, '')) || 0;
 };
 
-const ProductCard: React.FC<ProductCardProps> = memo(({ result, isHighlighted, onToggleSelect, onQuantityChange, onSetQuantity, onPrintSingle, onDelete, onSetLayout, showBonus, isMobile }) => {
+const ProductCard: React.FC<ProductCardProps> = memo(({ result, isHighlighted, onToggleSelect, onQuantityChange, onSetQuantity, onPrintSingle, onDelete, isMobile }) => {
   const giaGocNum = parsePrice(result.giaGoc);
   const giaGiamNum = parsePrice(result.giaGiam);
   const discountPercent = calculateDiscountPercent(giaGocNum, giaGiamNum);
@@ -98,7 +90,6 @@ const ProductCard: React.FC<ProductCardProps> = memo(({ result, isHighlighted, o
           </div>
 
           {/* Thưởng */}
-          {showBonus && (
           <div className="text-right bg-slate-50/80 px-2 py-1 rounded-control border border-slate-100">
             <p className="text-xs sm:text-sm font-bold text-sky-600 leading-none tabular-nums">
               {formatCurrency(result.tongThuong)}
@@ -109,7 +100,6 @@ const ProductCard: React.FC<ProductCardProps> = memo(({ result, isHighlighted, o
               <span className="text-rose-500 tabular-nums">Nóng: {formatCurrency(result.thuongNong)}</span>
             </p>
           </div>
-          )}
         </div>
       </div>
       
@@ -128,21 +118,6 @@ const ProductCard: React.FC<ProductCardProps> = memo(({ result, isHighlighted, o
     <div className={`flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto border-t sm:border-t-0 border-slate-100 ${isMobile ? 'pt-2' : ''} sm:pl-3 sm:border-l hide-on-export`}>
         {/* Checkbox & Stepper */}
         <div className="flex items-center gap-2">
-            {onSetLayout && (
-                <label className="flex flex-col items-center leading-none" title="Bố cục in: số sticker trên một trang A4">
-                    <span className="text-[10px] font-semibold text-slate-400 mb-0.5">Bố cục</span>
-                    <select
-                        aria-label={`Bố cục ${result.msp}`}
-                        value={result.layout ?? DEFAULT_TAG_LAYOUT}
-                        onChange={(e) => onSetLayout(result.msp, Number(e.target.value) as TagLayout)}
-                        className="h-7 rounded-control border border-slate-200 bg-white px-1 text-xs font-bold text-slate-700 tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-                    >
-                        {TAG_LAYOUTS.map((layout) => (
-                            <option key={layout.value} value={layout.value}>{layout.value}/trang</option>
-                        ))}
-                    </select>
-                </label>
-            )}
              <Button
                 variant="ghost" size="icon-xs"
                 onClick={() => onToggleSelect(result.msp)}
@@ -332,29 +307,7 @@ const InstructionsPanel = () => (
 );
 
 
-/** Tab Sticker không dùng bảng giá ERP: hướng dẫn điền file mẫu. */
-const TemplateInstructionsPanel = () => (
-  <div className="text-left p-8 bg-white rounded-card shadow-xl border-2 border-sky-100 min-h-[400px] flex flex-col justify-center" data-testid="template-instructions">
-    <div className="flex items-center gap-4 mb-6">
-        <div className="p-3 bg-sky-100 rounded-full">
-            <AppIcon name="info" size="state" className="text-sky-600" />
-        </div>
-        <div>
-            <h3 className="text-[25px] font-bold text-slate-900 leading-8">In Sticker từ file mẫu</h3>
-            <p className="text-slate-500">Không cần bảng giá ERP, tự điền sản phẩm cần in</p>
-        </div>
-    </div>
-    <ol className="list-none space-y-2 text-base text-slate-700 leading-relaxed">
-        <li className="flex items-start"><span className="font-bold text-sky-600 mr-2 w-5 text-center">1.</span><span>Bấm <strong>Tải file mẫu</strong> ở khung bên trái.</span></li>
-        <li className="flex items-start"><span className="font-bold text-sky-600 mr-2 w-5 text-center">2.</span><span>Điền <strong>mã, tên, giá gốc, giá bán, khuyến mãi, số lượng tem</strong> và <strong>bố cục</strong>: số sticker trên một trang A4 ({TAG_LAYOUTS.map((layout) => layout.value).join(', ')}).</span></li>
-        <li className="flex items-start"><span className="font-bold text-sky-600 mr-2 w-5 text-center">3.</span><span>Bấm <strong>Nhập file mẫu</strong>. Sản phẩm vào thẳng danh sách, sửa được số lượng và bố cục.</span></li>
-        <li className="flex items-start"><span className="font-bold text-sky-600 mr-2 w-5 text-center">4.</span><span>Bấm in: mỗi sản phẩm in theo bố cục của nó, mỗi bố cục là một lượt in riêng.</span></li>
-    </ol>
-  </div>
-);
-
-const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ results, hasData, highlightedMsp, onToggleSelect, onQuantityChange, onSetQuantity, onPrintSingle, onDelete, onSetLayout, isMobile }) => {
-  const scope = useStickerScope();
+const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ results, hasData, highlightedMsp, onToggleSelect, onQuantityChange, onSetQuantity, onPrintSingle, onDelete, isMobile }) => {
   const [visibleCount, setVisibleCount] = useState(30);
 
   useEffect(() => {
@@ -362,7 +315,7 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ results, hasData, highl
   }, [results]);
 
   if (!hasData) {
-    return scope === 'sticker' ? <TemplateInstructionsPanel /> : <InstructionsPanel />;
+    return <InstructionsPanel />;
   }
 
   if (results.length > 0) {
@@ -379,8 +332,6 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ results, hasData, highl
                     onSetQuantity={onSetQuantity}
                     onPrintSingle={onPrintSingle}
                     onDelete={onDelete}
-                    onSetLayout={scope === 'sticker' ? onSetLayout : undefined}
-                    showBonus={scope === 'event'}
                     isMobile={isMobile}
                 />
             ))}

@@ -122,9 +122,17 @@ export const openApp = async (dirs: Dirs = newDirs(), extraArgs: string[] = [], 
   };
 };
 
-/** 'Sticker' là tab in từ file mẫu, 'Event' là tab in từ bảng giá ERP (trước bản 1.2.0 tên là Sticker). */
+/** 'Sticker' là tab soạn như Giá Sốc nhưng in tem giá theo bố cục chọn lúc in, 'Event' là tab in từ bảng giá ERP (trước bản 1.2.0 tên là Sticker). */
 export const chooseMode = async (win: Page, name: 'Giá Sốc' | 'Giờ Vàng' | 'Phiếu' | 'Sticker' | 'Event') => {
-  await win.locator('#global-header-actions').getByRole('button', { name, exact: true }).click();
+  const bar = win.locator('#global-header-actions');
+  await bar.getByRole('button').first().waitFor();
+  // Tab Event mặc định tắt (bật trong bảng bấm 7 lần vào logo). Bài test cần Event thì bật sẵn mọi tab rồi tải lại trang.
+  if (name === 'Event' && (await bar.getByRole('button', { name, exact: true }).count()) === 0) {
+    await win.evaluate(() => localStorage.setItem('tabAccess.hidden', '[]'));
+    await win.reload();
+    await bar.getByRole('button', { name, exact: true }).waitFor();
+  }
+  await bar.getByRole('button', { name, exact: true }).click();
   await win.waitForTimeout(500);
 };
 
@@ -143,6 +151,15 @@ export const writeWorkbook = (dirs: Dirs, fileName: string, rows: unknown[][]): 
 export const rowWith = (cells: Record<number, unknown>): unknown[] => {
   const max = Math.max(...Object.keys(cells).map(Number));
   return Array.from({ length: max + 1 }, (_, i) => cells[i] ?? '');
+};
+
+/** Giá Sốc, Giờ Vàng: sau khi bấm in, đặt tên danh sách và chọn số sticker trên một trang A4 (mặc định 1, như trước nay). */
+export const chooseStickersPerPage = async (win: Page, perPage: 1 | 2 | 4 | 8 | 16 = 1, listName = 'Danh sách thử') => {
+  const dialog = win.getByRole('dialog', { name: 'Chọn số sticker trên 1 trang A4' });
+  // Mỗi lần in phải đặt tên danh sách để lưu vào Lịch sử
+  await dialog.getByLabel('Tên danh sách').fill(listName);
+  await dialog.getByRole('button', { name: new RegExp(`^${perPage} sticker / trang`) }).click();
+  await dialog.waitFor({ state: 'detached' });
 };
 
 export const printSummary = async (win: Page): Promise<string> => {

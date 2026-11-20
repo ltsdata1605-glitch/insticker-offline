@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { chooseMode, closePreview, evalInPrintDoc, newDirs, openApp, printSummary } from './helpers';
+import { chooseMode, chooseStickersPerPage, closePreview, evalInPrintDoc, newDirs, openApp, printSummary } from './helpers';
 
 /** Bôi đen cả ô, hoặc một từ trong ô, giống người dùng kéo chuột. */
 const selectText = async (win: Page, selector: string, word?: string) => {
@@ -68,7 +68,8 @@ test('Thanh chọn chế độ: bấm và rê chuột vào nút ở hai đầu k
   const s = await openApp();
   const { win } = s;
   const header = win.locator('#global-header-actions');
-  for (const [name, corner] of [['Giá Sốc', 'borderTopLeftRadius'], ['Event', 'borderTopRightRadius']] as const) {
+  // Tab Event mặc định tắt nên nút cuối thanh là Phiếu
+  for (const [name, corner] of [['Giá Sốc', 'borderTopLeftRadius'], ['Phiếu', 'borderTopRightRadius']] as const) {
     const button = header.getByRole('button', { name, exact: true });
     await button.click();
     await button.hover();
@@ -129,6 +130,7 @@ test('Tem: thanh định dạng hiện đúng cỡ của mọi ô, tăng giảm 
 
   // Bản in nhận đúng cỡ đã chỉnh
   await win.getByRole('button', { name: /Bấm để in/ }).first().click();
+  await chooseStickersPerPage(win);
   await printSummary(win);
   const printed = await evalInPrintDoc<number>(s, `(() => {
     const el = document.querySelector('.extra2');
