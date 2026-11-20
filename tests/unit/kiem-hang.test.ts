@@ -151,15 +151,15 @@ describe('Quét mã', () => {
 });
 
 describe('Xuất Excel', () => {
-  it('đủ 5 trang; chi tiết giữ mã dạng chữ, có SL thực nhận và chênh lệch; tổng hợp có dòng tổng', async () => {
+  it('đủ 6 trang; chi tiết giữ mã dạng chữ, có SL thực nhận và chênh lệch; tổng hợp có dòng tổng', async () => {
     const { buildExportSheets } = await import('../../src/features/kiem-hang/kiemHangExport');
     let session = loadAB();
     session = scan(session, '0160014000813', { qty: 3 }).session;
     session = scan(session, '0160010000745').session;
     session = scan(session, 'LA-001').session;
     const sheets = buildExportSheets(session);
-    expect(sheets.map(sheet => sheet.name)).toEqual(['Tổng hợp', 'Chi tiết', 'Thiếu thừa', 'Mã lạ', 'Nhật ký quét']);
-    const [summary, detail, diff, unknown, log] = sheets;
+    expect(sheets.map(sheet => sheet.name)).toEqual(['Báo cáo', 'Tổng hợp', 'Chi tiết', 'Thiếu thừa', 'Mã lạ', 'Nhật ký quét']);
+    const [, summary, detail, diff, unknown, log] = sheets;
     expect(summary.rows[1].slice(0, 2)).toEqual(['2000001', HOA_DON_A.transferId]);
     expect(summary.rows.at(-1)).toEqual(['Tổng', '', '', '', '', '', '', 12, 4, 8, 0, 'Thiếu 8']);
     expect(detail.rows[1].slice(0, 8)).toEqual(['2000001', '0160010000745', 'Chuột không dây Thử Xanh', '', 2, 1, -1, 'Thiếu']);
@@ -168,5 +168,59 @@ describe('Xuất Excel', () => {
     expect(diff.rows.some(row => row[1] === '0160014000813')).toBe(false);
     expect(unknown.rows[1].slice(0, 4)).toEqual(['LA-001', 'Mã lạ', '', 1]);
     expect(log.rows.map(row => row[2]).slice(1)).toEqual(['Đã cộng', 'Đã cộng', 'Mã không có trong danh sách']);
+  });
+});
+
+describe('Báo cáo', () => {
+  it('theo MYC: đủ hay chưa, thiếu bao nhiêu sản phẩm thuộc bao nhiêu nhóm; kho, người chuyển; đoạn chữ để gửi', async () => {
+    const { buildReport, reportText, reportSummary, reportSheetRows } = await import('../../src/features/kiem-hang/kiemHangReport');
+    let session = loadAB();
+    // Hoá đơn B đủ: chuột 1 (sau khi A đủ 2), quạt 4
+    session = scan(session, '0160010000745', { qty: 3 }).session;
+    session = scan(session, '0162791000276', { qty: 4 }).session;
+    // Hoá đơn A: adapter nhận 1/3, loa IMEI nhận 1/2, thừa 0
+    session = scan(session, '0160014000813').session;
+    session = scan(session, 'IK20GF-BK022997').session;
+    session = scan(session, 'LA-001').session;
+    const report = buildReport(session, new Date(2026, 10, 20, 9, 5).getTime());
+
+    expect(report.invoices.map(item => [item.invoice.invoiceNo, item.complete, item.totals.missing, item.missingGroups])).toEqual([
+      ['2000001', false, 3, 2],
+      ['2000002', true, 0, 0],
+    ]);
+    expect(report.completeCount).toBe(1);
+    expect(report.missingGroups).toBe(2);
+    expect(report.fromStores).toEqual(['20001 - KHO_THU - Kho tổng thử']);
+    expect(report.toStores).toEqual(['900 - CH_THU - Cửa hàng thử']);
+    expect(report.senders).toEqual(['10001 - Nguyễn Văn Thử']);
+    expect(reportSummary(report)).toBe('1/2 MYC đủ hàng, thiếu 3 sản phẩm thuộc 2 nhóm, 1 mã không có trong phiếu.');
+
+    const text = reportText(report);
+    expect(text).toContain('BÁO CÁO KIỂM HÀNG NHẬN - 20/11/2026 09:05');
+    expect(text).toContain('Kho chuyển: 20001 - KHO_THU - Kho tổng thử');
+    expect(text).toContain('Người chuyển: 10001 - Nguyễn Văn Thử');
+    expect(text).toContain('[CHƯA ĐỦ] MYC CO0000000001 (HĐ 2000001, phiếu SC0000000001): nhận 4/7, thiếu 3 SP, 2 nhóm');
+    expect(text).toContain('  - 0160014000813 Adapter sạc Thử 20W: thiếu 2 (nhận 1/3)');
+    expect(text).toContain('  - 0164779000261 Loa Bluetooth Thử Đen - Imei (IMEI IK20GF-BK022998): thiếu 1 (nhận 0/1)');
+    expect(text).toContain('[ĐỦ] MYC CO0000000002 (HĐ 2000002, phiếu SC0000000002): 5/5');
+    expect(text).toContain('  - LA-001');
+    // Chỉ gửi phần chưa đủ
+    expect(reportText(report, { onlyProblems: true })).not.toContain('[ĐỦ]');
+
+    const rows = reportSheetRows(report);
+    expect(rows.find(row => row[0] === 'CO0000000001')?.slice(0, 12)).toEqual([
+      'CO0000000001', '2000001', 'SC0000000001', '17/11/2026 10:32', '10001 - Nguyễn Văn Thử', 7, 4, 3, 0, 2, 'Sạc/ Adapter (2), Loa di động (1)', 'Chưa đủ',
+    ]);
+    expect(rows.filter(row => row[3] === '0160014000813')).toEqual([['CO0000000001', '2000001', 'Sạc/ Adapter', '0160014000813', 'Adapter sạc Thử 20W', '', 3, 1, 2, 0]]);
+  });
+
+  it('chưa nhập file phiếu thì tên phiên theo kho chuyển', async () => {
+    const { session } = mergeFiles(createSession(0), [
+      parseSheetRows('a.xlsx', detailRows(HOA_DON_A.transferId, HOA_DON_A.orderId, HOA_DON_A.items)),
+      parseSheetRows('b.xlsx', detailRows(HOA_DON_B.transferId, HOA_DON_B.orderId, HOA_DON_B.items)),
+      parseSheetRows('c.xlsx', detailRows('SC0000000003', 'CO0000000003', HOA_DON_B.items)),
+    ]);
+    expect(sessionTitle(session)).toBe('3 phiếu chuyển từ KHO_THU - Kho tổng thử');
+    expect(session.invoices[0].toStoreName).toBe('900 - CH_THU - Cửa hàng thử');
   });
 });

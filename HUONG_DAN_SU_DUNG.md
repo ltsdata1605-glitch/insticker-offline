@@ -175,9 +175,11 @@ Dùng khi nhận kiện hàng kèm file Excel phiếu chuyển kho: đối chi�
    - **Mã không có trong file:** báo đỏ, quét lại. Mã đó được ghi vào **Mã lạ đã quét** ở cột phải; bấm × để xoá nếu quét nhầm.
    - **Quét quá số lượng:** báo vàng, tính là thừa.
    - **Hoàn tác** (hoặc Ctrl+Z) huỷ lần quét vừa rồi. Có thể sửa tay số thực nhận bằng nút − và + trên từng dòng.
-3. **Theo dõi:** các ô Theo file, Đã kiểm, Còn thiếu, Thừa, Mã lạ cập nhật ngay. Lọc danh sách theo Chưa đủ, Đủ, Thừa, Có IMEI, hoặc bấm một hoá đơn ở cột phải để chỉ xem hoá đơn đó.
-4. **Xuất Excel:** file gồm các trang Tổng hợp (theo hoá đơn), Chi tiết (đủ các cột của file kèm số thực nhận, chênh lệch, kết quả), Thiếu thừa, Mã lạ và Nhật ký quét.
-5. **Kết thúc:** lưu phiên vào **Lịch sử**. Trong Lịch sử có thể xuất Excel lại, mở lại để kiểm tiếp hoặc xoá.
+3. **Theo dõi:** các ô Theo file, Đã kiểm, Còn thiếu, Thừa, Mã lạ cập nhật ngay. Lọc danh sách theo Chưa đủ, Đủ, Thừa, Có IMEI, theo **nhóm hàng**, hoặc bấm một hoá đơn ở cột phải để chỉ xem hoá đơn đó. Thẻ hoá đơn ghi đủ MYC, ngày tạo, kho chuyển và người chuyển.
+4. **Báo cáo:** bấm **Báo cáo** ở góc ô Đang kiểm. Báo cáo cho biết từng MYC đã đủ hay chưa, thiếu bao nhiêu sản phẩm thuộc bao nhiêu nhóm hàng, danh sách cụ thể theo nhóm, kho chuyển, kho nhận và người chuyển.
+   - **Sao chép để gửi:** chép báo cáo thành tin nhắn, dán vào Zalo gửi người chuyển. Mặc định chỉ gồm các MYC chưa đủ; bỏ chọn **Chỉ gửi MYC chưa đủ** để gửi cả MYC đã đủ.
+   - **Xuất Excel:** file có trang **Báo cáo** ở đầu, sau đó là Tổng hợp (theo hoá đơn), Chi tiết (đủ các cột của file kèm số thực nhận, chênh lệch, kết quả), Thiếu thừa, Mã lạ và Nhật ký quét.
+5. **Kết thúc:** hiện báo cáo để gửi trước, bấm **Kết thúc và lưu** thì phiên vào **Lịch sử**. Trong Lịch sử có thể xem lại báo cáo, xuất Excel, mở lại để kiểm tiếp hoặc xoá.
 
 Kết quả tự lưu sau mỗi lần quét: lỡ đóng app thì mở lại kiểm tiếp được. Dữ liệu kiểm hàng có trong file sao lưu.
 

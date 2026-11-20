@@ -6,6 +6,11 @@ on:
   push:
     tags: ['v*']
 
+# Bộ cài của lần đẩy tag được cất vào bản phát hành nháp của repo này (không tính dung lượng kho artifact, máy người dùng
+# không thấy). Kho artifact của tài khoản chỉ khoảng 0,5 GB: đầy thì upload-artifact lỗi, nên bước đó không làm đỏ cả lượt.
+permissions:
+  contents: write
+
 jobs:
   windows:
     runs-on: windows-latest
@@ -33,9 +38,17 @@ jobs:
         continue-on-error: true
         shell: bash
         run: node scripts/thu-cap-nhat.mjs
+      - name: Cất bộ cài vào bản phát hành nháp
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/cat-ban-nhap.mjs release/*.exe release/*.exe.blockmap release/*.zip release/latest.yml
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: in-sticker-windows
+          retention-days: 3
           path: |
             release/*.exe
             release/*.zip
@@ -44,8 +57,10 @@ jobs:
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: failure() || steps.e2e.outcome == 'failure'
+        continue-on-error: true
         with:
           name: ket-qua-test-windows
+          retention-days: 7
           path: tests/output/
       - name: Báo đỏ nếu test lỗi
         if: steps.e2e.outcome == 'failure' || steps.cap_nhat.outcome == 'failure'
@@ -67,9 +82,16 @@ jobs:
       - run: npm run build
       - run: npx playwright test
       - run: npx electron-builder --mac zip --arm64 --x64 --publish never
+      - name: Cất bộ cài vào bản phát hành nháp
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/cat-ban-nhap.mjs release/*.zip release/*.zip.blockmap release/latest-mac.yml
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: in-sticker-mac
+          retention-days: 3
           path: |
             release/*.zip
             release/*.yml
@@ -77,6 +99,8 @@ jobs:
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: failure()
+        continue-on-error: true
         with:
           name: ket-qua-test-mac
+          retention-days: 7
           path: tests/output/

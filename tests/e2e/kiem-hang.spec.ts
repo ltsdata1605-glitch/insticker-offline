@@ -109,6 +109,34 @@ test('Kiểm hàng: nhập nhiều file, quét mã, IMEI, mã lạ, thừa, hoà
   await expect(kpi(win, 'con-thieu')).toHaveText('2');
   await win.getByRole('button', { name: /^Tất cả/ }).click();
 
+  // Lọc theo nhóm hàng
+  await win.getByLabel('Lọc theo nhóm hàng').selectOption('Loa di động');
+  await expect(win.locator('tbody tr')).toHaveCount(2);
+  await win.getByLabel('Lọc theo nhóm hàng').selectOption('');
+  await expect(win.locator('tbody tr')).toHaveCount(6);
+
+  // Thẻ hoá đơn hiện đủ kho chuyển và người chuyển
+  await expect(win.getByRole('button', { name: /HĐ 2000001/ })).toContainText('Người chuyển 10001 - Nguyễn Văn Thử');
+  await expect(win.getByRole('button', { name: /HĐ 2000001/ })).toContainText('Kho chuyển 20001 - KHO_THU - Kho tổng thử');
+
+  // Báo cáo: theo MYC, nhóm thiếu, kho và người chuyển; sao chép thành tin nhắn
+  await win.getByRole('button', { name: 'Báo cáo', exact: true }).click();
+  const report = win.getByRole('dialog', { name: 'Báo cáo kiểm hàng' });
+  await expect(report.getByTestId('bao-cao-tom-tat')).toHaveText('1/2 MYC đủ hàng, thiếu 2 sản phẩm thuộc 1 nhóm, 2 mã không có trong phiếu. Đã nhận 10/12 sản phẩm.');
+  await expect(report).toContainText('Người chuyển10001 - Nguyễn Văn Thử');
+  await expect(report).toContainText('Kho nhận900 - CH_THU - Cửa hàng thử');
+  await expect(report.getByRole('list', { name: 'Kết quả theo MYC' })).toContainText('MYC CO0000000001');
+  await expect(report).toContainText('Thiếu 2 SP · 1 nhóm');
+  await report.getByRole('button', { name: 'Sao chép để gửi' }).click();
+  await expect(win.getByText('Đã sao chép báo cáo', { exact: false })).toBeVisible();
+  const copied = await s.app.evaluate(({ clipboard }) => clipboard.readText());
+  expect(copied).toContain('BÁO CÁO KIỂM HÀNG NHẬN');
+  expect(copied).toContain('[CHƯA ĐỦ] MYC CO0000000001 (HĐ 2000001, phiếu SC0000000001)');
+  expect(copied).toContain('0160014000813 Adapter sạc Thử 20W: thiếu 2 (nhận 1/3)');
+  // Mặc định chỉ gửi MYC chưa đủ
+  expect(copied).not.toContain('[ĐỦ]');
+  await win.keyboard.press('Escape');
+
   // Đóng và mở lại app: vẫn kiểm tiếp được
   await s.close();
   s = await openApp(dirs);
@@ -123,7 +151,7 @@ test('Kiểm hàng: nhập nhiều file, quét mã, IMEI, mã lạ, thừa, hoà
   const [file] = downloadedFiles(dirs).filter(name => name.endsWith('.xlsx'));
   expect(file).toMatch(/^Kiem_hang_NB-THU-0001_\d{8}_\d{4}\.xlsx$/);
   const wb = XLSX.read(fs.readFileSync(path.join(dirs.downloads, file)));
-  expect(wb.SheetNames).toEqual(['Tổng hợp', 'Chi tiết', 'Thiếu thừa', 'Mã lạ', 'Nhật ký quét']);
+  expect(wb.SheetNames).toEqual(['Báo cáo', 'Tổng hợp', 'Chi tiết', 'Thiếu thừa', 'Mã lạ', 'Nhật ký quét']);
   const detail = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets['Chi tiết'], { header: 1 });
   expect(detail[2].slice(0, 8)).toEqual(['2000001', '0160014000813', 'Adapter sạc Thử 20W', '', 3, 1, -2, 'Thiếu']);
   const summary = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets['Tổng hợp'], { header: 1 });
@@ -137,9 +165,9 @@ test('Kiểm hàng: nhập nhiều file, quét mã, IMEI, mã lạ, thừa, hoà
   await openKiemHang(win);
   await expect(kpi(win, 'da-kiem')).toHaveText('10');
 
-  // Kết thúc: về màn chọn file, phiên vào lịch sử; mở lại từ lịch sử
+  // Kết thúc: hiện báo cáo, kết thúc và lưu thì về màn chọn file, phiên vào lịch sử; mở lại từ lịch sử
   await win.getByRole('button', { name: 'Kết thúc' }).click();
-  await win.getByRole('dialog').getByRole('button', { name: 'Kết thúc', exact: true }).click();
+  await win.getByRole('dialog', { name: 'Báo cáo kiểm hàng' }).getByRole('button', { name: 'Kết thúc và lưu' }).click();
   await expect(win.getByRole('heading', { name: 'Kiểm hàng nhận' })).toBeVisible();
   await win.getByRole('button', { name: 'Lịch sử (1)' }).click();
   const history = win.getByRole('dialog', { name: 'Lịch sử kiểm hàng' });
@@ -160,6 +188,8 @@ test('Kiểm hàng: nhập nhiều file, quét mã, IMEI, mã lạ, thừa, hoà
 test('Tắt Kiểm hàng trong bảng bật tắt tab thì thanh bên trái ẩn; tắt hết tab In sticker thì chỉ còn Kiểm hàng', async () => {
   const s = await openApp();
   const { win } = s;
+  // Cửa sổ nhỏ nhất (như máy Mac của CI): bảng bật tắt tab cao gần hết cửa sổ, nút Đóng không được bị thanh trên che
+  await s.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1100, 680));
   const openPanel = async () => {
     for (let i = 0; i < 7; i++) await win.getByTestId('app-logo').click();
     await win.getByRole('dialog', { name: 'Nhập mật khẩu' }).getByLabel('Mật khẩu').fill('12345');

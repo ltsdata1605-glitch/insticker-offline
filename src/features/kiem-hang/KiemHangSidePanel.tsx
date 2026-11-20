@@ -3,7 +3,8 @@ import { AppIcon } from '../../components/shared/ui/icon/AppIcon';
 import { Button } from '../../components/shared/ui/Button';
 import type { KiemHangSession } from './kiemHangData';
 import { invoiceLabel, sessionTitle, totalsOf } from './kiemHangData';
-import { timeText } from './kiemHangExport';
+import { fromStoreText, senderText } from './kiemHangReport';
+import { timeText } from './kiemHangData';
 
 interface KiemHangSidePanelProps {
     session: KiemHangSession;
@@ -12,6 +13,7 @@ interface KiemHangSidePanelProps {
     onAddFiles: () => void;
     onExport: () => void;
     onFinish: () => void;
+    onReport: () => void;
     onHistory: () => void;
     historyCount: number;
     onRemoveUnknown: (value: string, type: 'code' | 'imei') => void;
@@ -19,16 +21,19 @@ interface KiemHangSidePanelProps {
 
 /** Cột phải: thông tin phiên, các hoá đơn kèm tiến độ (bấm để lọc), mã lạ và các nút xuất file, kết thúc, lịch sử. */
 export const KiemHangSidePanel: React.FC<KiemHangSidePanelProps> = ({
-    session, invoiceFilter, onInvoiceFilter, onAddFiles, onExport, onFinish, onHistory, historyCount, onRemoveUnknown,
+    session, invoiceFilter, onInvoiceFilter, onAddFiles, onExport, onFinish, onReport, onHistory, historyCount, onRemoveUnknown,
 }) => {
     const lineCount = (transferId: string) => session.lines.filter(line => line.transferId === transferId);
     return (
         <aside aria-label="Thông tin phiên kiểm" className="w-[300px] xl:w-[340px] shrink-0 flex flex-col gap-3 min-h-0">
             <section className="rounded-card bg-white border border-slate-200 p-3 space-y-2.5 shrink-0">
-                <div>
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Đang kiểm</p>
-                    <p className="text-[15px] font-bold text-slate-900 leading-snug break-words">{sessionTitle(session)}</p>
-                    <p className="text-[11px] text-slate-500">Bắt đầu {timeText(session.createdAt)}</p>
+                <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Đang kiểm</p>
+                        <p className="text-[15px] font-bold text-slate-900 leading-snug break-words">{sessionTitle(session)}</p>
+                        <p className="text-[11px] text-slate-500">Bắt đầu {timeText(session.createdAt)}</p>
+                    </div>
+                    <Button size="sm" icon="report" onClick={onReport} className="shrink-0">Báo cáo</Button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                     <Button variant="secondary" size="sm" icon="upload" onClick={onAddFiles}>Thêm file</Button>
@@ -70,11 +75,12 @@ export const KiemHangSidePanel: React.FC<KiemHangSidePanelProps> = ({
                                             </span>
                                         )}
                                     </span>
-                                    <span className="block text-[11px] text-slate-500 truncate">
-                                        {[invoice.orderId && `MYC ${invoice.orderId}`, invoice.createdAt].filter(Boolean).join(' · ')}
-                                    </span>
-                                    <span className="block text-[11px] text-slate-500 truncate">
-                                        {[invoice.fromStoreName, invoice.user && `User ${invoice.user}${invoice.userName ? ` - ${invoice.userName}` : ''}`].filter(Boolean).join(' · ')}
+                                    <span className="mt-0.5 block text-[11px] leading-snug text-slate-600 break-words space-y-px">
+                                        {invoice.orderId && <span className="block"><span className="text-slate-400">MYC</span> {invoice.orderId}</span>}
+                                        {invoice.invoiceNo && <span className="block"><span className="text-slate-400">Phiếu</span> {invoice.transferId}</span>}
+                                        {invoice.createdAt && <span className="block"><span className="text-slate-400">Ngày tạo</span> {invoice.createdAt}</span>}
+                                        {invoice.fromStoreName && <span className="block"><span className="text-slate-400">Kho chuyển</span> {fromStoreText(invoice)}</span>}
+                                        {invoice.user && <span className="block"><span className="text-slate-400">Người chuyển</span> {senderText(invoice)}</span>}
                                     </span>
                                     {invoice.hasDetail && (
                                         <span className="mt-1.5 block h-1.5 rounded-full bg-slate-100 overflow-hidden" aria-hidden="true">

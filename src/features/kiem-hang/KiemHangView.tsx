@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppIcon } from '../../components/shared/ui/icon/AppIcon';
 import { Button } from '../../components/shared/ui/Button';
-import { ConfirmDialog } from '../../components/shared/ui/ConfirmDialog';
 import { TopBarActions } from '../../components/shared/ui/TopBarActions';
 import { toast } from '../../components/shared/ui/toast';
 import Scanner from '../sticker-event/Scanner';
@@ -16,6 +15,7 @@ import { loadCurrent, loadHistory, MAX_HISTORY, saveCurrent, saveHistory } from 
 import { KiemHangTable } from './KiemHangTable';
 import { KiemHangSidePanel } from './KiemHangSidePanel';
 import { KiemHangHistoryDialog } from './KiemHangHistoryDialog';
+import { KiemHangReportDialog } from './KiemHangReportDialog';
 
 type StatusFilter = 'all' | 'notdone' | 'ok' | 'over' | 'imei';
 
@@ -141,7 +141,9 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
     const [invoiceFilter, setInvoiceFilter] = useState<string | null>(null);
     const [search, setSearch] = useState('');
     const [historyOpen, setHistoryOpen] = useState(false);
-    const [finishOpen, setFinishOpen] = useState(false);
+    const [groupFilter, setGroupFilter] = useState('');
+    /** Báo cáo đang xem: phiên đang kiểm (mở từ nút Báo cáo hoặc Kết thúc) hoặc một phiên trong lịch sử */
+    const [reportOf, setReportOf] = useState<{ session: KiemHangSession; mode: 'view' | 'finish' } | null>(null);
     const [cameraOpen, setCameraOpen] = useState(false);
     const [dragging, setDragging] = useState(false);
     const scanRef = useRef<HTMLInputElement>(null);
@@ -218,18 +220,19 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
         if (outcome.kind === 'ok' || outcome.kind === 'over') setQty(1);
         beep(outcome.kind === 'ok' || outcome.kind === 'imei-ok' || outcome.kind === 'need-imei' ? 'ok'
             : outcome.kind === 'over' || outcome.kind === 'imei-dup' ? 'warn' : 'error');
-        if (outcome.line && (statusFilter !== 'all' || invoiceFilter || search)) {
+        if (outcome.line && (statusFilter !== 'all' || invoiceFilter || groupFilter || search)) {
             // Dòng vừa quét có thể đang bị bộ lọc ẩn: bỏ lọc để thấy dòng đó
             const got = outcome.session.received[outcome.line.key] ?? 0;
             const filter = FILTERS.find(item => item.id === statusFilter)!;
-            if (!filter.test(outcome.line, got) || (invoiceFilter && invoiceFilter !== outcome.line.transferId)) {
+            if (!filter.test(outcome.line, got) || (invoiceFilter && invoiceFilter !== outcome.line.transferId) || (groupFilter && groupFilter !== outcome.line.group)) {
                 setStatusFilter('all');
                 setInvoiceFilter(null);
+                setGroupFilter('');
             }
             setSearch('');
         }
         return outcome.kind === 'ok' || outcome.kind === 'imei-ok' || outcome.kind === 'need-imei';
-    }, [commit, qty, pendingCode, statusFilter, invoiceFilter, search]);
+    }, [commit, qty, pendingCode, statusFilter, invoiceFilter, groupFilter, search]);
 
     const undo = useCallback(() => {
         const current = sessionRef.current;
@@ -273,7 +276,15 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
         return invoice ? invoiceLabel(invoice) : transferId;
     }, [invoiceMap]);
     const totals = useMemo(() => totalsOf(lines, received), [lines, received]);
-    const scopeLines = useMemo(() => (invoiceFilter ? lines.filter(line => line.transferId === invoiceFilter) : lines), [lines, invoiceFilter]);
+    const groups = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const line of lines) counts.set(line.group, (counts.get(line.group) ?? 0) + 1);
+        return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0], 'vi'));
+    }, [lines]);
+    const scopeLines = useMemo(
+        () => lines.filter(line => (!invoiceFilter || line.transferId === invoiceFilter) && (!groupFilter || line.group === groupFilter)),
+        [lines, invoiceFilter, groupFilter],
+    );
     const searchKey = search.trim().toLowerCase();
     const shownLines = useMemo(() => {
         const filter = FILTERS.find(item => item.id === statusFilter)!;
@@ -291,18 +302,18 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
         }
     };
 
-    const finish = (exportFirst: boolean) => {
+    const finish = () => {
         const current = sessionRef.current;
-        setFinishOpen(false);
+        setReportOf(null);
         if (!current) return;
         const done = { ...current, finishedAt: Date.now() };
-        if (exportFirst) void exportCurrent(done);
         commitHistory([done, ...history.filter(item => item.id !== done.id)]);
         commit(null);
         setFeedback(null);
         setPendingCode(null);
         setStatusFilter('all');
         setInvoiceFilter(null);
+        setGroupFilter('');
         setSearch('');
         toast.success('Đã kết thúc và lưu vào Lịch sử');
     };
@@ -469,13 +480,24 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
                                         <AppIcon name="close" size="xs" />
                                     </button>
                                 )}
+                                <select
+                                    value={groupFilter}
+                                    onChange={event => setGroupFilter(event.target.value)}
+                                    aria-label="Lọc theo nhóm hàng"
+                                    className={`ml-auto h-8 max-w-[220px] rounded-control border px-2 text-[13px] focus:outline-none focus:border-sky-400 ${groupFilter ? 'border-sky-400 bg-sky-50 text-sky-800 font-semibold' : 'border-slate-200 bg-white text-slate-700'}`}
+                                >
+                                    <option value="">Tất cả nhóm hàng ({groups.length})</option>
+                                    {groups.map(([name, count]) => (
+                                        <option key={name} value={name}>{name || 'Chưa có nhóm'} ({count})</option>
+                                    ))}
+                                </select>
                                 <input
                                     type="search"
                                     value={search}
                                     onChange={event => setSearch(event.target.value)}
                                     placeholder="Tìm mã, tên, IMEI…"
                                     aria-label="Tìm trong danh sách"
-                                    className="ml-auto w-48 h-8 rounded-control border border-slate-200 px-2.5 text-[13px] focus:outline-none focus:border-sky-400"
+                                    className="w-44 h-8 rounded-control border border-slate-200 px-2.5 text-[13px] focus:outline-none focus:border-sky-400"
                                 />
                             </div>
                             <div className="flex-1 min-h-0 overflow-auto scrollbar-thin">
@@ -500,7 +522,8 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
                         onInvoiceFilter={setInvoiceFilter}
                         onAddFiles={() => fileRef.current?.click()}
                         onExport={() => void exportCurrent()}
-                        onFinish={() => setFinishOpen(true)}
+                        onFinish={() => setReportOf({ session: session!, mode: 'finish' })}
+                        onReport={() => setReportOf({ session: session!, mode: 'view' })}
                         onHistory={() => setHistoryOpen(true)}
                         historyCount={history.length}
                         onRemoveUnknown={(value, type) => {
@@ -536,34 +559,24 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
                     }}
                     onOpen={reopen}
                     onExport={target => void exportCurrent(target)}
+                    onReport={target => setReportOf({ session: target, mode: 'view' })}
                     onDelete={target => commitHistory(history.filter(item => item.id !== target.id))}
                 />
             )}
 
-            <ConfirmDialog
-                isOpen={finishOpen}
-                onClose={() => {
-                    setFinishOpen(false);
-                    focusScan();
-                }}
-                onConfirm={() => finish(false)}
-                title="Kết thúc phiên kiểm?"
-                variant={totals.missing || totals.extra || unknownCount ? 'warning' : 'success'}
-                confirmText="Kết thúc"
-                cancelText="Kiểm tiếp"
-                extraAction={{ text: 'Xuất Excel rồi kết thúc', onClick: () => finish(true) }}
-                message={
-                    <span className="block space-y-1">
-                        <span className="block">Đã nhận {totals.received.toLocaleString('vi-VN')}/{totals.expected.toLocaleString('vi-VN')} sản phẩm của {session?.invoices.length ?? 0} hoá đơn.</span>
-                        <span className="block font-semibold">
-                            {totals.missing || totals.extra || unknownCount
-                                ? [totals.missing && `Thiếu ${totals.missing}`, totals.extra && `thừa ${totals.extra}`, unknownCount && `${unknownCount} mã lạ`].filter(Boolean).join(', ') + '.'
-                                : 'Đủ hàng, không có mã lạ.'}
-                        </span>
-                        <span className="block text-[13px] text-slate-500">Phiên được lưu vào Lịch sử, mở lại hoặc xuất Excel được bất cứ lúc nào.</span>
-                    </span>
-                }
-            />
+            {reportOf && (
+                <KiemHangReportDialog
+                    // Đang xem phiên hiện tại thì cập nhật theo lần quét mới nhất
+                    session={reportOf.session.id === session?.id ? session : reportOf.session}
+                    mode={reportOf.mode}
+                    onClose={() => {
+                        setReportOf(null);
+                        focusScan();
+                    }}
+                    onExport={() => void exportCurrent(reportOf.session.id === session?.id ? session : reportOf.session)}
+                    onFinish={finish}
+                />
+            )}
         </div>
     );
 }

@@ -4,19 +4,20 @@ import { Button } from '../../components/shared/ui/Button';
 import { EmptyState } from '../../components/shared/ui/EmptyState';
 import type { KiemHangSession } from './kiemHangData';
 import { sessionTitle, totalsOf, unknownTotal } from './kiemHangData';
-import { timeText } from './kiemHangExport';
+import { timeText } from './kiemHangData';
 
 interface KiemHangHistoryDialogProps {
     history: KiemHangSession[];
     onClose: () => void;
     onOpen: (session: KiemHangSession) => void;
     onExport: (session: KiemHangSession) => void;
+    onReport: (session: KiemHangSession) => void;
     onDelete: (session: KiemHangSession) => void;
 }
 
 /** Các lần kiểm đã kết thúc: xem kết quả, xuất lại Excel, mở lại để kiểm tiếp, hoặc xoá. */
-export const KiemHangHistoryDialog: React.FC<KiemHangHistoryDialogProps> = ({ history, onClose, onOpen, onExport, onDelete }) => (
-    <Modal isOpen={true} onClose={onClose} title="Lịch sử kiểm hàng" maxWidth="xl">
+export const KiemHangHistoryDialog: React.FC<KiemHangHistoryDialogProps> = ({ history, onClose, onOpen, onExport, onReport, onDelete }) => (
+    <Modal isOpen={true} onClose={onClose} title="Lịch sử kiểm hàng" maxWidth="xl" zIndex="z-[200]">
         {history.length === 0 ? (
             <EmptyState icon="history" title="Chưa có lần kiểm nào" description="Bấm Kết thúc khi kiểm xong, phiên kiểm sẽ được lưu ở đây." compact />
         ) : (
@@ -37,6 +38,7 @@ export const KiemHangHistoryDialog: React.FC<KiemHangHistoryDialogProps> = ({ hi
                                 </p>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
+                                <Button variant="secondary" size="sm" icon="report" onClick={() => onReport(session)}>Báo cáo</Button>
                                 <Button variant="secondary" size="sm" icon="spreadsheet" onClick={() => onExport(session)}>Xuất Excel</Button>
                                 <Button variant="secondary" size="sm" onClick={() => onOpen(session)}>Mở lại</Button>
                                 <Button variant="ghost" size="sm" icon="delete" aria-label={`Xoá ${sessionTitle(session)}`} onClick={() => onDelete(session)} className="text-rose-600" />

@@ -143,7 +143,8 @@ const ControlStep: React.FC = () => {
 export const TabAccessDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const [unlocked, setUnlocked] = useState(false);
     return (
-        <Modal isOpen={true} onClose={onClose} title={unlocked ? 'Bật tắt các tab' : 'Nhập mật khẩu'} maxWidth={unlocked ? 'md' : 'sm'}>
+        // Nằm trên thanh trên cùng: cửa sổ thấp thì bảng cao gần hết cửa sổ, thanh trên đè lên nút Đóng
+        <Modal isOpen={true} onClose={onClose} title={unlocked ? 'Bật tắt các tab' : 'Nhập mật khẩu'} maxWidth={unlocked ? 'md' : 'sm'} zIndex="z-[200]">
             {unlocked ? <ControlStep /> : <PasswordStep onUnlocked={() => setUnlocked(true)} />}
         </Modal>
     );

@@ -34,6 +34,10 @@ export interface KiemHangLine {
     userName: string;
     fromStoreId: string;
     fromStoreName: string;
+    /** TOSTOREID, TOSTORENAME, TRANSPORTVOUCHERID. Phiên lưu từ bản trước không có. */
+    toStoreId?: string;
+    toStoreName?: string;
+    transportVoucher?: string;
 }
 
 export interface KiemHangInvoice {
@@ -116,6 +120,12 @@ const text = (value: unknown): string => String(value ?? '').trim();
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
+/** Giờ trên máy, dạng dd/mm/yyyy HH:mm:ss */
+export const timeText = (ms: number): string => {
+    const d = new Date(ms);
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
+
 /** Ngày trong file là số ngày kiểu Excel (46343.43...). Ô đã là chữ thì giữ nguyên. */
 export const excelDateText = (value: unknown): string => {
     if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
@@ -152,6 +162,9 @@ const DETAIL_COLUMNS = {
     userName: 'fullname',
     fromStoreId: 'fromstoreid',
     fromStoreName: 'fromstorename',
+    toStoreId: 'tostoreid',
+    toStoreName: 'tostorename',
+    voucher: 'transportvoucherid',
     transferId: 'storechangeid',
 } as const;
 
@@ -207,6 +220,9 @@ export const parseSheetRows = (fileName: string, rows: unknown[][]): ParsedFile 
                 userName: text(get(row, DETAIL_COLUMNS.userName)),
                 fromStoreId: text(get(row, DETAIL_COLUMNS.fromStoreId)),
                 fromStoreName: text(get(row, DETAIL_COLUMNS.fromStoreName)),
+                toStoreId: text(get(row, DETAIL_COLUMNS.toStoreId)),
+                toStoreName: text(get(row, DETAIL_COLUMNS.toStoreName)),
+                transportVoucher: text(get(row, DETAIL_COLUMNS.voucher)),
             });
         });
         const valid = lines.filter(line => line.expected > 0);
@@ -317,6 +333,9 @@ export const mergeFiles = (session: KiemHangSession, files: ParsedFile[], now = 
             invoice.userName = first.userName;
             invoice.fromStoreId = first.fromStoreId;
             invoice.fromStoreName = first.fromStoreName || invoice.fromStoreName;
+            // File phiếu ghi kho nhận dạng "910 - Tên kho"; file chi tiết tách mã và tên
+            if (!invoice.toStoreName && first.toStoreName) invoice.toStoreName = [first.toStoreId, first.toStoreName].filter(Boolean).join(' - ');
+            if (!invoice.transportVoucher && first.transportVoucher) invoice.transportVoucher = first.transportVoucher;
             if (!invoice.fileNames.includes(file.fileName)) invoice.fileNames.push(file.fileName);
             lines.push(...fileLines);
             report.added.push(label);
@@ -515,7 +534,10 @@ export const sessionTitle = (session: Pick<KiemHangSession, 'invoices'>): string
     if (vouchers.length === 1) return `Chứng từ ${vouchers[0]}`;
     const labels = session.invoices.map(invoiceLabel);
     if (labels.length === 0) return 'Phiên kiểm mới';
-    return labels.length <= 3 ? labels.join(', ') : `${labels.slice(0, 2).join(', ')} và ${labels.length - 2} hoá đơn khác`;
+    if (labels.length <= 2) return labels.join(', ');
+    // Chưa có file phiếu (không có chứng từ): gọi theo kho chuyển cho dễ nhận ra
+    const stores = [...new Set(session.invoices.map(invoice => invoice.fromStoreName).filter(Boolean))];
+    return stores.length === 1 ? `${labels.length} phiếu chuyển từ ${stores[0]}` : `${labels.length} phiếu chuyển`;
 };
 
 export const unknownTotal = (session: Pick<KiemHangSession, 'unknown'>): number =>

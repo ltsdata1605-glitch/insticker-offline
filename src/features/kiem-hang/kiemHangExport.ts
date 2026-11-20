@@ -1,5 +1,6 @@
 import type { KiemHangSession, ScanResultKind } from './kiemHangData';
-import { lineState, sessionTitle, totalsOf } from './kiemHangData';
+import { lineState, sessionTitle, timeText, totalsOf } from './kiemHangData';
+import { buildReport, reportSheetRows } from './kiemHangReport';
 
 const STATE_TEXT = { pending: 'Chưa kiểm', partial: 'Thiếu', ok: 'Đủ', over: 'Thừa' } as const;
 
@@ -14,10 +15,7 @@ const KIND_TEXT: Record<ScanResultKind, string> = {
 };
 
 const pad = (n: number) => String(n).padStart(2, '0');
-export const timeText = (ms: number): string => {
-    const d = new Date(ms);
-    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-};
+export { timeText };
 
 export interface ExportSheet {
     name: string;
@@ -87,7 +85,8 @@ export const buildExportSheets = (session: KiemHangSession): ExportSheet[] => {
         ],
     };
 
-    return [summary, detail, diff, unknown, log];
+    const report: ExportSheet = { name: 'Báo cáo', widths: [24, 14, 22, 17, 24, 11, 9, 8, 8, 12, 40, 11], rows: reportSheetRows(buildReport(session)) };
+    return [report, summary, detail, diff, unknown, log];
 };
 
 const safeName = (value: string) => value.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '_').slice(0, 60);
