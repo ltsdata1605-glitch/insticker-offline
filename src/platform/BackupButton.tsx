@@ -24,7 +24,7 @@ const createBackupFile = async (): Promise<void> => {
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
   const link = document.createElement('a');
   link.href = url;
-  link.download = `in-sticker-sao-luu-${stamp}.json`;
+  link.download = `tools-sao-luu-${stamp}.json`;
   document.body.appendChild(link);
   link.click();
   link.remove();

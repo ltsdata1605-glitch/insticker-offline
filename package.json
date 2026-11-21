@@ -1,8 +1,8 @@
 {
   "name": "insticker-offline",
-  "productName": "In Sticker",
-  "version": "1.5.0",
-  "description": "In Sticker offline cho macOS và Windows",
+  "productName": "Tools",
+  "version": "1.6.0",
+  "description": "Tools: In Sticker, Kiểm hàng, Kiểm quỹ, Nhắc việc, Tạo mã, chạy offline trên macOS và Windows",
   "private": true,
   "type": "module",
   "main": "dist-electron/main.cjs",
@@ -63,7 +63,7 @@
   },
   "build": {
     "appId": "vn.insticker.offline",
-    "productName": "In Sticker",
+    "productName": "Tools",
     "directories": {
       "output": "release"
     },
@@ -83,8 +83,8 @@
       ],
       "identity": "-",
       "extendInfo": {
-        "NSCameraUsageDescription": "In Sticker dùng camera để quét mã vạch sản phẩm và chụp ảnh checklist.",
-        "NSMicrophoneUsageDescription": "In Sticker dùng micro để ghi âm làm chuông nhắc việc.",
+        "NSCameraUsageDescription": "Tools dùng camera để quét mã vạch sản phẩm và chụp ảnh checklist.",
+        "NSMicrophoneUsageDescription": "Tools dùng micro để ghi âm làm chuông nhắc việc.",
         "NSAppSleepDisabled": true
       },
       "hardenedRuntime": false
@@ -95,7 +95,7 @@
       ],
       "signAndEditExecutable": false
     },
-    "artifactName": "InSticker-${version}-${os}-${arch}.${ext}",
+    "artifactName": "Tools-${version}-${os}-${arch}.${ext}",
     "publish": [
       {
         "provider": "generic",

@@ -174,8 +174,28 @@ export class ReminderHost {
     };
   }
 
+  /**
+   * Windows: bản cũ tên In Sticker ghi mục khởi động trỏ tới "In Sticker.exe". Cập nhật lên Tools thì tệp đó không còn, mục cũ
+   * thành mục hỏng nằm cạnh mục mới: tìm và bỏ đúng các mục trỏ tới tệp cũ trong thư mục app.
+   */
+  private removeLegacyLoginItems(): void {
+    if (process.platform !== 'win32') return;
+    const legacy = path.join(path.dirname(process.execPath), 'In Sticker.exe');
+    if (legacy.toLowerCase() === process.execPath.toLowerCase()) return;
+    try {
+      for (const args of [[LOGIN_ARG], []]) {
+        for (const item of app.getLoginItemSettings({ path: legacy, args }).launchItems ?? []) {
+          app.setLoginItemSettings({ openAtLogin: false, path: item.path, args: item.args, name: item.name });
+        }
+      }
+    } catch (error) {
+      console.error('[Nhắc việc] Không bỏ được mục khởi động cũ', error);
+    }
+  }
+
   private applyLoginItem(): void {
     if (!this.loginItemAvailable) return;
+    this.removeLegacyLoginItems();
     try {
       app.setLoginItemSettings({ openAtLogin: this.settings.openAtLogin, args: [LOGIN_ARG] });
     } catch (error) {
@@ -215,9 +235,9 @@ export class ReminderHost {
     try {
       const image = nativeImage.createFromPath(this.options.trayIconPath);
       this.tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image);
-      this.tray.setToolTip('In Sticker: đang chạy để nhắc việc');
+      this.tray.setToolTip('Tools: đang chạy để nhắc việc');
       this.tray.setContextMenu(Menu.buildFromTemplate([
-        { label: 'Mở In Sticker', click: () => this.options.showMainWindow() },
+        { label: 'Mở Tools', click: () => this.options.showMainWindow() },
         { type: 'separator' },
         { label: 'Thoát hẳn (không nhắc việc nữa)', click: () => this.quit() },
       ]));
@@ -239,8 +259,8 @@ export class ReminderHost {
     if (this.quitting || !this.settings.runInBackground) return false;
     if (!this.settings.hiddenNoticeShown && !this.options.isTest && Notification.isSupported()) {
       new Notification({
-        title: 'In Sticker vẫn đang chạy',
-        body: 'App chạy nền để nhắc việc đúng giờ. Muốn tắt hẳn: bấm biểu tượng In Sticker ở khay hệ thống, chọn Thoát hẳn.',
+        title: 'Tools vẫn đang chạy',
+        body: 'App chạy nền để nhắc việc đúng giờ. Muốn tắt hẳn: bấm biểu tượng Tools ở khay hệ thống, chọn Thoát hẳn.',
       }).show();
       this.settings.hiddenNoticeShown = true;
       this.writeSettings();

@@ -1,5 +1,5 @@
 /**
- * CẦU NỐI NHẮC VIỆC: đồng bộ hai chiều giữa file Google Sheet và app In Sticker
+ * CẦU NỐI NHẮC VIỆC: đồng bộ hai chiều giữa file Google Sheet và app Tools (trước đây tên In Sticker)
  *
  * Dán vào FILE MẪU một lần (mọi bản sao tạo từ file mẫu tự có sẵn):
  *   1. Mở file mẫu, menu Tiện ích mở rộng → Apps Script.
@@ -13,7 +13,7 @@
  * Sửa script này sau khi đã triển khai: Triển khai → Quản lý bản triển khai → bút chì → Phiên bản: Phiên bản mới → Triển khai.
  * Link kết nối giữ nguyên.
  *
- * Phần "Lõi" không gọi dịch vụ nào của Google: app In Sticker dùng chính phần này để kiểm thử, đừng sửa riêng ở đây.
+ * Phần "Lõi" không gọi dịch vụ nào của Google: app Tools dùng chính phần này để kiểm thử, đừng sửa riêng ở đây.
  */
 
 const CN_PHIEN_BAN = 1;
@@ -652,7 +652,7 @@ function moBatDongBo() {
     + '<button onclick="chep()">Sao chép Link kết nối</button>'
     + '<ol>'
     + '<li>Ở máy cần nhận việc: sao chép link.</li>'
-    + '<li>Mở app In Sticker → <b>Nhắc việc → Cài đặt → Dán link đã sao chép</b>.</li>'
+    + '<li>Mở app Tools → <b>Nhắc việc → Cài đặt → Dán link đã sao chép</b>.</li>'
     + '</ol>'
     + '<p class="nho">Ai có link đều đọc và ghi được file qua app, chỉ gửi cho người trong cửa hàng. File không cần chia sẻ công khai nữa. Lỡ gửi nhầm: bấm Đổi mã, rồi gửi lại link mới cho các máy.</p>'
     + '<button class="phu" onclick="doiMa()">Đổi mã kết nối</button>'

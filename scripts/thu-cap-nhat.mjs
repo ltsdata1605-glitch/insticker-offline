@@ -1,6 +1,7 @@
 // Cập nhật thật, không gắn Playwright: đóng gói bản cũ và bản mới, chạy bản cũ từ thư mục tạm rồi chờ app tự tải,
 // tự thay sang bản mới từ máy chủ cục bộ và tự mở lại. Cần build trước. Chạy: npm run test:cap-nhat
 // Lỗi chỉ thỉnh thoảng mới xuất hiện thì lặp nhiều vòng và giảm thời gian chờ: LAP=12 CHO_GIAY=150 npm run test:cap-nhat
+// Cập nhật từ một bản đã phát hành (tải bộ cài thật về làm bản cũ), ví dụ từ In Sticker 1.5.0 lên Tools: BAN_CU=1.5.0 npm run test:cap-nhat
 import { execFile, execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createReadStream } from 'node:fs';
 import fs from 'node:fs';
@@ -12,10 +13,26 @@ import { promisify } from 'node:util';
 const ROUNDS = Number(process.env.LAP ?? 1);
 const TIMEOUT_MS = Number(process.env.CHO_GIAY ?? 480) * 1000;
 const isMac = process.platform === 'darwin';
-const { version: oldVersion } = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-const [major, minor, patch] = oldVersion.split('-')[0].split('.').map(Number);
-const newVersion = `${major}.${minor}.${patch + 1}`;
-const newInstallerName = `InSticker-${newVersion}-win-x64.exe`;
+const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+const bump = (version) => {
+  const [major, minor, patch] = version.split('-')[0].split('.').map(Number);
+  return `${major}.${minor}.${patch + 1}`;
+};
+const newer = (a, b) => {
+  const [x, y] = [a, b].map((v) => v.split('-')[0].split('.').map(Number));
+  for (let i = 0; i < 3; i += 1) if (x[i] !== y[i]) return x[i] > y[i];
+  return false;
+};
+const RELEASES = 'https://github.com/ltsdata1605-glitch/insticker-offline-releases/releases/download';
+/** Bản đã phát hành làm bản cũ (rỗng là đóng gói bản cũ từ mã nguồn hiện tại) */
+const fromRelease = process.env.BAN_CU ?? '';
+// App tên In Sticker tới 1.5.x, đổi thành Tools từ 1.6.0; tên tệp cài đổi theo
+const nameOf = (version) => (newer('1.6.0', version) ? { app: 'In Sticker', prefix: 'InSticker' } : { app: pkg.productName, prefix: 'Tools' });
+const oldVersion = fromRelease || pkg.version;
+const newVersion = fromRelease && newer(pkg.version, fromRelease) ? pkg.version : bump(pkg.version);
+const oldName = fromRelease ? nameOf(fromRelease) : { app: pkg.productName, prefix: 'Tools' };
+const newName = { app: pkg.productName, prefix: 'Tools' };
+const newInstallerName = `${newName.prefix}-${newVersion}-win-x64.exe`;
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'thu-cap-nhat-'));
 const dirs = { old: path.join(root, 'cu'), new: path.join(root, 'moi'), app: path.join(root, 'app'), data: path.join(root, 'du-lieu'), downloads: path.join(root, 'tai-ve') };
@@ -33,8 +50,16 @@ const pack = (output, extra = []) => {
   });
 };
 
-log(`Đóng gói bản cũ ${oldVersion} và bản mới ${newVersion}`);
-pack(dirs.old);
+const oldFile = isMac ? `${oldName.prefix}-${oldVersion}-mac-${process.arch}.zip` : `${oldName.prefix}-${oldVersion}-win-x64.exe`;
+if (fromRelease) {
+  log(`Tải bản đã phát hành ${oldVersion} (${oldName.app}), đóng gói bản mới ${newVersion} (${newName.app})`);
+  const response = await fetch(`${RELEASES}/v${oldVersion}/${encodeURIComponent(oldFile)}`);
+  if (!response.ok) throw new Error(`Không tải được ${oldFile}: mã ${response.status}`);
+  fs.writeFileSync(path.join(dirs.old, oldFile), Buffer.from(await response.arrayBuffer()));
+} else {
+  log(`Đóng gói bản cũ ${oldVersion} và bản mới ${newVersion}`);
+  pack(dirs.old);
+}
 pack(dirs.new, [`-c.extraMetadata.version=${newVersion}`]);
 
 // Máy chủ giả chỉ phục vụ tệp của bản mới
@@ -61,23 +86,30 @@ const updaterLog = path.join(dirs.data, 'cap-nhat.log');
 // Dữ liệu người dùng phải còn nguyên sau khi cập nhật
 const marker = path.join(dirs.data, 'du-lieu-nguoi-dung.txt');
 
-const macPaths = () => {
-  const bundle = path.join(dirs.app, 'In Sticker.app');
-  return { bundle, exe: path.join(bundle, 'Contents', 'MacOS', 'In Sticker'), plist: path.join(bundle, 'Contents', 'Info.plist') };
+/** Bản app trên Mac: lấy bản đang có trong thư mục app (tên mới trước), không có thì theo tên `name` */
+const macPaths = (name = newName.app) => {
+  const present = [newName.app, oldName.app].find((candidate) => fs.existsSync(path.join(dirs.app, `${candidate}.app`)));
+  const appName = present ?? name;
+  const bundle = path.join(dirs.app, `${appName}.app`);
+  return { bundle, exe: path.join(bundle, 'Contents', 'MacOS', appName), plist: path.join(bundle, 'Contents', 'Info.plist') };
 };
-const winPaths = () => ({ exe: path.join(dirs.app, 'In Sticker.exe'), asar: path.join(dirs.app, 'resources', 'app.asar'), uninstaller: path.join(dirs.app, 'Uninstall In Sticker.exe') });
+const winPaths = (name = newName.app) => ({
+  exe: path.join(dirs.app, `${name}.exe`),
+  asar: path.join(dirs.app, 'resources', 'app.asar'),
+  uninstaller: [newName.app, oldName.app].map((candidate) => path.join(dirs.app, `Uninstall ${candidate}.exe`)).find((file) => fs.existsSync(file))
+    ?? path.join(dirs.app, `Uninstall ${name}.exe`),
+});
 
 const installOld = () => {
   if (isMac) {
-    const zip = path.join(dirs.old, `InSticker-${oldVersion}-mac-${process.arch}.zip`);
-    execFileSync('/usr/bin/ditto', ['-x', '-k', zip, dirs.app]);
-    return macPaths().exe;
+    execFileSync('/usr/bin/ditto', ['-x', '-k', path.join(dirs.old, oldFile), dirs.app]);
+    return macPaths(oldName.app).exe;
   }
-  const installer = path.join(dirs.old, `InSticker-${oldVersion}-win-x64.exe`);
+  const installer = path.join(dirs.old, oldFile);
   // Tham số /D của NSIS phải đứng cuối và không được có dấu ngoặc kép
   const result = spawnSync(`"${installer}" /S /D=${dirs.app}`, { shell: true, stdio: 'inherit' });
   if (result.status !== 0) throw new Error(`Bộ cài bản cũ trả về mã ${result.status}`);
-  return winPaths().exe;
+  return winPaths(oldName.app).exe;
 };
 
 const installedVersion = () => {
@@ -94,7 +126,7 @@ const stopApp = () => {
     spawnSync('/usr/bin/pkill', ['-9', '-f', path.basename(root)]);
     return;
   }
-  spawnSync('taskkill', ['/IM', 'In Sticker.exe', '/F', '/T']);
+  for (const name of new Set([oldName.app, newName.app])) spawnSync('taskkill', ['/IM', `${name}.exe`, '/F', '/T']);
   spawnSync('taskkill', ['/IM', newInstallerName, '/F', '/T']);
 };
 
@@ -104,7 +136,7 @@ const describeWindows = async () => {
   const counts = new Map();
   for (const line of stdout.split(/\r?\n/)) {
     const name = line.split('","')[0].replace(/^"/, '');
-    if (/sticker|uninstall|^un_|^au_|\.tmp$/i.test(name)) counts.set(name, (counts.get(name) ?? 0) + 1);
+    if (/sticker|tools|uninstall|^un_|^au_|\.tmp$/i.test(name)) counts.set(name, (counts.get(name) ?? 0) + 1);
   }
   const processes = [...counts].map(([name, count]) => `${name} x${count}`).join(', ') || 'không có';
   const { asar, uninstaller } = winPaths();
@@ -140,8 +172,8 @@ const waitForReopen = async () => {
       const saved = fs.existsSync(settingsFile) ? JSON.parse(fs.readFileSync(settingsFile, 'utf8')) : {};
       if (saved.lastRunVersion === newVersion) return true;
     } else {
-      const list = spawnSync('tasklist', ['/FI', 'IMAGENAME eq In Sticker.exe'], { encoding: 'utf8' }).stdout;
-      if (list.includes('In Sticker.exe')) return true;
+      const list = spawnSync('tasklist', ['/FI', `IMAGENAME eq ${newName.app}.exe`], { encoding: 'utf8' }).stdout;
+      if (list.includes(`${newName.app}.exe`)) return true;
     }
   }
   return false;
@@ -158,7 +190,7 @@ const reportFailure = (round, timeline) => {
   if (isMac) return;
   console.log('--- Tiến trình kèm tiêu đề cửa sổ');
   const verbose = spawnSync('tasklist', ['/V', '/FO', 'CSV', '/NH'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }).stdout ?? '';
-  console.log(verbose.split(/\r?\n/).filter((line) => /sticker|uninstall|^"un_|^"au_/i.test(line)).join('\n') || '(không có)');
+  console.log(verbose.split(/\r?\n/).filter((line) => /sticker|tools|uninstall|^"un_|^"au_/i.test(line)).join('\n') || '(không có)');
   console.log('--- Thư mục app');
   console.log(fs.existsSync(dirs.app) ? fs.readdirSync(dirs.app).join(', ') : '(không còn)');
   // Hộp thoại lỗi của app hoặc bộ cài chỉ nhìn thấy trên màn hình
@@ -201,6 +233,12 @@ const runRound = async (round) => {
 
     const { updated, seconds } = await waitForUpdate(timeline);
     check('Đã thay sang bản mới', updated, `sau ${seconds} giây`);
+    if (updated && oldName.app !== newName.app) {
+      // Đổi tên app: bản mới mang tên mới, không còn tệp chạy tên cũ
+      const present = isMac ? fs.existsSync(path.join(dirs.app, `${newName.app}.app`)) : fs.existsSync(winPaths().exe);
+      const stale = isMac ? fs.existsSync(path.join(dirs.app, `${oldName.app}.app`)) : fs.existsSync(winPaths(oldName.app).exe);
+      check(`Bản mới tên ${newName.app}, không còn ${oldName.app}`, present && !stale);
+    }
     const reopened = updated && await waitForReopen();
     check('Bản mới tự mở lại', reopened);
     check('Dữ liệu người dùng còn nguyên', fs.existsSync(marker));
@@ -209,7 +247,7 @@ const runRound = async (round) => {
 
     if (isMac && reopened) {
       // Xoá bản cũ gồm hàng nghìn tệp nên cần chút thời gian sau khi app mở lại
-      const leftovers = () => fs.readdirSync(dirs.app).filter((name) => name !== 'In Sticker.app');
+      const leftovers = () => fs.readdirSync(dirs.app).filter((name) => name !== `${newName.app}.app`);
       for (let waited = 0; waited < 30 && leftovers().length > 0; waited += 1) await sleep(1000);
       check('Đã dọn bản cũ và thư mục tạm', leftovers().length === 0, leftovers().join(', '));
       const signature = spawnSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', macPaths().bundle]);

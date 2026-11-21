@@ -404,9 +404,9 @@ const IS_MAC = typeof navigator !== 'undefined' && navigator.platform.toLowerCas
 const LOGIN_STATUS: Record<NonNullable<BackgroundSettings['loginStatus']> | 'none', { ok: boolean; text: string; fix?: string } | null> = {
     none: null,
     ok: { ok: true, text: 'Đã đăng ký với máy: lần bật máy tới app tự chạy.' },
-    'needs-approval': { ok: false, text: 'macOS đang chờ bạn cho phép: Cài đặt hệ thống → Cài đặt chung → Mục đăng nhập, bật In Sticker.', fix: 'Mở Mục đăng nhập' },
-    blocked: { ok: false, text: 'Windows đang tắt app này lúc khởi động: Cài đặt → Ứng dụng → Khởi động, bật In Sticker.', fix: 'Mở Ứng dụng khởi động' },
-    failed: { ok: false, text: IS_MAC ? 'Chưa đăng ký được với máy. Tắt rồi bật lại công tắc này, hoặc thêm In Sticker trong Mục đăng nhập.' : 'Chưa đăng ký được với máy. Tắt rồi bật lại công tắc này.', fix: IS_MAC ? 'Mở Mục đăng nhập' : undefined },
+    'needs-approval': { ok: false, text: 'macOS đang chờ bạn cho phép: Cài đặt hệ thống → Cài đặt chung → Mục đăng nhập, bật Tools.', fix: 'Mở Mục đăng nhập' },
+    blocked: { ok: false, text: 'Windows đang tắt app này lúc khởi động: Cài đặt → Ứng dụng → Khởi động, bật Tools.', fix: 'Mở Ứng dụng khởi động' },
+    failed: { ok: false, text: IS_MAC ? 'Chưa đăng ký được với máy. Tắt rồi bật lại công tắc này, hoặc thêm Tools trong Mục đăng nhập.' : 'Chưa đăng ký được với máy. Tắt rồi bật lại công tắc này.', fix: IS_MAC ? 'Mở Mục đăng nhập' : undefined },
 };
 
 /** Cài đặt: chạy nền để nhắc khi đóng cửa sổ, khởi động cùng máy, kiểm tra giọng đọc và loa. */
@@ -473,7 +473,7 @@ const SettingsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                                         className="h-9 rounded-control border border-slate-200 bg-white px-2 text-[13px] focus:outline-none focus:border-sky-400">
                                         {voices.map(name => <option key={name} value={name}>{name}</option>)}
                                     </select>
-                                    <Button size="sm" variant="secondary" icon="play" onClick={() => playSpeech('Xin chào. Đây là giọng đọc nhắc việc của In Sticker.', false)}>Nghe thử giọng</Button>
+                                    <Button size="sm" variant="secondary" icon="play" onClick={() => playSpeech('Xin chào. Đây là giọng đọc nhắc việc của Tools.', false)}>Nghe thử giọng</Button>
                                 </div>
                             )}
                     <p className="text-[12px] text-slate-500">App không tự tăng âm lượng của máy được. Hãy để loa ở mức nghe rõ và bấm thử chuông:</p>

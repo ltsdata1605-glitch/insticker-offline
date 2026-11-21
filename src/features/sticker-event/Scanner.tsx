@@ -260,7 +260,7 @@ const Scanner: React.FC<ScannerProps> = ({ onScanSuccess, onClose }) => {
           if (disposed) return;
           let userFriendlyError = 'Không thể khởi động máy ảnh.';
           if (startErr.name === 'NotAllowedError') {
-            userFriendlyError = 'Vui lòng cấp quyền máy ảnh cho In Sticker trong phần Cài đặt quyền riêng tư của máy.';
+            userFriendlyError = 'Vui lòng cấp quyền máy ảnh cho Tools trong phần Cài đặt quyền riêng tư của máy.';
           } else if (startErr.name === 'NotFoundError') {
             userFriendlyError = 'Không tìm thấy máy ảnh nào trên thiết bị này.';
           }
@@ -284,7 +284,7 @@ const Scanner: React.FC<ScannerProps> = ({ onScanSuccess, onClose }) => {
             setError('Trang web mẹ (Google Sites) đã chặn quyền truy cập máy ảnh. Đây là một tính năng bảo mật.');
             setIsIframeError(true);
         } else {
-            setError('Không thể truy cập máy ảnh. Vui lòng cấp quyền máy ảnh cho In Sticker trong phần Cài đặt quyền riêng tư của máy.');
+            setError('Không thể truy cập máy ảnh. Vui lòng cấp quyền máy ảnh cho Tools trong phần Cài đặt quyền riêng tư của máy.');
         }
     });
 

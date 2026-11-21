@@ -33,6 +33,10 @@ test('Kiểm hàng: nhập nhiều file, quét mã, IMEI, mã lạ, thừa, hoà
   // Thanh bên trái có hai chức năng, In sticker đang mở
   await expect(rail(win).getByRole('button', { name: 'In sticker' })).toHaveAttribute('aria-current', 'page');
   await expect(win.getByRole('heading', { level: 1 })).toHaveText('In Sticker');
+  // App tên Tools; chức năng In Sticker giữ logo máy in tem riêng
+  expect(await s.app.evaluate(({ app }) => app.getName())).toBe('Tools');
+  await expect(win).toHaveTitle('Tools');
+  await expect(win.getByTestId('app-logo').locator('img')).toHaveAttribute('src', '/in-sticker.svg');
   await openKiemHang(win);
   await expect(rail(win).getByRole('button', { name: 'Kiểm hàng' })).toHaveAttribute('aria-current', 'page');
   // Tiêu đề và icon trên thanh trên cùng đổi theo chức năng

@@ -115,7 +115,7 @@ function AppShell(): React.JSX.Element {
                 >
                   {current === 'tools-print-sticker' ? (
                     // Cùng hình với icon app (sinh từ scripts/tao-icon.mjs)
-                    <img src="/favicon.svg" alt="" draggable={false} className="w-11 h-11" />
+                    <img src="/in-sticker.svg" alt="" draggable={false} className="w-11 h-11" />
                   ) : (
                     <span data-testid="module-logo" className="w-11 h-11 rounded-[11px] bg-gradient-to-br from-sky-500 to-sky-700 text-white flex items-center justify-center">
                       <AppIcon name={MODULE_HEADER[current].icon} px={24} />

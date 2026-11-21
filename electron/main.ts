@@ -21,7 +21,10 @@ protocol.registerSchemesAsPrivileged([
   { scheme: SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } },
 ]);
 
-if (TEST_USER_DATA) app.setPath('userData', TEST_USER_DATA);
+// App đổi tên từ In Sticker thành Tools ở bản 1.6.0. Thư mục dữ liệu theo tên app, nên giữ thư mục cũ "In Sticker" để không mất
+// dữ liệu (IndexedDB, cài đặt chạy nền, cập nhật) của máy đã cài trước đó.
+const DATA_DIR_NAME = 'In Sticker';
+app.setPath('userData', TEST_USER_DATA ?? path.join(app.getPath('appData'), DATA_DIR_NAME));
 
 let mainWindow: BrowserWindow | null = null;
 let reminderHost: ReminderHost | null = null;
@@ -184,7 +187,7 @@ const createMainWindow = (): void => {
     minWidth: 1100,
     minHeight: 680,
     show: false,
-    title: 'In Sticker',
+    title: 'Tools',
     backgroundColor: '#f8fafc',
     autoHideMenuBar: true,
     icon: path.join(distDir(), 'icon.png'), // Windows: biểu tượng cửa sổ và thanh tác vụ

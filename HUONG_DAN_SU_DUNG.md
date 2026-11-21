@@ -1,12 +1,14 @@
-# Hướng dẫn sử dụng In Sticker
+# Hướng dẫn sử dụng Tools
+
+Tools (trước đây tên In Sticker) gồm các chức năng In Sticker, Kiểm hàng, Kiểm quỹ, Nhắc việc, Tạo mã. Từ bản 1.6.0 app đổi tên và icon (hộp đồ nghề); máy đã cài tự cập nhật, dữ liệu giữ nguyên.
 
 Dùng và in không cần mạng, không cần đăng nhập. App chỉ vào mạng để kiểm tra và tải bản cập nhật. Dữ liệu nằm trên từng máy.
 
 ## Cài đặt
 
-**Mac (macOS Ventura trở lên):** giải nén rồi kéo `In Sticker.app` vào thư mục Applications. Chọn bản đúng chip: `arm64` cho Mac M1 trở lên, `x64` cho Mac Intel. Lần đầu máy sẽ chặn vì app chưa ký số: vào System Settings > Privacy & Security, kéo xuống và bấm **Open Anyway**.
+**Mac (macOS Ventura trở lên):** giải nén rồi kéo `Tools.app` vào thư mục Applications (máy còn `In Sticker.app` từ bản cũ thì xoá bản cũ đi, dữ liệu không mất). Chọn bản đúng chip: `arm64` cho Mac M1 trở lên, `x64` cho Mac Intel. Lần đầu máy sẽ chặn vì app chưa ký số: vào System Settings > Privacy & Security, kéo xuống và bấm **Open Anyway**.
 
-**Windows 10/11 64-bit:** giải nén tệp zip vào một thư mục cố định rồi chạy `In Sticker.exe`. Nếu hiện cảnh báo SmartScreen: bấm **More info**, rồi **Run anyway**. Cập nhật bản mới bằng cách giải nén đè; dữ liệu không mất vì được lưu riêng trong hồ sơ người dùng.
+**Windows 10/11 64-bit:** giải nén tệp zip vào một thư mục cố định rồi chạy `Tools.exe`. Nếu hiện cảnh báo SmartScreen: bấm **More info**, rồi **Run anyway**. Cập nhật bản mới bằng cách giải nén đè; dữ liệu không mất vì được lưu riêng trong hồ sơ người dùng.
 
 ## Năm chức năng
 
@@ -187,7 +189,7 @@ Kết quả tự lưu sau mỗi lần quét: lỡ đóng app thì mở lại ki�
 
 Đếm tiền trong két theo mệnh giá, đối chiếu với số theo sổ và lưu lại từng lần kiểm.
 
-1. Ghi **Tên lần kiểm** (ví dụ "Ca sáng - Ngọc"). Phải có tên mới lưu được.
+1. Ghi **Tên lần kiểm** (ví dụ "62864 - Phùng Minh Lâm": mã và tên người kiểm). Phải có tên mới lưu được.
 2. Gõ **số tờ** từng mệnh giá (500.000 đến 500 đồng), bấm Enter là sang mệnh giá kế tiếp; hoặc bấm **+**, **−** để cộng trừ từng tờ. Thành tiền từng dòng và **Tổng tiền thực tế** (kèm số tờ và số tiền bằng chữ) tự tính. Tiền xu, tiền lẻ ngoài bảng ghi ở **Tiền khác**.
 3. Muốn đối chiếu thì gõ **Số tiền theo sổ / hệ thống**: app báo **Khớp sổ**, **Thừa** hoặc **Thiếu** bao nhiêu. Ghi lý do vào **Ghi chú**.
 4. **Lưu vào lịch sử.** Lưu xong màn trở về lần kiểm mới trống.
@@ -222,10 +224,10 @@ Bấm **Tạo nhắc việc**, điền:
 
 ### Chạy nền
 
-Đóng cửa sổ thì app **vẫn chạy nền** để nhắc việc; biểu tượng In Sticker nằm ở khay hệ thống (góc phải thanh tác vụ trên Windows, thanh menu trên Mac). Muốn tắt hẳn: bấm biểu tượng đó, chọn **Thoát hẳn**. Trong **Cài đặt** của Nhắc việc:
+Đóng cửa sổ thì app **vẫn chạy nền** để nhắc việc; biểu tượng Tools (hộp đồ nghề) nằm ở khay hệ thống (góc phải thanh tác vụ trên Windows, thanh menu trên Mac). Muốn tắt hẳn: bấm biểu tượng đó, chọn **Thoát hẳn**. Trong **Cài đặt** của Nhắc việc:
 
 - **Chạy nền khi đóng cửa sổ** (bật sẵn).
-- **Khởi động cùng máy** (bản đã cài, bật sẵn từ lần mở đầu tiên): bật máy là app tự chạy nền. Dưới công tắc ghi máy đã nhận chưa. Mac báo "đang chờ cho phép" thì bấm **Mở Mục đăng nhập** và bật In Sticker; Windows báo "đang tắt" thì bấm **Mở Ứng dụng khởi động** và bật In Sticker.
+- **Khởi động cùng máy** (bản đã cài, bật sẵn từ lần mở đầu tiên): bật máy là app tự chạy nền. Dưới công tắc ghi máy đã nhận chưa. Mac báo "đang chờ cho phép" thì bấm **Mở Mục đăng nhập** và bật Tools; Windows báo "đang tắt" thì bấm **Mở Ứng dụng khởi động** và bật Tools.
 - **Giữ máy thức để nhắc đúng giờ** (bật sẵn): máy không tự ngủ khi app đang chạy, màn hình vẫn tắt được. Gập máy xách tay hoặc bấm Ngủ thì máy vẫn ngủ; mở lại, app báo các nhắc bị lỡ. Máy xách tay cần tiết kiệm pin thì tắt.
 - **Mở to hết âm lượng khi nhắc** (bật sẵn): tắt nếu không muốn app chỉnh loa.
 - Chọn giọng đọc tiếng Việt (máy có nhiều giọng thì chọn được), bấm **Nghe thử giọng** và thử chuông.

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0ea5e9"/><stop offset="1" stop-color="#0369a1"/></linearGradient>
+    <linearGradient id="tem" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fcd34d"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
+    <linearGradient id="mat-sau" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fef3c7"/><stop offset="1" stop-color="#fffbeb"/></linearGradient>
+    <linearGradient id="than-hop" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e0f2fe"/></linearGradient>
+    <filter id="bong" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="1.4" stdDeviation="1.4" flood-color="#082f49" flood-opacity="0.35"/></filter>
+    <filter id="bong-goc" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="-1" dy="-1" stdDeviation="1.1" flood-color="#000" flood-opacity="0.28"/></filter>
+    <filter id="bong-than" x="-15%" y="-15%" width="130%" height="135%"><feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#000" flood-opacity="0.28"/></filter>
+  </defs>
+  <g transform="translate(0 0) scale(1)">
+    <rect width="100" height="100" rx="22.4" fill="url(#bg)"/>
+    <rect x="27" y="11" width="46" height="18" rx="3" fill="#e0f2fe"/>
+    <rect x="12" y="23" width="76" height="33" rx="10" fill="#ffffff" filter="url(#bong)"/>
+    <circle cx="77" cy="32" r="2.6" fill="#22c55e"/>
+    
+    <path d="M28 48 H72 V77 L60 89 H33 Q28 89 28 84 Z" fill="url(#tem)" filter="url(#bong)"/>
+    <path d="M60 89 L72 77 Q65.4 76.4 60.6 77.6 Q59.4 82.4 60 89 Z" fill="url(#mat-sau)" filter="url(#bong-goc)"/>
+    <rect x="23" y="45" width="54" height="4.5" rx="2.25" fill="#075985"/>
+    
+    <g fill="none" stroke="#0f172a" stroke-width="3.6" stroke-linecap="round">
+      <circle cx="41.11" cy="60.61" r="3.8000000000000003"/>
+      <circle cx="52.89" cy="72.39" r="3.8000000000000003"/>
+      <path d="M55.075 57.475 L38.925 75.525"/>
+    </g>
+  </g>
+</svg>

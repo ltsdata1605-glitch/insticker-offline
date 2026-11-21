@@ -25,15 +25,21 @@ const LOG_MAX_BYTES = 256 * 1024;
 const INSTALLER_BUSY_TIMEOUT_MS = 30_000;
 const INSTALLER_BUSY_RETRY_MS = 500;
 
-const APP_BUNDLE_NAME = 'In Sticker.app';
+/**
+ * App đổi tên In Sticker thành Tools ở bản 1.6.0: tên bản app trên Mac và trình gỡ trên Windows đổi theo. Nhận cả hai tên để
+ * máy nào cũng tự cập nhật được, kể cả lần cập nhật đổi tên.
+ */
+const APP_BUNDLE_NAMES = ['Tools.app', 'In Sticker.app'];
 const BUNDLE_ID = 'vn.insticker.offline';
-const WINDOWS_UNINSTALLER = 'Uninstall In Sticker.exe';
+const WINDOWS_UNINSTALLER = /^Uninstall (Tools|In Sticker)\.exe$/i;
 const MAC_WORK_DIR = '.in-sticker-update';
-const MAC_OLD_BUNDLE = '.In Sticker.app.old';
+/** Bản cũ giữ lại tới lần mở sau, tên theo bản app đã thay */
+const macOldBundle = (bundleName: string) => `.${bundleName}.old`;
 
-// Thay bản sau khi app đã thoát. Lỗi thì trả bản cũ về chỗ cũ để người dùng vẫn mở được app.
-const MAC_SWAP_SCRIPT = `
-pid="$1"; old="$2"; new="$3"; bak="$4"; shift 4
+// Thay bản sau khi app đã thoát. Bản mới đặt ở `target` (cùng chỗ với bản cũ, tên có thể khác khi app đổi tên). Lỗi thì trả
+// bản cũ về chỗ cũ để người dùng vẫn mở được app.
+export const MAC_SWAP_SCRIPT = `
+pid="$1"; old="$2"; new="$3"; bak="$4"; target="$5"; shift 5
 waited=0
 while kill -0 "$pid" 2>/dev/null; do
   sleep 0.2
@@ -42,9 +48,9 @@ while kill -0 "$pid" 2>/dev/null; do
 done
 rm -rf "$bak"
 if ! mv "$old" "$bak"; then open "$@" "$old"; exit 1; fi
-if ! mv "$new" "$old"; then mv "$bak" "$old"; open "$@" "$old"; exit 1; fi
-xattr -dr com.apple.quarantine "$old" 2>/dev/null
-open "$@" "$old"
+if ! mv "$new" "$target"; then mv "$bak" "$old"; open "$@" "$old"; exit 1; fi
+xattr -dr com.apple.quarantine "$target" 2>/dev/null
+open "$@" "$target"
 `;
 
 const run = promisify(execFile);
@@ -341,23 +347,21 @@ export class Updater {
     if (this.dryRun) return null;
     if (process.platform === 'darwin') return this.findMacProblem();
     if (process.platform === 'win32') {
-      const uninstaller = path.join(path.dirname(app.getPath('exe')), WINDOWS_UNINSTALLER);
-      const installed = await fs.access(uninstaller).then(() => true, () => false);
+      const files = await fs.readdir(path.dirname(app.getPath('exe'))).catch(() => [] as string[]);
+      const installed = files.some((name) => WINDOWS_UNINSTALLER.test(name));
       return installed ? null : 'Bản giải nén từ file zip không tự cập nhật được. Hãy tải bộ cài mới và cài đặt.';
     }
     return 'Hệ điều hành này chưa hỗ trợ tự cập nhật.';
   }
 
+  /** Bản app đang chạy (thư mục .app chứa tệp chạy), tên nào cũng được */
   private currentMacBundle(): string | null {
-    const marker = `/${APP_BUNDLE_NAME}/`;
-    const exe = app.getPath('exe');
-    const at = exe.indexOf(marker);
-    return at < 0 ? null : exe.slice(0, at + marker.length - 1);
+    return app.getPath('exe').match(/^(.*?\.app)\/Contents\/MacOS\/[^/]+$/)?.[1] ?? null;
   }
 
   private async findMacProblem(): Promise<string | null> {
     const bundle = this.currentMacBundle();
-    const moveHint = `Hãy chuyển ${APP_BUNDLE_NAME.replace('.app', '')} vào thư mục Applications rồi mở lại.`;
+    const moveHint = `Hãy chuyển ${app.getName()} vào thư mục Applications rồi mở lại.`;
     // macOS chạy app vừa tải từ một bản sao tạm chỉ đọc cho tới khi người dùng chuyển app sang chỗ khác
     if (!bundle || bundle.includes('/AppTranslocation/')) return `Không thay được bản đang chạy ở vị trí tạm. ${moveHint}`;
     try {
@@ -379,7 +383,10 @@ export class Updater {
     await fs.mkdir(work);
     await run('/usr/bin/ditto', ['-x', '-k', file, work]);
 
-    const bundle = path.join(work, APP_BUNDLE_NAME);
+    const found = await fs.readdir(work);
+    const name = APP_BUNDLE_NAMES.find((candidate) => found.includes(candidate));
+    if (!name) throw new Error('tệp tải về không có bản app');
+    const bundle = path.join(work, name);
     await run('/usr/bin/codesign', ['--verify', '--deep', '--strict', bundle]);
     const plist = path.join(bundle, 'Contents', 'Info.plist');
     const read = async (key: string) => (await run('/usr/libexec/PlistBuddy', ['-c', `Print :${key}`, plist])).stdout.trim();
@@ -400,13 +407,18 @@ export class Updater {
     });
   }
 
-  private launchMacSwap(): Promise<void> {
+  private async launchMacSwap(): Promise<void> {
     const old = this.currentMacBundle() as string;
-    const backup = path.join(path.dirname(old), MAC_OLD_BUNDLE);
+    const parent = path.dirname(old);
+    const backup = path.join(parent, macOldBundle(path.basename(old)));
+    // Đổi tên app: đặt bản mới theo tên mới, trừ khi chỗ đó đã có sẵn một app khác thì giữ tên cũ
+    const renamed = path.join(parent, path.basename(this.prepared?.bundle as string));
+    const free = renamed === old || !(await fs.access(renamed).then(() => true, () => false));
+    const target = free ? renamed : old;
     // Mở bằng `open` thì app mới không kế thừa biến môi trường, bài kiểm thử phải truyền lại để không đụng dữ liệu thật
     const openArgs = ['STICKER_USER_DATA', 'STICKER_DOWNLOAD_DIR', 'STICKER_UPDATE_FEED']
       .flatMap((name) => (process.env[name] ? ['--env', `${name}=${process.env[name]}`] : []));
-    return this.launchDetached('/bin/bash', ['-c', MAC_SWAP_SCRIPT, 'in-sticker-update', String(process.pid), old, this.prepared?.bundle as string, backup, ...openArgs]);
+    return this.launchDetached('/bin/bash', ['-c', MAC_SWAP_SCRIPT, 'in-sticker-update', String(process.pid), old, this.prepared?.bundle as string, backup, target, ...openArgs]);
   }
 
   private async launchWindowsInstaller(): Promise<void> {
@@ -431,6 +443,6 @@ export class Updater {
     const parent = path.dirname(bundle);
     // Bản cũ giữ lại tới lần mở này: bản mới đã chạy được thì mới xoá
     await removeTree(path.join(parent, MAC_WORK_DIR)).catch(() => undefined);
-    await removeTree(path.join(parent, MAC_OLD_BUNDLE)).catch(() => undefined);
+    for (const name of APP_BUNDLE_NAMES) await removeTree(path.join(parent, macOldBundle(name))).catch(() => undefined);
   }
 }

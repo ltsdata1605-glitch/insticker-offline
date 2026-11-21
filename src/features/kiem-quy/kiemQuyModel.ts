@@ -4,7 +4,7 @@ export const DENOMINATIONS = [500_000, 200_000, 100_000, 50_000, 20_000, 10_000,
 /** Một lần kiểm quỹ: số tờ từng mệnh giá, tiền khác (xu, tiền lẻ ngoài bảng), số tiền theo sổ để đối chiếu */
 export interface CashCount {
     id: string;
-    /** Tên lần kiểm hoặc người kiểm, ví dụ "Ca sáng - Ngọc" */
+    /** Tên lần kiểm hoặc người kiểm, ví dụ "62864 - Phùng Minh Lâm" */
     name: string;
     note: string;
     /** Số tờ theo mệnh giá (khoá là mệnh giá) */

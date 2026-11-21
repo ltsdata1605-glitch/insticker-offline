@@ -81,12 +81,12 @@ export const parseBackup = (text: string): BackupData & { createdAt: string } =>
       return value;
     });
   } catch {
-    throw new Error('File không đọc được. Hãy chọn đúng file sao lưu của In Sticker.');
+    throw new Error('File không đọc được. Hãy chọn đúng file sao lưu của app (tools-sao-luu-… hoặc in-sticker-sao-luu-…).');
   }
 
   const root = parsed as { format?: unknown; version?: unknown; createdAt?: unknown; appData?: unknown; settings?: unknown } | null;
   if (!root || root.format !== BACKUP_FORMAT) {
-    throw new Error('Đây không phải file sao lưu của In Sticker.');
+    throw new Error('Đây không phải file sao lưu của app Tools (hay In Sticker trước đây).');
   }
   if (typeof root.version !== 'number' || root.version > BACKUP_VERSION) {
     throw new Error('File sao lưu này do phiên bản mới hơn tạo ra. Hãy cập nhật app trước khi khôi phục.');

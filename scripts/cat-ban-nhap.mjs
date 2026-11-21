@@ -22,7 +22,7 @@ const exists = () => {
 
 if (!exists()) {
   try {
-    gh(['release', 'create', tag, '--draft', '--title', `In Sticker ${tag.slice(1)} (bộ cài CI)`,
+    gh(['release', 'create', tag, '--draft', '--title', `Tools ${tag.slice(1)} (bộ cài CI)`,
       '--notes', 'Bộ cài do CI tạo để tải về kiểm tra. Bản phát hành cho người dùng nằm ở repo insticker-offline-releases.']);
   } catch (error) {
     // Bên kia vừa tạo xong cùng lúc
