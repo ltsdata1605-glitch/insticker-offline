@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MINUTE, checklistAlerts, markDone, markFired, occurrencesBetween, pendingAlerts, reminderView, repeatText, runProgress,
-  runReportText, snooze, startRun, statsBetween,
+  MINUTE, checklistAlerts, copyDeadline, dropLeftoverRuns, markDone, markFired, occurrencesBetween, pendingAlerts, reminderView, repeatText, runOfDay,
+  runProgress, runReportText, snooze, startRun, statsBetween,
 } from '../../src/features/nhac-viec/nhacViecModel';
 import type { ChecklistTemplate, Reminder } from '../../src/features/nhac-viec/nhacViecModel';
 
@@ -113,12 +113,28 @@ describe('Checklist', () => {
     run.finishedAt = at(20, 9, 20);
     const text = runReportText(run, at(20, 9, 30));
     expect(text).toContain('BÁO CÁO CHECKLIST: MỞ CA SÁNG');
-    expect(text).toContain('Ngày 20/11/2026 · Người làm: Ngọc');
+    expect(text).toContain('Người làm: Ngọc\nNgày 20/11/2026');
     expect(text).toContain('Bắt đầu 08:05 · Hoàn tất 09:20 · Hạn 09:00');
     expect(text).toContain('Kết quả: 3/4 hoàn tất, 1 có vấn đề · TRỄ HẠN');
     expect(text).toContain('[!] 2. Kiểm tem giá khu điện thoại - Có vấn đề (08:11)');
     expect(text).toContain('    Ghi chú: 3 tem sai giá');
     expect(text).toContain('    2 ảnh');
+  });
+
+  it('lượt trong ngày: lượt đang làm dở trước, đã hoàn tất thì mở lại lượt đó; lượt trống mở thừa sau khi hoàn tất thì bỏ', () => {
+    const done = { ...startRun(template, at(21, 8, 5), 'Sơn'), id: 'xong', finishedAt: at(21, 9, 16) };
+    done.items = done.items.map(item => ({ ...item, status: 'done' as const }));
+    expect(runOfDay([done], template.id, '2026-11-21')?.id).toBe('xong');
+    expect(runOfDay([done], template.id, '2026-11-22')).toBeNull();
+    // Bản cũ bấm Bắt đầu sau khi xong là tạo lượt trống: bỏ lượt đó, giữ lượt đã làm
+    const leftover = { ...startRun(template, at(21, 9, 17), 'Sơn'), id: 'thua' };
+    expect(dropLeftoverRuns([leftover, done]).map(run => run.id)).toEqual(['xong']);
+    // Lượt mới đã làm dở thì giữ và mở lượt đó
+    const second = { ...leftover, id: 'lan-2', items: leftover.items.map((item, i) => (i === 0 ? { ...item, status: 'done' as const } : item)) };
+    expect(dropLeftoverRuns([second, done]).map(run => run.id)).toEqual(['lan-2', 'xong']);
+    expect(runOfDay([second, done], template.id, '2026-11-21')?.id).toBe('lan-2');
+    // Chưa có lượt nào hoàn tất trong ngày thì lượt trống vẫn giữ
+    expect(dropLeftoverRuns([leftover]).map(run => run.id)).toEqual(['thua']);
   });
 
   it('nhắc lúc bắt đầu, 15 phút trước hạn và lúc hạn nếu chưa hoàn tất', () => {
@@ -144,4 +160,40 @@ describe('Checklist', () => {
     expect(stats.remindersMissed).toBe(2);
     expect(MINUTE).toBe(60000);
   });
+});
+
+describe('Nhân bản nhắc việc', () => {
+  it('việc còn hạn giữ hạn cũ; đã qua hạn thì dời sang cùng giờ hôm nay hoặc ngày mai; việc lặp lại giữ lịch', () => {
+    const now = at(20, 12);
+    expect(copyDeadline({ deadline: at(22, 9), repeat: 'none' }, now)).toBe(at(22, 9));
+    expect(copyDeadline({ deadline: at(18, 15, 30), repeat: 'none' }, now)).toBe(at(20, 15, 30));
+    expect(copyDeadline({ deadline: at(19, 9), repeat: 'none' }, now)).toBe(at(21, 9));
+    expect(copyDeadline({ deadline: at(10, 9), repeat: 'daily' }, now)).toBe(at(10, 9));
+  });
+});
+
+describe('Âm lượng khi nhắc', () => {
+  it('đọc mức âm lượng và tắt tiếng script trả về', async () => {
+    const { parseSaved } = await import('../../electron/volume');
+    expect(parseSaved('71,true')).toEqual({ level: 71, muted: true });
+    expect(parseSaved('100,false\r\n')).toEqual({ level: 100, muted: false });
+    expect(parseSaved('missing value,false')).toBeNull();
+    expect(parseSaved('')).toBeNull();
+  });
+
+  // Chỉ chạy trên Windows (CI): script biên dịch được và đọc được âm lượng; máy ảo không có loa thì chỉ cần không lỗi biên dịch
+  it.runIf(process.platform === 'win32')('script PowerShell của Windows biên dịch và chạy được (chỉ đọc, không đổi âm lượng)', async () => {
+    const { writeWindowsScript, parseSaved } = await import('../../electron/volume');
+    const { execFile } = await import('node:child_process');
+    const os = await import('node:os');
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const file = writeWindowsScript(fs.mkdtempSync(path.join(os.tmpdir(), 'am-luong-')));
+    const result = await new Promise<{ stdout: string; stderr: string }>(resolve => {
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', file, '-Viec', 'doc'], { timeout: 60_000 },
+        (_error, stdout, stderr) => resolve({ stdout: String(stdout), stderr: String(stderr) }));
+    });
+    expect(result.stderr).not.toMatch(/error CS\d+|Compilation|biên dịch/i);
+    if (!result.stderr.trim()) expect(parseSaved(result.stdout)).not.toBeNull();
+  }, 90_000);
 });

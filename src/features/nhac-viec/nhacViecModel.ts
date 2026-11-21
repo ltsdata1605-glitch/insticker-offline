@@ -41,7 +41,10 @@ export interface Reminder {
     snoozes: { occ: number; at: number }[];
     /** Dừng nhắc lặp lại */
     stopped?: boolean;
-    /** Việc nhận từ Google Sheet (mã việc trong file). Sửa trong Google Sheet, không sửa trong app. */
+    /**
+     * Việc trên Google Sheet (mã việc trong file). Kết nối bằng link chia sẻ (chỉ đọc) thì sửa trong file; đồng bộ hai chiều thì sửa
+     * ngay trong app. `taskId` rỗng: việc tạo trên máy đang chờ gửi lên file.
+     */
     source?: { kind: 'sheet'; taskId: string };
     /** Người xử lý, người giao (việc từ Google Sheet) */
     assignee?: string;
@@ -271,6 +274,20 @@ export const snooze = (reminder: Reminder, occ: number, minutes: number, now: nu
     updatedAt: now,
 });
 
+/**
+ * Hạn gợi ý cho bản sao: nhắc lặp lại giữ lịch cũ; việc một lần còn hạn thì giữ, đã qua hạn thì dời sang cùng giờ hôm nay
+ * (nếu giờ đó chưa qua) hoặc ngày mai, để nhân bản việc hôm qua là lưu được ngay.
+ */
+export const copyDeadline = (reminder: Pick<Reminder, 'deadline' | 'repeat'>, now: number): number => {
+    if (reminder.repeat !== 'none' || reminder.deadline > now) return reminder.deadline;
+    const time = new Date(reminder.deadline);
+    const today = new Date(now);
+    today.setHours(time.getHours(), time.getMinutes(), 0, 0);
+    if (today.getTime() > now) return today.getTime();
+    today.setDate(today.getDate() + 1);
+    return today.getTime();
+};
+
 /** Bỏ dấu đã hiện, đã xong cũ hơn 40 ngày để dữ liệu nhắc lặp lại không phình mãi. */
 export const pruneReminder = (reminder: Reminder, now: number): Reminder => {
     const keep = now - 40 * DAY;
@@ -345,6 +362,30 @@ export const startRun = (template: ChecklistTemplate, now: number, performer: st
     note: '',
 });
 
+/** Ngày (00:00) của khoá yyyy-mm-dd */
+export const dayOfKey = (date: string): number => {
+    const [y, m, d] = date.split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1).getTime();
+};
+
+/** Lượt của mẫu trong ngày: lượt đang làm dở trước, không có thì lượt đã hoàn tất gần nhất */
+export const runOfDay = (runs: ChecklistRun[], templateId: string, date: string): ChecklistRun | null => {
+    const ofDay = runs.filter(run => run.templateId === templateId && run.date === date);
+    return ofDay.find(run => !run.finishedAt)
+        ?? ofDay.filter(run => run.finishedAt).sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0))[0]
+        ?? null;
+};
+
+/** Lượt mở ra rồi chưa làm gì: chưa đánh việc nào, không ghi chú, không ảnh */
+export const untouchedRun = (run: ChecklistRun): boolean => !run.finishedAt && !run.note.trim()
+    && run.items.every(item => item.status === 'todo' && !item.note.trim() && item.photos.length === 0);
+
+/** Bỏ các lượt trống mở thừa sau khi mẫu đã hoàn tất trong ngày (bản cũ bấm Bắt đầu lần nữa là tạo lượt mới) */
+export const dropLeftoverRuns = (runs: ChecklistRun[]): ChecklistRun[] => {
+    const finished = new Set(runs.filter(run => run.finishedAt).map(run => `${run.templateId}@${run.date}`));
+    return runs.filter(run => !(untouchedRun(run) && finished.has(`${run.templateId}@${run.date}`)));
+};
+
 export interface RunProgress {
     total: number;
     done: number;
@@ -388,7 +429,8 @@ export const runReportText = (run: ChecklistRun, now: number): string => {
     const onTime = runOnTime(run);
     const out: string[] = [];
     out.push(`BÁO CÁO CHECKLIST: ${run.name.toUpperCase()}`);
-    out.push(`Ngày ${run.date.split('-').reverse().join('/')}${run.performer ? ` · Người làm: ${run.performer}` : ''}`);
+    out.push(`Người làm: ${run.performer.trim() || 'Chưa ghi tên'}`);
+    out.push(`Ngày ${run.date.split('-').reverse().join('/')}`);
     out.push(`Bắt đầu ${timeOfDay(run.startedAt)}${run.finishedAt ? ` · Hoàn tất ${timeOfDay(run.finishedAt)}` : ' · Chưa hoàn tất'}${run.deadline ? ` · Hạn ${timeOfDay(run.deadline)}` : ''}`);
     const result = [`${progress.done}/${progress.total} hoàn tất`, progress.issue && `${progress.issue} có vấn đề`, progress.na && `${progress.na} không áp dụng`, progress.todo && `${progress.todo} chưa làm`]
         .filter(Boolean).join(', ');

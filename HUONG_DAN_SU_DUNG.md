@@ -8,9 +8,9 @@ Dùng và in không cần mạng, không cần đăng nhập. App chỉ vào m�
 
 **Windows 10/11 64-bit:** giải nén tệp zip vào một thư mục cố định rồi chạy `In Sticker.exe`. Nếu hiện cảnh báo SmartScreen: bấm **More info**, rồi **Run anyway**. Cập nhật bản mới bằng cách giải nén đè; dữ liệu không mất vì được lưu riêng trong hồ sơ người dùng.
 
-## Ba chức năng
+## Năm chức năng
 
-Thanh bên trái, ngay dưới logo, chọn chức năng: **In sticker** (năm chế độ bên dưới), **Kiểm hàng** (đối chiếu hàng nhận với file phiếu chuyển kho) và **Nhắc việc** (nhắc việc có chuông, checklist và báo cáo). Tiêu đề và icon trên thanh trên cùng đổi theo chức năng đang mở. Chuyển qua lại không mất việc đang làm dở ở chức năng kia. Số đỏ trên biểu tượng Nhắc việc là số việc đang quá hạn.
+Thanh bên trái, ngay dưới logo, chọn chức năng: **In sticker** (năm chế độ bên dưới), **Kiểm hàng** (đối chiếu hàng nhận với file phiếu chuyển kho), **Kiểm quỹ** (đếm tiền theo mệnh giá, đối chiếu sổ, lưu lịch sử), **Nhắc việc** (nhắc việc có chuông, checklist và báo cáo) và **Tạo mã** (mã QR, mã vạch có tiêu đề, in nhiều mã trên một trang). Tiêu đề và icon trên thanh trên cùng đổi theo chức năng đang mở. Chuyển qua lại không mất việc đang làm dở ở chức năng kia. Số đỏ trên biểu tượng Nhắc việc là số việc đang quá hạn.
 
 ## Năm chế độ
 
@@ -183,6 +183,20 @@ Dùng khi nhận kiện hàng kèm file Excel phiếu chuyển kho: đối chi�
 
 Kết quả tự lưu sau mỗi lần quét: lỡ đóng app thì mở lại kiểm tiếp được. Dữ liệu kiểm hàng có trong file sao lưu.
 
+## Kiểm quỹ
+
+Đếm tiền trong két theo mệnh giá, đối chiếu với số theo sổ và lưu lại từng lần kiểm.
+
+1. Ghi **Tên lần kiểm** (ví dụ "Ca sáng - Ngọc"). Phải có tên mới lưu được.
+2. Gõ **số tờ** từng mệnh giá (500.000 đến 500 đồng), bấm Enter là sang mệnh giá kế tiếp; hoặc bấm **+**, **−** để cộng trừ từng tờ. Thành tiền từng dòng và **Tổng tiền thực tế** (kèm số tờ và số tiền bằng chữ) tự tính. Tiền xu, tiền lẻ ngoài bảng ghi ở **Tiền khác**.
+3. Muốn đối chiếu thì gõ **Số tiền theo sổ / hệ thống**: app báo **Khớp sổ**, **Thừa** hoặc **Thiếu** bao nhiêu. Ghi lý do vào **Ghi chú**.
+4. **Lưu vào lịch sử.** Lưu xong màn trở về lần kiểm mới trống.
+5. **Sao chép để gửi** (dán Zalo) hoặc **Xuất ảnh** biên bản kiểm quỹ, cho lần đang đếm hoặc lần đã lưu.
+
+Lần đang đếm được giữ ngay sau mỗi lần gõ: tắt app hay mất điện giữa chừng, mở lại vẫn còn đủ số đã nhập dù chưa bấm Lưu. Ô trạng thái cạnh tên ghi "Chưa lưu" hay "Đã lưu lúc …".
+
+**Lịch sử kiểm quỹ** ở bên phải: mỗi lần có tên, giờ, tổng tiền và thừa thiếu. Bấm vào để xem biên bản, sao chép, xuất ảnh, **Mở lại để sửa** (lưu lại thì thay đúng lần đó, không thêm dòng mới) hoặc **Xoá**. Lịch sử có trong file sao lưu.
+
 ## Nhắc việc
 
 ### Tạo nhắc việc
@@ -196,54 +210,89 @@ Bấm **Tạo nhắc việc**, điền:
 - **Âm thanh:** 5 chuông có sẵn, **đọc chữ thành tiếng** (để trống thì đọc tiêu đề và hạn, hoặc gõ câu riêng), **file âm thanh** (mp3, wav, m4a, tối đa 5 MB) hoặc **ghi âm bằng micro**. Bấm **Nghe thử** trước khi lưu.
 - **Checklist liên kết:** nút trên cửa sổ nhắc mở thẳng checklist đó.
 
+**Nhân bản:** việc nào hay lặp lại mà khác chút ít (khác giờ, khác người, khác nội dung), bấm nút **Nhân bản** (hai tờ giấy chồng nhau) trên dòng việc đó. Form mở ra điền sẵn mọi ô; việc đã qua hạn thì hạn tự dời sang cùng giờ hôm nay hoặc ngày mai. Sửa chỗ cần đổi rồi bấm **Tạo nhắc việc**. Việc gốc giữ nguyên.
+
 ### Khi đến giờ
 
-- Một cửa sổ nhắc bật lên, luôn nằm trên mọi ứng dụng, kèm chuông kêu lặp lại đến khi bấm (tối đa 5 phút, sau đó tắt tiếng nhưng cửa sổ vẫn còn).
+- **Bảng nhắc** bật lên ở góc phải màn hình, luôn nằm trên mọi ứng dụng, kèm chuông kêu lặp lại đến khi bấm (tối đa 5 phút, sau đó tắt tiếng nhưng bảng vẫn còn).
+- **Nhiều nhắc cùng lúc** (hoặc nhắc mới đến khi bảng đang mở) nằm chung **một bảng**, mỗi việc một thẻ có nút riêng; việc khẩn nằm trên, nhắc vừa đến có nhãn **Mới**. Chỉ một tiếng chuông: của nhắc vừa đến. Bấm hết các thẻ thì bảng đóng; bấm × là đóng cả bảng.
 - **Đã xong:** thôi nhắc lần này. **5′, 10′, 30′:** hoãn, nhắc lại sau số phút đó. **Mở trong app:** mở danh sách hoặc checklist liên kết.
-- App tắt hoặc máy ngủ lúc đến giờ: lần mở sau, một cửa sổ báo gộp các nhắc việc bị lỡ.
+- Lúc chuông kêu, loa của máy được **bật tiếng và mở to hết**; bảng đóng hoặc bấm **Tắt tiếng** thì trả lại mức cũ (nếu bạn chưa tự chỉnh trong lúc đó).
+- App tắt hoặc máy ngủ lúc đến giờ: lần mở sau, bảng nhắc báo gộp các nhắc việc bị lỡ.
 
 ### Chạy nền
 
 Đóng cửa sổ thì app **vẫn chạy nền** để nhắc việc; biểu tượng In Sticker nằm ở khay hệ thống (góc phải thanh tác vụ trên Windows, thanh menu trên Mac). Muốn tắt hẳn: bấm biểu tượng đó, chọn **Thoát hẳn**. Trong **Cài đặt** của Nhắc việc:
 
-- Bật tắt **Chạy nền khi đóng cửa sổ** và **Khởi động cùng máy** (bản đã cài; bật máy là app tự chạy nền).
-- Chọn giọng đọc tiếng Việt (máy có nhiều giọng thì chọn được), bấm **Nghe thử giọng** và thử chuông. App không tự tăng âm lượng của máy được, hãy để loa ở mức nghe rõ.
+- **Chạy nền khi đóng cửa sổ** (bật sẵn).
+- **Khởi động cùng máy** (bản đã cài, bật sẵn từ lần mở đầu tiên): bật máy là app tự chạy nền. Dưới công tắc ghi máy đã nhận chưa. Mac báo "đang chờ cho phép" thì bấm **Mở Mục đăng nhập** và bật In Sticker; Windows báo "đang tắt" thì bấm **Mở Ứng dụng khởi động** và bật In Sticker.
+- **Giữ máy thức để nhắc đúng giờ** (bật sẵn): máy không tự ngủ khi app đang chạy, màn hình vẫn tắt được. Gập máy xách tay hoặc bấm Ngủ thì máy vẫn ngủ; mở lại, app báo các nhắc bị lỡ. Máy xách tay cần tiết kiệm pin thì tắt.
+- **Mở to hết âm lượng khi nhắc** (bật sẵn): tắt nếu không muốn app chỉnh loa.
+- Chọn giọng đọc tiếng Việt (máy có nhiều giọng thì chọn được), bấm **Nghe thử giọng** và thử chuông.
 - Máy chưa có giọng tiếng Việt: Windows vào Settings > Time & language > Speech > Add voices, chọn Tiếng Việt; Mac vào Cài đặt hệ thống > Trợ năng > Nội dung được đọc > Giọng hệ thống > Quản lý giọng, chọn Tiếng Việt (Linh).
 
-### Nhận việc từ Google Sheet
+### Đồng bộ với Google Sheet
 
-Quản lý ghi việc và checklist vào một file Google Sheet, app ở cửa hàng tự nhận về, báo việc mới và nhắc đúng hạn. Làm một lần trong **Cài đặt** của Nhắc việc:
+Việc và checklist trên máy và trên một file Google Sheet là một: quản lý giao việc trong file hoặc ngay trong app, các máy nhận trong khoảng 1 phút; bấm **Đã xong** ở máy nào thì file ghi người xong và giờ xong.
 
-1. Bấm **Tạo file nhắc việc**. Trình duyệt mở trang của Google, đăng nhập rồi bấm **Tạo bản sao**: file mới nằm trong Google Drive của bạn, có sẵn 4 trang Nhắc việc, Checklist, Danh mục, Hướng dẫn.
-2. Trong file đó bấm **Chia sẻ**, phần Quyền truy cập chung chọn **Bất kỳ ai có đường liên kết** và **Người chỉnh sửa** (để quản lý ghi việc). Bấm **Sao chép đường liên kết**.
-3. Quay lại app, bấm **Dán link đã sao chép** (hoặc dán tay vào ô rồi bấm Kết nối).
+**Quản lý làm một lần cho mỗi file:**
 
-Trong file, hầu hết các cột chọn từ danh sách, không phải gõ:
+1. Trong **Cài đặt** của Nhắc việc, bấm **Tạo file nhắc việc**. Trình duyệt mở trang của Google, đăng nhập rồi bấm **Tạo bản sao**: file mới nằm trong Google Drive của quản lý.
+2. Trong file, menu **Nhắc việc → Bật đồng bộ hai chiều** (chưa thấy menu thì tải lại trang). Khung bên phải hướng dẫn từng bước (khoảng 2 phút): Tiện ích mở rộng → Apps Script → **Triển khai → Tùy chọn triển khai mới → Ứng dụng web**, *Thực thi bằng: Tôi*, *Người có quyền truy cập: Bất kỳ ai*, bấm Triển khai, cho phép quyền, sao chép **URL ứng dụng web** dán vào khung rồi bấm Lưu.
+3. Bấm **Sao chép Link kết nối**, gửi qua Zalo cho từng máy.
 
-- **Danh mục:** ghi tên nhân viên và người giao một lần, các trang khác chọn từ danh sách này.
+**Ở mỗi máy:** sao chép Link kết nối, vào **Nhắc việc → Cài đặt**, bấm **Dán link đã sao chép**. Ghi **Tên của bạn** (ví dụ "Ngọc - Quầy 1"): tên này ghi vào cột Người xong và Người giao. Việc đã tạo trên máy từ trước: bấm **Đưa N việc lên Google Sheet**.
+
+Sau khi kết nối:
+
+- **Tạo việc trong app** thì mặc định lên file (ô **Lưu lên Google Sheet** đã tick sẵn, bỏ tick nếu là việc riêng), chọn **Người xử lý** từ danh sách trong file. Việc trên file có nhãn **Google Sheet · CV…** và sửa, nhân bản, xoá được ngay trong app; xoá thì file ghi **Huỷ**, dòng vẫn còn.
+- **Bấm Đã xong:** file ghi **Người xong**, **Xong lúc**; việc một lần chuyển **Xong**. Mỗi lần xong ghi một dòng ở trang **Nhật ký**, nên việc lặp lại mỗi ngày bấm xong ở máy này thì máy khác cũng thôi nhắc lần đó.
+- **Hoàn tất checklist:** trang **Báo cáo checklist** có một dòng gồm người làm, kết quả, số việc có vấn đề, ghi chú và chi tiết từng việc.
+- App hỏi file mỗi phút (chỉ tải khi file có thay đổi), lúc mở app và khi máy thức dậy; bấm **Đồng bộ ngay** để đồng bộ liền. Có việc mới thì bật cửa sổ "Có N công việc mới" kèm chuông.
+- **Mất mạng** vẫn dùng bình thường: Cài đặt ghi "Còn N thay đổi chưa gửi", có mạng app tự gửi.
+- Âm thanh tự ghi hoặc file âm thanh chỉ phát ở máy tạo việc, máy khác dùng Chuông reo.
+
+**Trong file**, hầu hết các cột chọn từ danh sách, không phải gõ:
+
+- **Danh mục:** ghi tên nhân viên và người giao một lần, các trang khác (và ô Người xử lý trong app) chọn từ danh sách này.
 - **Nhắc việc:** mỗi dòng một việc, mã việc điền sẵn. Ghi Tiêu đề, bấm đúp ô Ngày hạn để chọn trên lịch, chọn Giờ hạn (trống là 17:00). Người xử lý, Mức độ, Nhắc trước, Lặp lại, Âm thanh, Checklist, Trạng thái, Người giao đều chọn từ danh sách; để trống thì app dùng mặc định. Việc Khẩn tô đỏ, việc quá hạn tô đỏ ở ngày hạn, việc Xong tô xanh, việc Huỷ gạch ngang.
-- **Checklist:** các dòng cùng Tên checklist là một checklist, mỗi dòng một việc. Tick Bắt buộc, Cần ảnh, Cần ghi chú. Lịch làm, giờ bắt đầu, giờ hạn, người làm, trạng thái chọn ở dòng đầu của checklist.
+- **Checklist:** các dòng cùng Tên checklist là một checklist, mỗi dòng một việc. Tick Bắt buộc, Cần ảnh, Cần ghi chú. Lịch làm, giờ bắt đầu, giờ hạn, người làm, trạng thái chọn ở dòng đầu của checklist. Checklist từ file sửa trong file.
+- Menu **Nhắc việc**: **Giao việc nhanh** (khung nhập bên phải, chọn người, ngày, giờ, mức độ; giao xong khung giữ nguyên để giao tiếp việc khác), **Nhân bản dòng đang chọn**, **Đánh dấu xong dòng đang chọn**.
 - Chọn **Huỷ** ở Trạng thái để rút việc, **Xong** để đánh dấu xong; checklist chọn **Ngưng** để rút.
 
-Trong app:
+Lưu ý:
 
-- App đọc file lúc mở, 5 phút một lần và khi máy thức dậy; bấm **Đồng bộ ngay** để đọc liền. Có việc mới thì bật cửa sổ "Có N công việc mới" kèm chuông.
-- Việc và checklist từ Google Sheet có nhãn **Google Sheet**, ghi rõ người xử lý (người làm) và người giao. Việc có gắn checklist thì cửa sổ nhắc có nút **Mở checklist liên kết**. Muốn sửa thì sửa trong file (nút liên kết cạnh việc mở file), app tự cập nhật ở lần đọc sau.
+- Ai có Link kết nối đều đọc và ghi được file qua app: chỉ gửi cho người trong cửa hàng. Lỡ gửi nhầm: menu Nhắc việc → Bật đồng bộ hai chiều → **Đổi mã kết nối**, rồi gửi link mới cho các máy. File không cần chia sẻ công khai nữa.
 - Dòng ghi sai (thiếu hạn, sai dạng ngày, trùng mã) được liệt kê trong Cài đặt để sửa.
-- App chỉ đọc file: bấm Đã xong trong app không ghi ngược lên file. Ai có link đều xem được file, đừng ghi thông tin nhạy cảm.
-- **Ngắt kết nối** bỏ các việc và checklist nhận từ file, những gì tự tạo trong app giữ nguyên.
+- Link chia sẻ file thường (docs.google.com, file để "Bất kỳ ai có đường liên kết") vẫn kết nối được nhưng **chỉ nhận việc**: bấm Đã xong trong app không ghi ngược lên file. Muốn hai chiều thì bật đồng bộ trong file rồi bấm **Dán Link kết nối** trong Cài đặt.
+- **Ngắt kết nối** bỏ các việc và checklist nhận từ file, những gì chỉ có trên máy giữ nguyên.
 
 ### Checklist
 
-1. **Tạo mẫu** một lần ở tab **Checklist**, ví dụ "Mở ca sáng" gồm 10 việc. Mỗi việc có hướng dẫn, và đánh dấu được **Bắt buộc**, **Cần ảnh**, **Cần ghi chú**. Bật **Làm theo lịch** để chọn ngày, giờ bắt đầu và hạn: app nhắc lúc bắt đầu, 15 phút trước hạn và lúc hạn nếu chưa hoàn tất.
-2. **Bắt đầu** một lượt (mỗi ngày một lượt mới). Ghi **Người làm**.
+1. **Tạo mẫu** một lần ở tab **Checklist**, ví dụ "Mở ca sáng" gồm 10 việc. Mỗi việc có hướng dẫn, và đánh dấu được **Bắt buộc**, **Cần ảnh**, **Cần ghi chú**. Bật **Làm theo lịch** để chọn ngày, giờ bắt đầu và hạn: app nhắc lúc bắt đầu, 15 phút trước hạn và lúc hạn nếu chưa hoàn tất. Cần mẫu gần giống (ví dụ Mở ca chiều): bấm **Nhân bản** trên mẫu có sẵn, đổi tên và sửa vài việc.
+2. **Bấm vào dòng mẫu** (hoặc nút **Bắt đầu**) để làm lượt hôm nay. Ghi **Người làm**. Đang làm dở thì bấm vào dòng là làm tiếp.
 3. Mỗi việc chọn **Hoàn tất**, **Có vấn đề** hoặc **Không áp dụng**; ghi chú và **Chụp ảnh** (camera) hoặc **Chọn ảnh**. App ghi giờ và người làm từng việc.
 4. **Hoàn tất checklist.** Còn việc bắt buộc chưa làm, hoặc thiếu ảnh, ghi chú, thì app hỏi lại; hãy ghi lý do vào **Ghi chú chung**.
-5. **Báo cáo:** **Sao chép để gửi** (dán Zalo), **Xuất ảnh**, **Xuất Excel**. Báo cáo có từng việc, trạng thái, giờ, ghi chú, ảnh và đúng hạn hay trễ.
+5. **Báo cáo:** **Sao chép để gửi** (dán Zalo), **Xuất ảnh**, **Xuất Excel**. Báo cáo ghi nổi bật **Người làm**, có từng việc, trạng thái, giờ, ghi chú, ảnh và đúng hạn hay trễ.
+6. Làm xong trong ngày, dòng mẫu có dấu xanh **Đã xong hôm nay** (giờ xong, số việc) và nút **Xem**: bấm vào là mở lại lượt đã làm, không làm lại từ đầu. Cần làm thêm một lượt nữa trong ngày thì mở lượt đã xong, bấm **Làm lượt mới**. Dòng mẫu cũng ghi **Đang làm**, **Đến giờ làm** hoặc **Quá hạn, chưa làm** theo lịch.
 
 Tab **Hôm nay** gom việc quá hạn, việc trong ngày và checklist theo lịch hôm nay. Tab **Thống kê** (7 hoặc 30 ngày) cho biết số lượt hoàn tất, tỉ lệ đúng hạn, trễ hạn, việc hay có vấn đề, nhắc việc đã xong và bị lỡ.
 
 Nhắc việc, checklist, ảnh và âm thanh tự nhập đều có trong file sao lưu.
+
+## Tạo mã
+
+Tạo mã QR, mã vạch từ nội dung bất kỳ (mã sản phẩm, đường link, Wi-Fi, vị trí kệ…), mỗi mã có tiêu đề in to phía trên.
+
+1. **Nhập mã:** mỗi dòng một **Tiêu đề** (không bắt buộc) và **Nội dung**. Gõ nội dung rồi bấm Enter là sang dòng mới. Ô **×** là số bản in của mã đó (ví dụ in 24 tem giống nhau).
+2. **Nhập nhiều dòng:** dán nhiều mã một lần, mỗi dòng một mã. Có tiêu đề thì ghi `Tiêu đề | Nội dung`, hoặc chép hai cột từ Excel (cột A tiêu đề, cột B nội dung). Chọn **Thêm** vào danh sách hoặc **Thay cả danh sách**.
+3. **Loại mã:** **Mã QR** (nhận cả tiếng Việt có dấu, đường link dài), **Mã vạch** (Code 128, chỉ nhận chữ không dấu, số và ký hiệu) hoặc **QR + mã vạch**. Dòng không tạo được mã có viền đỏ và lý do, không in, không xuất. Mã vạch dài in trong ô nhỏ thì vạch quá mảnh, máy quét khó đọc: app báo màu vàng, nên chọn ít mã mỗi trang hơn hoặc dùng mã QR.
+4. **Số mã mỗi trang:** chọn từ 1 đến 70 mã trên một trang A4; app tự chia cột, hàng (ghi trong ngoặc) và cỡ chữ theo cỡ ô. Chọn khổ **Dọc** hoặc **Ngang**, bật tắt **Ghi nội dung dưới mã** và **Viền nét đứt để cắt**.
+5. **Xem trước** bên phải đúng như bản in; nhiều trang thì bấm mũi tên để xem từng trang.
+6. **In N mã:** mở màn xem trước bản in như các chức năng khác (chọn máy in, số bản, lưu PDF).
+7. **Ảnh từng mã:** mỗi mã một ảnh PNG (tiêu đề, mã, nội dung), tên file theo số dòng và tiêu đề. **Ảnh theo trang:** mỗi trang A4 một ảnh, giống bản in. Ảnh lưu vào thư mục Tải về.
+
+Danh sách mã và cách in được giữ lại khi đóng app, và có trong file sao lưu. **Xoá hết** để làm danh sách mới.
 
 ## Quét mã
 

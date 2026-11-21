@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 /**
- * Bật tắt các tab Giá Sốc, Giờ Vàng, Sticker, Phiếu, Event của In sticker và các chức năng Kiểm hàng, Nhắc việc. Tab Event mặc định tắt;
+ * Bật tắt các tab Giá Sốc, Giờ Vàng, Sticker, Phiếu, Event của In sticker và các chức năng Kiểm hàng, Kiểm quỹ, Nhắc việc, Tạo mã. Tab Event mặc định tắt;
  * luôn phải còn ít nhất một tab. Tắt hết các tab In sticker thì thanh bên trái chỉ còn Kiểm hàng. Bảng điều khiển mở bằng cách
  * bấm 7 lần vào logo rồi nhập mật khẩu, mặc định 12345.
  *
@@ -9,7 +9,7 @@ import { useSyncExternalStore } from 'react';
  * không đổi được tab hay mật khẩu. Mật khẩu chỉ lưu dạng băm nên không có cách đọc lại; quên thì phải xoá app cùng dữ liệu
  * của app rồi cài lại, khi đó mật khẩu và các tab về mặc định.
  */
-export type LockableTab = 'gia-soc' | 'gio-vang' | 'sticker' | 'draw' | 'event' | 'kiem-hang' | 'nhac-viec';
+export type LockableTab = 'gia-soc' | 'gio-vang' | 'sticker' | 'draw' | 'event' | 'kiem-hang' | 'nhac-viec' | 'tao-ma' | 'kiem-quy';
 
 export const LOCKABLE_TABS: readonly { id: LockableTab; label: string }[] = [
     { id: 'gia-soc', label: 'Giá Sốc' },
@@ -18,7 +18,9 @@ export const LOCKABLE_TABS: readonly { id: LockableTab; label: string }[] = [
     { id: 'draw', label: 'Phiếu' },
     { id: 'event', label: 'Event' },
     { id: 'kiem-hang', label: 'Kiểm hàng' },
+    { id: 'kiem-quy', label: 'Kiểm quỹ' },
     { id: 'nhac-viec', label: 'Nhắc việc' },
+    { id: 'tao-ma', label: 'Tạo mã' },
 ];
 
 /** Các tab thuộc In sticker. Tắt hết các tab này thì ẩn In sticker khỏi thanh bên trái. */

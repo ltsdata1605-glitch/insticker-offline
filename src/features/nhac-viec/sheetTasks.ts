@@ -1,6 +1,7 @@
 /**
- * Nhận việc từ Google Sheet: quản lý ghi việc vào file Google Sheet (tạo từ file mẫu), app đọc file dạng CSV vài phút một lần và
- * ghép vào danh sách nhắc việc. Chỉ đọc, không ghi ngược lên file. Không đụng giao diện để kiểm thử được.
+ * Nhận việc từ Google Sheet: quản lý ghi việc vào file Google Sheet (tạo từ file mẫu), app đọc file và ghép vào danh sách nhắc
+ * việc. Link chia sẻ thường thì chỉ đọc; Link kết nối của cầu nối thì đồng bộ hai chiều (sheetBridge.ts). Không đụng giao diện để
+ * kiểm thử được.
  */
 import type { ChecklistItemTemplate, ChecklistSchedule, ChecklistTemplate, PresetSound, Priority, Reminder, RepeatKind, SoundSpec } from './nhacViecModel';
 import { MINUTE } from './nhacViecModel';
@@ -284,13 +285,14 @@ const sameSchedule = (a: Reminder, b: Pick<Reminder, 'deadline' | 'remindBefore'
  * Ghép việc đọc được vào danh sách nhắc việc. Việc đã có (cùng mã việc) thì cập nhật nội dung, giữ trạng thái đã xong và các lần
  * đã nhắc; đổi giờ thì đặt lại lịch. Việc bị xoá khỏi file hoặc ghi Huỷ thì bỏ khỏi app. Ghi Xong thì đánh dấu xong lần hạn đó.
  */
-export const mergeSheetTasks = (reminders: Reminder[], tasks: SheetTask[], now: number): MergeResult => {
+export const mergeSheetTasks = (reminders: Reminder[], tasks: SheetTask[], now: number, templates: ChecklistTemplate[] = []): MergeResult => {
     const fromSheet = new Map(reminders.filter(item => item.source?.kind === 'sheet').map(item => [item.source!.taskId, item]));
     const active = tasks.filter(task => task.status !== 'cancelled');
     const keep = new Set(active.map(task => task.id));
     const added: Reminder[] = [];
     let updated = 0;
-    const next: Reminder[] = reminders.filter(item => item.source?.kind !== 'sheet' || keep.has(item.source.taskId));
+    // Việc tạo trên máy đang chờ gửi lên (chưa có mã việc) thì giữ
+    const next: Reminder[] = reminders.filter(item => item.source?.kind !== 'sheet' || !item.source.taskId || keep.has(item.source.taskId));
     const removed = reminders.length - next.length;
     for (const task of active) {
         const fields = {
@@ -304,9 +306,11 @@ export const mergeSheetTasks = (reminders: Reminder[], tasks: SheetTask[], now: 
             sound: task.sound,
             assignee: task.assignee,
             assigner: task.assigner,
-            checklistTemplateId: task.checklist ? checklistIdFor(task.checklist) : undefined,
+            checklistTemplateId: task.checklist ? checklistIdOf(task.checklist, templates) : undefined,
         };
         const existing = fromSheet.get(task.id);
+        // Âm thanh tự ghi chỉ có ở máy tạo việc (file ghi Chuông reo): máy đó vẫn dùng âm thanh của mình
+        if (existing?.sound.kind === 'file' && task.sound.kind === 'preset' && task.sound.preset === 'chuong') fields.sound = existing.sound;
         if (!existing) {
             const reminder: Reminder = {
                 id: `gs-${task.id}`,
@@ -358,6 +362,13 @@ const CHECKLIST_COLUMNS = {
 
 /** Mã mẫu checklist nhận từ file: theo tên checklist, bỏ dấu */
 export const checklistIdFor = (name: string): string => `gs-cl-${plain(name).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+
+/** Checklist gắn với việc: mẫu từ file trùng tên, không có thì mẫu tạo trên máy trùng tên (việc tạo trên máy rồi đưa lên file) */
+const checklistIdOf = (name: string, templates: ChecklistTemplate[]): string => {
+    const id = checklistIdFor(name);
+    if (templates.length === 0 || templates.some(template => template.id === id)) return id;
+    return templates.find(template => plain(template.name) === plain(name))?.id ?? id;
+};
 
 export interface SheetChecklist {
     id: string;

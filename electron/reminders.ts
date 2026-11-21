@@ -1,7 +1,9 @@
-import { BrowserWindow, Menu, Notification, Tray, app, clipboard, ipcMain, nativeImage, powerMonitor, screen, session, shell } from 'electron';
+import { BrowserWindow, Menu, Notification, Tray, app, clipboard, ipcMain, nativeImage, powerMonitor, powerSaveBlocker, screen, session, shell } from 'electron';
 import type { IpcMainInvokeEvent } from 'electron';
 import fs from 'node:fs';
-import type { BackgroundSettings, ReminderAction, ReminderPopupData, SheetFetchResult } from './contract';
+import path from 'node:path';
+import { VolumeBoost } from './volume';
+import type { BackgroundSettings, BridgeRequest, BridgeResponse, ReminderAction, ReminderPopupData, SheetFetchResult } from './contract';
 
 interface HostOptions {
   origin: string;
@@ -20,15 +22,25 @@ interface HostOptions {
 interface StoredSettings {
   runInBackground: boolean;
   openAtLogin: boolean;
+  /** Không cho máy tự ngủ khi app đang chạy, để nhắc đúng giờ */
+  keepAwake: boolean;
+  /** Mở to hết âm lượng khi cửa sổ nhắc kêu */
+  maxVolume: boolean;
   /** Đã báo một lần rằng đóng cửa sổ thì app vẫn chạy nền */
   hiddenNoticeShown?: boolean;
 }
 
-const DEFAULTS: StoredSettings = { runInBackground: true, openAtLogin: true };
+const DEFAULTS: StoredSettings = { runInBackground: true, openAtLogin: true, keepAwake: true, maxVolume: true };
+const LOGIN_ARG = '--khoi-dong-cung-may';
 const SHEET_PATTERN = /^https:\/\/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9_-]{20,})(?:[/?#].*)?$/;
+/** Link kết nối: ứng dụng web của script cầu nối trong file, kèm mã bí mật */
+const BRIDGE_PATTERN = /^https:\/\/script\.google\.com\/(?:a\/macros\/[^/\s]+|macros)\/s\/[A-Za-z0-9_-]{10,}\/exec\?k=[A-Za-z0-9]{16,}$/;
+/** Bài kiểm thử dùng cầu nối giả trên máy */
+const TEST_BRIDGE_PATTERN = /^http:\/\/127\.0\.0\.1:\d+\/macros\/s\/[A-Za-z0-9_-]{10,}\/exec\?k=[A-Za-z0-9]{16,}$/;
 const MAX_SHEET_BYTES = 5 * 1024 * 1024;
 const POPUP_WIDTH = 440;
 const POPUP_HEIGHT = 420;
+const POPUP_MIN_HEIGHT = 220;
 
 /**
  * Tải file Google Sheet dạng .xlsx (đủ mọi trang: Nhắc việc, Checklist). Chỉ đi tới docs.google.com (và máy chủ tải của Google khi
@@ -63,15 +75,55 @@ export const fetchSheetFile = async (url: string, isTest: boolean): Promise<Shee
   }
 };
 
+export const isBridgeLink = (link: string, isTest: boolean): boolean => BRIDGE_PATTERN.test(link) || (isTest && TEST_BRIDGE_PATTERN.test(link));
+
+/**
+ * Gọi cầu nối Google Sheet. Chỉ đi tới script.google.com (Google trả kết quả qua script.googleusercontent.com), qua phiên mạng
+ * riêng như khi tải file. Ứng dụng web chưa để "Bất kỳ ai" thì Google trả trang đăng nhập thay cho dữ liệu.
+ */
+export const callBridge = async (link: string, request: BridgeRequest, isTest: boolean): Promise<BridgeResponse> => {
+  const base = link.trim();
+  if (!isBridgeLink(base, isTest)) return { ok: false, reason: 'invalid-url' };
+  const url = request.method === 'GET' ? `${base}&a=doc${request.since ? `&since=${encodeURIComponent(request.since)}` : ''}&t=${Date.now()}` : base;
+  try {
+    const response = await session.fromPartition('nhac-viec-google-sheet').fetch(url, {
+      method: request.method,
+      ...(request.method === 'POST' ? { body: JSON.stringify(request.body), headers: { 'Content-Type': 'text/plain;charset=utf-8' } } : {}),
+      signal: AbortSignal.timeout(request.method === 'POST' ? 60_000 : 45_000),
+      cache: 'no-store',
+    });
+    const host = new URL(response.url || url).hostname;
+    const google = host === 'script.google.com' || host.endsWith('.googleusercontent.com');
+    if (!google && !(isTest && host === '127.0.0.1')) {
+      return host.endsWith('.google.com') ? { ok: false, reason: 'not-public' } : { ok: false, reason: 'error', message: `Chuyển hướng lạ: ${host}` };
+    }
+    if (response.status === 404) return { ok: false, reason: 'not-found' };
+    const text = await response.text();
+    if (text.length > MAX_SHEET_BYTES) return { ok: false, reason: 'error', message: 'Dữ liệu quá lớn' };
+    try {
+      return { ok: true, data: JSON.parse(text) };
+    } catch {
+      // Trang HTML: ứng dụng web chưa cho Bất kỳ ai truy cập, hoặc Google báo lỗi script
+      return response.ok ? { ok: false, reason: 'not-public' } : { ok: false, reason: 'error', message: `Mã ${response.status}` };
+    }
+  } catch (error) {
+    return { ok: false, reason: 'offline', message: error instanceof Error ? error.message : String(error) };
+  }
+};
+
 export class ReminderHost {
-  private readonly popups = new Map<string, BrowserWindow>();
-  private readonly popupData = new Map<number, ReminderPopupData>();
+  /** Một cửa sổ nhắc chung: nhiều nhắc cùng lúc thì xếp trong cùng một bảng */
+  private popup: BrowserWindow | null = null;
+  private items: ReminderPopupData[] = [];
   private tray: Tray | null = null;
   private settings: StoredSettings;
   private quitting = false;
+  private awakeBlocker: number | null = null;
+  readonly volume: VolumeBoost;
 
   constructor(private readonly options: HostOptions) {
     this.settings = this.readSettings();
+    this.volume = new VolumeBoost({ scriptDir: path.dirname(options.settingsFile), isTest: options.isTest });
   }
 
   private readSettings(): StoredSettings {
@@ -94,23 +146,58 @@ export class ReminderHost {
     return app.isPackaged && !this.options.isTest && (process.platform === 'darwin' || process.platform === 'win32');
   }
 
+  /** Hệ điều hành có thật sự mở app lúc bật máy không (macOS có thể chờ duyệt, Windows có thể bị tắt trong Trình quản lý tác vụ) */
+  private loginStatus(): BackgroundSettings['loginStatus'] {
+    if (!this.loginItemAvailable || !this.settings.openAtLogin) return undefined;
+    try {
+      if (process.platform === 'darwin') {
+        const current = app.getLoginItemSettings();
+        if (current.status === 'requires-approval') return 'needs-approval';
+        return current.status === 'enabled' || current.openAtLogin ? 'ok' : 'failed';
+      }
+      const current = app.getLoginItemSettings({ args: [LOGIN_ARG] });
+      if (!current.openAtLogin) return 'failed';
+      return current.executableWillLaunchAtLogin ? 'ok' : 'blocked';
+    } catch {
+      return 'failed';
+    }
+  }
+
   private publicSettings(): BackgroundSettings {
-    return { runInBackground: this.settings.runInBackground, openAtLogin: this.settings.openAtLogin, loginItemAvailable: this.loginItemAvailable };
+    return {
+      runInBackground: this.settings.runInBackground,
+      openAtLogin: this.settings.openAtLogin,
+      loginItemAvailable: this.loginItemAvailable,
+      loginStatus: this.loginStatus(),
+      keepAwake: this.settings.keepAwake,
+      maxVolume: this.settings.maxVolume,
+    };
   }
 
   private applyLoginItem(): void {
     if (!this.loginItemAvailable) return;
     try {
-      app.setLoginItemSettings({ openAtLogin: this.settings.openAtLogin, args: ['--khoi-dong-cung-may'] });
+      app.setLoginItemSettings({ openAtLogin: this.settings.openAtLogin, args: [LOGIN_ARG] });
     } catch (error) {
       console.error('[Nhắc việc] Không đặt được khởi động cùng máy', error);
+    }
+  }
+
+  /** Không cho máy tự ngủ (màn hình vẫn tắt được) và không cho hệ điều hành cho app "ngủ trưa": giờ nhắc chạy đúng lúc */
+  private applyKeepAwake(): void {
+    const want = this.settings.keepAwake && !this.options.isTest;
+    if (want && this.awakeBlocker === null) {
+      this.awakeBlocker = powerSaveBlocker.start('prevent-app-suspension');
+    } else if (!want && this.awakeBlocker !== null) {
+      powerSaveBlocker.stop(this.awakeBlocker);
+      this.awakeBlocker = null;
     }
   }
 
   /** App tự mở lúc bật máy: chạy nền, không hiện cửa sổ */
   get openedAtLogin(): boolean {
     if (!this.settings.runInBackground) return false;
-    if (process.argv.includes('--khoi-dong-cung-may')) return true;
+    if (process.argv.includes(LOGIN_ARG)) return true;
     try {
       return process.platform === 'darwin' && app.getLoginItemSettings().wasOpenedAtLogin === true;
     } catch {
@@ -168,11 +255,11 @@ export class ReminderHost {
     }
   }
 
-  private assertPopup(event: IpcMainInvokeEvent): ReminderPopupData {
-    const data = this.popupData.get(event.sender.id);
+  private assertPopup(event: IpcMainInvokeEvent): void {
     const frameUrl = event.senderFrame?.url ?? '';
-    if (!data || !frameUrl.startsWith(`${this.options.origin}/`)) throw new Error('Nguồn gọi không hợp lệ');
-    return data;
+    if (!this.popup || this.popup.isDestroyed() || event.sender !== this.popup.webContents || !frameUrl.startsWith(`${this.options.origin}/`)) {
+      throw new Error('Nguồn gọi không hợp lệ');
+    }
   }
 
   private attention(popup: BrowserWindow): void {
@@ -180,23 +267,32 @@ export class ReminderHost {
     else popup.flashFrame(true);
   }
 
+  private sendItems(): void {
+    if (this.popup && !this.popup.isDestroyed()) this.popup.webContents.send('reminder:popup-items', this.items);
+  }
+
+  /** Thêm hoặc thay một nhắc trong bảng nhắc; chưa có bảng thì mở */
   showPopup(data: ReminderPopupData): void {
-    const existing = this.popups.get(data.key);
+    const index = this.items.findIndex(item => item.key === data.key);
+    this.items = index >= 0 ? this.items.map((item, i) => (i === index ? data : item)) : [...this.items, data];
+    const existing = this.popup;
     if (existing && !existing.isDestroyed()) {
-      this.popupData.set(existing.webContents.id, data);
-      existing.show();
+      this.sendItems();
+      existing.setTitle(this.title());
+      if (!existing.isVisible()) existing.show();
+      existing.moveTop();
       existing.focus();
+      this.attention(existing);
       return;
     }
     const { workArea } = screen.getPrimaryDisplay();
-    const offset = (this.popups.size % 6) * 28;
     const popup = new BrowserWindow({
       width: POPUP_WIDTH,
       height: POPUP_HEIGHT,
-      x: Math.round(workArea.x + workArea.width - POPUP_WIDTH - 24 - offset),
-      y: Math.round(workArea.y + 24 + offset),
+      x: Math.round(workArea.x + workArea.width - POPUP_WIDTH - 24),
+      y: Math.round(workArea.y + 24),
       show: false,
-      title: data.kind === 'missed' ? 'Nhắc việc bị lỡ' : 'Nhắc việc',
+      title: this.title(),
       alwaysOnTop: true,
       resizable: false,
       minimizable: false,
@@ -219,9 +315,7 @@ export class ReminderHost {
     // Nằm trên cả ứng dụng toàn màn hình, ở mọi màn hình làm việc (Mac)
     popup.setAlwaysOnTop(true, 'screen-saver');
     popup.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    const id = popup.webContents.id;
-    this.popupData.set(id, data);
-    this.popups.set(data.key, popup);
+    this.popup = popup;
     popup.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     popup.webContents.on('will-navigate', (event) => event.preventDefault());
     popup.once('ready-to-show', () => {
@@ -229,22 +323,59 @@ export class ReminderHost {
       popup.focus();
       this.attention(popup);
     });
-    // Đóng bằng nút × của cửa sổ: coi như đã xem
+    // Đóng bằng nút × của cửa sổ: coi như đã xem mọi nhắc còn trong bảng
     popup.on('close', () => {
-      if (this.popupData.has(id)) this.forward({ key: data.key, action: 'dismiss' });
+      const left = this.popup === popup ? this.items : [];
+      if (this.popup === popup) {
+        this.items = [];
+        this.popup = null;
+      }
+      for (const item of left) this.forward({ key: item.key, action: 'dismiss' });
     });
     popup.on('closed', () => {
-      this.popupData.delete(id);
-      if (this.popups.get(data.key) === popup) this.popups.delete(data.key);
+      if (this.popup === popup) {
+        this.popup = null;
+        this.items = [];
+      }
+      this.volume.restore();
     });
     void popup.loadURL(`${this.options.origin}/?popup=nhac-viec`);
   }
 
+  private title(): string {
+    if (this.items.length > 1) return `Nhắc việc (${this.items.length})`;
+    return this.items[0]?.kind === 'missed' ? 'Nhắc việc bị lỡ' : 'Nhắc việc';
+  }
+
+  /** Bỏ một nhắc khỏi bảng; bảng trống thì đóng */
   closePopup(key: string): void {
-    const popup = this.popups.get(key);
+    if (!this.items.some(item => item.key === key)) return;
+    this.items = this.items.filter(item => item.key !== key);
+    const popup = this.popup;
     if (!popup || popup.isDestroyed()) return;
-    this.popupData.delete(popup.webContents.id);
-    popup.close();
+    if (this.items.length === 0) {
+      this.popup = null;
+      popup.close();
+      return;
+    }
+    popup.setTitle(this.title());
+    this.sendItems();
+  }
+
+  /** Cửa sổ nhắc báo chiều cao nội dung: cửa sổ co giãn theo, tối đa gần hết chiều cao màn hình */
+  private resizePopup(height: number): void {
+    const popup = this.popup;
+    if (!popup || popup.isDestroyed() || !Number.isFinite(height)) return;
+    const { workArea } = screen.getDisplayMatching(popup.getBounds());
+    const [, current] = popup.getContentSize();
+    const frame = popup.getSize()[1] - current;
+    const next = Math.round(Math.max(POPUP_MIN_HEIGHT, Math.min(height, workArea.height - 48 - frame)));
+    if (Math.abs(next - current) < 2) return;
+    const bounds = popup.getBounds();
+    const bottom = workArea.y + workArea.height - 24;
+    // Giữ mép trên, trừ khi cửa sổ cao lên quá đáy màn hình thì đẩy lên
+    const y = Math.max(workArea.y + 24, Math.min(bounds.y, bottom - next - frame));
+    popup.setBounds({ x: bounds.x, y, width: bounds.width, height: next + frame });
   }
 
   private forward(action: ReminderAction): void {
@@ -261,11 +392,28 @@ export class ReminderHost {
       this.assertMain(event);
       this.closePopup(key);
     });
-    ipcMain.handle('reminder:popup-data', (event) => this.assertPopup(event));
+    ipcMain.handle('reminder:popup-data', (event) => {
+      this.assertPopup(event);
+      return this.items;
+    });
     ipcMain.handle('reminder:popup-action', (event, action: ReminderAction) => {
-      const data = this.assertPopup(event);
-      this.forward({ ...action, key: data.key });
-      this.closePopup(data.key);
+      this.assertPopup(event);
+      const item = this.items.find(entry => entry.key === action?.key);
+      if (!item) return;
+      const minutes = typeof action.minutes === 'number' ? action.minutes : undefined;
+      if (!['done', 'snooze', 'open', 'dismiss'].includes(action.action)) return;
+      this.forward({ key: item.key, action: action.action, minutes });
+      this.closePopup(item.key);
+    });
+    ipcMain.handle('reminder:popup-size', (event, height: number) => {
+      this.assertPopup(event);
+      this.resizePopup(Number(height));
+    });
+    // Cửa sổ nhắc đang kêu: mở to hết âm lượng; tắt tiếng hoặc đóng thì trả lại mức cũ
+    ipcMain.handle('reminder:popup-sound', (event, playing: boolean) => {
+      this.assertPopup(event);
+      if (playing === true && this.settings.maxVolume) this.volume.raise();
+      else if (playing !== true) this.volume.restore();
     });
     ipcMain.handle('background:get', (event) => {
       this.assertMain(event);
@@ -275,21 +423,37 @@ export class ReminderHost {
       this.assertMain(event);
       if (typeof next.runInBackground === 'boolean') this.settings.runInBackground = next.runInBackground;
       if (typeof next.openAtLogin === 'boolean') this.settings.openAtLogin = next.openAtLogin;
+      if (typeof next.keepAwake === 'boolean') this.settings.keepAwake = next.keepAwake;
+      if (typeof next.maxVolume === 'boolean') this.settings.maxVolume = next.maxVolume;
       this.writeSettings();
       this.applyLoginItem();
+      this.applyKeepAwake();
       this.updateTray();
       return this.publicSettings();
+    });
+
+    // Mở trang cài đặt của hệ điều hành để cho phép app mở cùng máy
+    ipcMain.handle('background:open-login-settings', (event) => {
+      this.assertMain(event);
+      if (this.options.isTest) return;
+      const target = process.platform === 'darwin' ? 'x-apple.systempreferences:com.apple.LoginItems-Settings.extension' : process.platform === 'win32' ? 'ms-settings:startupapps' : '';
+      if (target) void shell.openExternal(target);
     });
 
     ipcMain.handle('sheet:fetch', (event, url: string) => {
       this.assertMain(event);
       return fetchSheetFile(String(url), this.options.isTest);
     });
-    // Chỉ trả về khi clipboard là link Google Sheet, không để giao diện đọc nội dung khác trong clipboard
+    ipcMain.handle('sheet:bridge', (event, link: string, request: BridgeRequest) => {
+      this.assertMain(event);
+      const safe: BridgeRequest = request?.method === 'POST' ? { method: 'POST', body: request.body } : { method: 'GET', since: typeof request?.since === 'string' ? request.since : undefined };
+      return callBridge(String(link), safe, this.options.isTest);
+    });
+    // Chỉ trả về khi clipboard là link Google Sheet hoặc Link kết nối, không để giao diện đọc nội dung khác trong clipboard
     ipcMain.handle('sheet:clipboard', async (event) => {
       this.assertMain(event);
       const text = String(await clipboard.readText()).trim();
-      return SHEET_PATTERN.test(text) ? text : '';
+      return SHEET_PATTERN.test(text) || isBridgeLink(text, this.options.isTest) ? text : '';
     });
     ipcMain.handle('sheet:open', (event, url: string) => {
       this.assertMain(event);
@@ -302,10 +466,15 @@ export class ReminderHost {
     powerMonitor.on('unlock-screen', recheck);
     app.on('before-quit', () => {
       this.quitting = true;
-      for (const popup of this.popups.values()) if (!popup.isDestroyed()) popup.destroy();
+      const popup = this.popup;
+      this.popup = null;
+      this.items = [];
+      if (popup && !popup.isDestroyed()) popup.destroy();
+      this.volume.restore();
     });
 
     this.applyLoginItem();
+    this.applyKeepAwake();
     this.updateTray();
   }
 }

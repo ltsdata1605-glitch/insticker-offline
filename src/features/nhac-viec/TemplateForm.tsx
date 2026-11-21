@@ -18,13 +18,21 @@ const Toggle: React.FC<{ on: boolean; label: string; onChange: (value: boolean) 
     </button>
 );
 
-/** Tạo hoặc sửa mẫu checklist: danh sách việc, việc nào bắt buộc, cần ảnh, cần ghi chú; lịch làm và hạn trong ngày. */
-export const TemplateForm: React.FC<{ template: ChecklistTemplate | null; onClose: () => void }> = ({ template, onClose }) => {
+/**
+ * Tạo hoặc sửa mẫu checklist: danh sách việc, việc nào bắt buộc, cần ảnh, cần ghi chú; lịch làm và hạn trong ngày.
+ * `copyFrom`: nhân bản, điền sẵn đủ danh sách việc và lịch, tên thêm "(bản sao)", lưu thành mẫu mới.
+ */
+export const TemplateForm: React.FC<{ template: ChecklistTemplate | null; copyFrom?: ChecklistTemplate | null; onClose: () => void }> = ({ template, copyFrom, onClose }) => {
     const { saveTemplate, deleteTemplate } = useNhacViec();
-    const [name, setName] = useState(template?.name ?? '');
-    const [description, setDescription] = useState(template?.description ?? '');
-    const [items, setItems] = useState<ChecklistItemTemplate[]>(template?.items.length ? template.items : [emptyItem(), emptyItem(), emptyItem()]);
-    const [schedule, setSchedule] = useState(template?.schedule ?? { enabled: false, days: [1, 2, 3, 4, 5, 6, 0], start: '08:00', due: '09:00' });
+    const base = template ?? copyFrom ?? null;
+    const [name, setName] = useState(template?.name ?? (copyFrom ? `${copyFrom.name} (bản sao)` : ''));
+    const [description, setDescription] = useState(base?.description ?? '');
+    const [items, setItems] = useState<ChecklistItemTemplate[]>(() => {
+        if (template?.items.length) return template.items;
+        if (copyFrom?.items.length) return copyFrom.items.map(item => ({ ...item, id: newId('i') }));
+        return [emptyItem(), emptyItem(), emptyItem()];
+    });
+    const [schedule, setSchedule] = useState(base?.schedule ?? { enabled: false, days: [1, 2, 3, 4, 5, 6, 0], start: '08:00', due: '09:00' });
     const [error, setError] = useState('');
 
     const update = (index: number, change: Partial<ChecklistItemTemplate>) => setItems(list => list.map((item, i) => (i === index ? { ...item, ...change } : item)));
@@ -51,7 +59,7 @@ export const TemplateForm: React.FC<{ template: ChecklistTemplate | null; onClos
             createdAt: template?.createdAt ?? now,
             updatedAt: now,
         });
-        toast.success(template ? 'Đã lưu mẫu checklist' : 'Đã tạo mẫu checklist');
+        toast.success(template ? 'Đã lưu mẫu checklist' : copyFrom ? 'Đã tạo bản sao mẫu checklist' : 'Đã tạo mẫu checklist');
         onClose();
     };
 
@@ -70,7 +78,7 @@ export const TemplateForm: React.FC<{ template: ChecklistTemplate | null; onClos
     );
 
     return (
-        <Modal isOpen={true} onClose={onClose} title={template ? 'Sửa mẫu checklist' : 'Tạo mẫu checklist'} maxWidth="xl" footer={footer} zIndex="z-[200]">
+        <Modal isOpen={true} onClose={onClose} title={template ? 'Sửa mẫu checklist' : copyFrom ? 'Nhân bản mẫu checklist' : 'Tạo mẫu checklist'} maxWidth="xl" footer={footer} zIndex="z-[200]">
             <div className="space-y-4">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                     <label className="space-y-1.5 block">

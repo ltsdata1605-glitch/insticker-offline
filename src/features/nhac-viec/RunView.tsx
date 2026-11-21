@@ -133,8 +133,12 @@ const ReportCard = React.forwardRef<HTMLDivElement, { run: ChecklistRun }>(({ ru
         <div ref={ref} style={{ width: 720 }} className="bg-white p-6 text-slate-900">
             <p className="text-[12px] font-bold uppercase tracking-wide text-sky-700">Báo cáo checklist</p>
             <h2 className="text-[24px] font-black">{run.name}</h2>
-            <p className="text-[13px] text-slate-600">
-                Ngày {run.date.split('-').reverse().join('/')}{run.performer ? ` · Người làm: ${run.performer}` : ''} · Bắt đầu {timeOfDay(run.startedAt)}
+            <div data-testid="bao-cao-nguoi-lam" className="mt-2 flex items-center gap-3 rounded-lg bg-sky-50 px-3 py-2 ring-1 ring-sky-200">
+                <span className="text-[12px] font-bold uppercase tracking-wide text-sky-700">Người làm</span>
+                <span className="text-[20px] font-black leading-tight text-slate-900">{run.performer.trim() || 'Chưa ghi tên'}</span>
+            </div>
+            <p className="mt-2 text-[13px] text-slate-600">
+                Ngày {run.date.split('-').reverse().join('/')} · Bắt đầu {timeOfDay(run.startedAt)}
                 {run.finishedAt ? ` · Hoàn tất ${timeOfDay(run.finishedAt)}` : ' · Chưa hoàn tất'}{run.deadline ? ` · Hạn ${timeOfDay(run.deadline)}` : ''}
             </p>
             <div className="mt-3 grid grid-cols-4 gap-2 text-center">
@@ -197,8 +201,9 @@ const exportRunExcel = async (run: ChecklistRun) => {
 };
 
 /** Làm một lượt checklist và báo cáo. */
-export const RunView: React.FC<{ run: ChecklistRun; onBack: () => void }> = ({ run, onBack }) => {
-    const { saveRun, deleteRun, setPerformer, now } = useNhacViec();
+export const RunView: React.FC<{ run: ChecklistRun; onBack: () => void; onOpenRun: (run: ChecklistRun) => void }> = ({ run, onBack, onOpenRun }) => {
+    const { saveRun, deleteRun, setPerformer, now, templates, startNewRun } = useNhacViec();
+    const hasTemplate = templates.some(template => template.id === run.templateId);
     const [finishAsk, setFinishAsk] = useState(false);
     const [deleteAsk, setDeleteAsk] = useState(false);
     const reportRef = useRef<HTMLDivElement>(null);
@@ -263,7 +268,7 @@ export const RunView: React.FC<{ run: ChecklistRun; onBack: () => void }> = ({ r
                     <Button className="w-full" icon="copy" onClick={() => void saoChep(runReportText(run, now), { thanhCong: 'Đã sao chép báo cáo, dán vào Zalo để gửi' })}>Sao chép để gửi</Button>
                     <div className="grid grid-cols-2 gap-2">
                         <Button variant="secondary" icon="exportImage" onClick={() => {
-                            if (reportRef.current) void exportElementAsImage(reportRef.current, `Checklist_${run.name.replace(/\s+/g, '_')}_${run.date}.png`, { preset: 'raw', footer: `In Sticker · ${run.name}` });
+                            if (reportRef.current) void exportElementAsImage(reportRef.current, `Checklist_${run.name.replace(/\s+/g, '_')}_${run.date}.png`, { preset: 'raw', footer: false });
                         }}>Xuất ảnh</Button>
                         <Button variant="secondary" icon="spreadsheet" onClick={() => void exportRunExcel(run)}>Xuất Excel</Button>
                     </div>
@@ -271,7 +276,13 @@ export const RunView: React.FC<{ run: ChecklistRun; onBack: () => void }> = ({ r
                 {finished ? (
                     <section className="rounded-card border border-emerald-200 bg-emerald-50 p-3 space-y-2">
                         <p className="text-[14px] font-bold text-emerald-800">Đã hoàn tất lúc {timeOfDay(run.finishedAt!)}</p>
-                        <Button variant="secondary" size="sm" onClick={() => update({ finishedAt: undefined })}>Mở lại để sửa</Button>
+                        <div className="flex flex-wrap gap-2">
+                            <Button variant="secondary" size="sm" onClick={() => update({ finishedAt: undefined })}>Mở lại để sửa</Button>
+                            {hasTemplate && (
+                                <Button variant="secondary" size="sm" icon="add" title="Làm thêm một lượt mới từ đầu, lượt này vẫn giữ nguyên"
+                                    onClick={() => { const next = startNewRun(run.templateId); if (next) onOpenRun(next); }}>Làm lượt mới</Button>
+                            )}
+                        </div>
                     </section>
                 ) : (
                     <Button size="lg" icon="check" className="w-full !bg-emerald-600 hover:!bg-emerald-700 !text-white border-transparent"

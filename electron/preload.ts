@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { DesktopApi, DownloadDone, ReminderAction, UpdateState } from './contract';
+import type { DesktopApi, DownloadDone, ReminderAction, ReminderPopupData, UpdateState } from './contract';
 
 const api: DesktopApi = {
   print: {
@@ -33,7 +33,14 @@ const api: DesktopApi = {
     showPopup: (data) => ipcRenderer.invoke('reminder:show', data),
     closePopup: (key) => ipcRenderer.invoke('reminder:close', key),
     getPopupData: () => ipcRenderer.invoke('reminder:popup-data'),
+    onPopupItems: (listener) => {
+      const handler = (_event: unknown, items: ReminderPopupData[]) => listener(items);
+      ipcRenderer.on('reminder:popup-items', handler);
+      return () => ipcRenderer.removeListener('reminder:popup-items', handler);
+    },
     popupAction: (action) => ipcRenderer.invoke('reminder:popup-action', action),
+    popupResize: (height) => ipcRenderer.invoke('reminder:popup-size', height),
+    popupSound: (playing) => ipcRenderer.invoke('reminder:popup-sound', playing),
     onAction: (listener) => {
       const handler = (_event: unknown, action: ReminderAction) => listener(action);
       ipcRenderer.on('reminder:action', handler);
@@ -46,7 +53,9 @@ const api: DesktopApi = {
     },
     getBackground: () => ipcRenderer.invoke('background:get'),
     setBackground: (settings) => ipcRenderer.invoke('background:set', settings),
+    openLoginSettings: () => ipcRenderer.invoke('background:open-login-settings'),
     fetchSheet: (url) => ipcRenderer.invoke('sheet:fetch', url),
+    bridge: (link, request) => ipcRenderer.invoke('sheet:bridge', link, request),
     openSheet: (url) => ipcRenderer.invoke('sheet:open', url),
     readSheetLinkFromClipboard: () => ipcRenderer.invoke('sheet:clipboard'),
   },

@@ -129,6 +129,13 @@ export type SheetFetchResult =
   | { ok: true; base64: string }
   | { ok: false; reason: 'invalid-url' | 'not-shared' | 'not-found' | 'offline' | 'error'; message?: string };
 
+/** Gọi cầu nối Google Sheet (đồng bộ hai chiều): đọc dữ liệu (kèm dấu phiên bản lần trước) hoặc gửi thay đổi */
+export type BridgeRequest = { method: 'GET'; since?: string } | { method: 'POST'; body: unknown };
+
+export type BridgeResponse =
+  | { ok: true; data: unknown }
+  | { ok: false; reason: 'invalid-url' | 'not-public' | 'not-found' | 'offline' | 'error'; message?: string };
+
 export interface ReminderAction {
   key: string;
   action: 'done' | 'snooze' | 'open' | 'dismiss';
@@ -142,7 +149,18 @@ export interface BackgroundSettings {
   openAtLogin: boolean;
   /** Máy này đặt được khởi động cùng máy (chỉ bản đã cài) */
   loginItemAvailable: boolean;
+  /**
+   * Hệ điều hành có mở app lúc bật máy không: ok; needs-approval (macOS chờ bật trong Mục đăng nhập); blocked (Windows tắt trong
+   * Ứng dụng khởi động); failed (chưa đặt được). Không có khi tắt hoặc không dùng được.
+   */
+  loginStatus?: 'ok' | 'needs-approval' | 'blocked' | 'failed';
+  /** Không cho máy tự ngủ khi app đang chạy (màn hình vẫn tắt được), để nhắc đúng giờ */
+  keepAwake: boolean;
+  /** Mở to hết âm lượng loa khi cửa sổ nhắc kêu, xong trả lại mức cũ */
+  maxVolume: boolean;
 }
+
+export type BackgroundChange = Partial<Pick<BackgroundSettings, 'runInBackground' | 'openAtLogin' | 'keepAwake' | 'maxVolume'>>;
 
 export interface DesktopApi {
   print: {
@@ -166,22 +184,33 @@ export interface DesktopApi {
     onStateChange(listener: (state: UpdateState) => void): () => void;
   };
   reminders: {
-    /** Cửa sổ chính: bật cửa sổ nhắc (có rồi thì đưa lên trước) */
+    /** Cửa sổ chính: thêm một nhắc vào bảng nhắc (mọi nhắc chung một cửa sổ, luôn nằm trên cùng) */
     showPopup(data: ReminderPopupData): Promise<void>;
+    /** Bỏ một nhắc khỏi bảng; hết nhắc thì bảng đóng */
     closePopup(key: string): Promise<void>;
-    /** Cửa sổ nhắc: lấy nội dung của chính nó */
-    getPopupData(): Promise<ReminderPopupData | null>;
-    /** Cửa sổ nhắc: người dùng bấm nút, cửa sổ đóng lại */
+    /** Cửa sổ nhắc: các nhắc đang có trong bảng */
+    getPopupData(): Promise<ReminderPopupData[]>;
+    /** Cửa sổ nhắc: bảng có thêm, bớt hay đổi nhắc */
+    onPopupItems(listener: (items: ReminderPopupData[]) => void): () => void;
+    /** Cửa sổ nhắc: người dùng bấm nút của một nhắc, nhắc đó rời bảng */
     popupAction(action: ReminderAction): Promise<void>;
+    /** Cửa sổ nhắc: chiều cao nội dung, để cửa sổ co giãn theo */
+    popupResize(height: number): Promise<void>;
+    /** Cửa sổ nhắc: đang kêu hay đã im (để mở to âm lượng rồi trả lại) */
+    popupSound(playing: boolean): Promise<void>;
     /** Cửa sổ chính nhận nút đã bấm trên cửa sổ nhắc */
     onAction(listener: (action: ReminderAction) => void): () => void;
     /** Máy vừa thức dậy hoặc mở khoá: kiểm tra lại các nhắc đến giờ */
     onRecheck(listener: () => void): () => void;
     getBackground(): Promise<BackgroundSettings>;
-    setBackground(settings: Partial<Pick<BackgroundSettings, 'runInBackground' | 'openAtLogin'>>): Promise<BackgroundSettings>;
+    setBackground(settings: BackgroundChange): Promise<BackgroundSettings>;
+    /** Mở trang cài đặt của hệ điều hành nơi cho phép app mở cùng máy */
+    openLoginSettings(): Promise<void>;
     /** Tải file Google Sheet (đã chia sẻ cho người có link) dạng .xlsx */
     fetchSheet(url: string): Promise<SheetFetchResult>;
-    /** Link Google Sheet đang có trong clipboard (rỗng nếu clipboard không phải link Google Sheet) */
+    /** Gọi cầu nối của file (Link kết nối) để đọc hoặc ghi việc */
+    bridge(link: string, request: BridgeRequest): Promise<BridgeResponse>;
+    /** Link Google Sheet hoặc Link kết nối đang có trong clipboard (rỗng nếu clipboard là nội dung khác) */
     readSheetLinkFromClipboard(): Promise<string>;
     /** Mở link Google Sheet trong trình duyệt của máy */
     openSheet(url: string): Promise<void>;

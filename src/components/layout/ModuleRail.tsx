@@ -12,7 +12,9 @@ export interface RailItem {
 export const RAIL_ITEMS: readonly RailItem[] = [
     { id: 'tools-print-sticker', label: 'In sticker', icon: 'print' },
     { id: 'tools-kiem-hang', label: 'Kiểm hàng', icon: 'checklist' },
+    { id: 'tools-kiem-quy', label: 'Kiểm quỹ', icon: 'cash' },
     { id: 'tools-nhac-viec', label: 'Nhắc việc', icon: 'notification' },
+    { id: 'tools-tao-ma', label: 'Tạo mã', icon: 'qrCode' },
 ];
 
 /** Thanh chức năng bên trái, nằm ngay dưới logo. Chỉ hiện khi có từ hai chức năng đang bật. */

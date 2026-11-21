@@ -9,7 +9,8 @@
  *
  * Script dựng lại file mẫu có mã TEMPLATE_ID (app đang dùng file này để tạo bản sao), nên link không đổi và không phải cập nhật
  * app. Không mở được file đó (chạy bằng tài khoản khác) thì script tạo file mới: gửi link file mới để cập nhật vào app.
- * Chạy lại bao nhiêu lần cũng được; mỗi lần chạy xoá hết nội dung cũ của file mẫu và dựng lại từ đầu.
+ * Chạy lại bao nhiêu lần cũng được; mỗi lần chạy xoá hết nội dung cũ của file mẫu và dựng lại từ đầu. Script cầu nối đã dán trong
+ * file mẫu (cau-noi-nhac-viec.gs, menu Nhắc việc) vẫn giữ nguyên.
  */
 
 const TEMPLATE_ID = '1DrQV5W-YitTXIvEXjRfmqNStHy5MqC2AFDnWsOnCXyg';
@@ -105,6 +106,8 @@ function dungNhacViec_(sheet, danhMuc, checklist) {
     { ten: 'Checklist', rong: 170, ghiChu: 'Gắn checklist ở trang Checklist: cửa sổ nhắc có nút mở thẳng checklist đó.' },
     { ten: 'Trạng thái', rong: 110, ghiChu: 'Huỷ: rút việc khỏi app. Xong: đánh dấu đã xong. Để trống là Đang giao.' },
     { ten: 'Người giao', rong: 150, ghiChu: 'Chọn từ trang Danh mục.' },
+    { ten: 'Người xong', rong: 150, ghiChu: 'App ghi tên người bấm Đã xong (khi đã bật đồng bộ hai chiều).' },
+    { ten: 'Xong lúc', rong: 130, ghiChu: 'App ghi giờ bấm Đã xong. Việc lặp lại: lần xong gần nhất, các lần trước xem ở trang Nhật ký.' },
   ];
   soCot_(sheet, cot.length);
   dungTieuDe_(sheet, cot);
@@ -127,6 +130,8 @@ function dungNhacViec_(sheet, danhMuc, checklist) {
   sheet.getRange(2, 12, n, 1).setDataValidation(chonTuVung_(checklist.getRange('A2:A' + (SO_DONG_CHECKLIST + 1)), 'Chọn checklist ở trang Checklist.'));
   sheet.getRange(2, 13, n, 1).setHorizontalAlignment('center').setDataValidation(chonTuDanhSach_(TRANG_THAI_VIEC, false, 'Đang giao, Xong hoặc Huỷ.'));
   sheet.getRange(2, 14, n, 1).setDataValidation(chonTuVung_(danhMuc.getRange('B2:B201'), 'Chọn người giao (ghi danh sách ở trang Danh mục).'));
+  sheet.getRange(2, 15, n, 2).setHorizontalAlignment('center');
+  sheet.getRange(2, 16, n, 1).setNumberFormat('dd/mm/yyyy hh:mm');
 
   const all = sheet.getRange(1, 1, n + 1, cot.length);
   all.applyRowBanding(SpreadsheetApp.BandingTheme.BLUE, true, false)
@@ -183,6 +188,22 @@ function dungChecklist_(sheet, danhMuc) {
   sheet.setTabColor('#047857');
 }
 
+/** Trang app ghi vào khi bật đồng bộ hai chiều. Cột cuối app dùng để nhận ra dòng đã ghi, ẩn đi cho gọn. */
+function dungTrangApp_(sheet, cot, rong, mau, ghiChu, cotNgay) {
+  soDong_(sheet, 1000);
+  soCot_(sheet, cot.length);
+  sheet.getRange(1, 1, 1, cot.length).setValues([cot]).setBackground(mau).setFontColor('#ffffff').setFontWeight('bold')
+    .setWrap(true).setVerticalAlignment('middle').setHorizontalAlignment('center');
+  sheet.getRange(1, 1).setNote(ghiChu);
+  sheet.setRowHeight(1, 40);
+  rong.forEach((r, i) => sheet.setColumnWidth(i + 1, r));
+  sheet.setFrozenRows(1);
+  sheet.getRange(2, 1, 999, cot.length).setNumberFormat('@').setVerticalAlignment('top');
+  cotNgay.forEach(c => sheet.getRange(2, c, 999, 1).setNumberFormat('dd/mm/yyyy hh:mm'));
+  sheet.hideColumns(cot.length);
+  sheet.setTabColor(mau);
+}
+
 function dungHuongDan_(sheet) {
   soCot_(sheet, 2);
   const dong = [
@@ -192,9 +213,10 @@ function dungHuongDan_(sheet) {
     ['Checklist', 'Trang Checklist: các dòng cùng Tên checklist là một checklist, mỗi dòng một việc. Lịch làm, giờ và người làm ghi ở dòng đầu của checklist. Tick Bắt buộc, Cần ảnh, Cần ghi chú cho từng việc.'],
     ['Danh sách người', 'Trang Danh mục: ghi tên nhân viên và người giao một lần, các trang khác chọn từ danh sách.'],
     ['Huỷ, xong', 'Chọn Huỷ ở cột Trạng thái để rút việc khỏi app, chọn Xong để đánh dấu đã xong. Checklist chọn Ngưng để rút.'],
-    ['App nhận việc', 'App In Sticker đọc file khoảng 5 phút một lần, báo "Có công việc mới" kèm chuông, nhắc trước hạn bằng cửa sổ luôn nằm trên cùng. App chỉ đọc, không sửa file.'],
-    ['Kết nối app', 'Bấm Chia sẻ, phần Quyền truy cập chung chọn Bất kỳ ai có đường liên kết, Người chỉnh sửa (để quản lý ghi việc). Bấm Sao chép đường liên kết, rồi trong app vào Nhắc việc, Cài đặt, bấm Dán link đã sao chép.'],
-    ['Lưu ý', 'Ai có link đều xem được file, đừng ghi thông tin nhạy cảm. Không đổi tên các trang và các cột tiêu đề vì app đọc theo tên. Không sửa Mã việc của việc đã giao.'],
+    ['Kết nối app', 'Menu Nhắc việc → Bật đồng bộ hai chiều, làm theo khung hướng dẫn bên phải (một lần, khoảng 2 phút). Xong bấm Sao chép Link kết nối, gửi qua Zalo cho từng máy; ở máy: Nhắc việc → Cài đặt → Dán link đã sao chép.'],
+    ['Đồng bộ hai chiều', 'Việc tạo, sửa, xoá, bấm Đã xong ở bất kỳ máy nào đều ghi vào file (cột Người xong, Xong lúc, trang Nhật ký) và tới các máy khác trong khoảng 1 phút. Lượt checklist hoàn tất ghi vào trang Báo cáo checklist.'],
+    ['Menu Nhắc việc', 'Giao việc nhanh: khung nhập có sẵn danh sách để chọn, tự lấy mã việc. Nhân bản dòng đang chọn: chép việc sang dòng mới. Đánh dấu xong dòng đang chọn.'],
+    ['Lưu ý', 'Chỉ gửi Link kết nối cho người trong cửa hàng: ai có link đều đọc và ghi được file qua app. Không đổi tên các trang và các cột tiêu đề vì app đọc theo tên. Không sửa Mã việc của việc đã giao.'],
     ['', ''],
     ['VÍ DỤ', ''],
     ['Nhắc việc', 'Tiêu đề: Kiểm hàng chuyển kho HĐ 1079638 · Ngày hạn: 25/11/2026 · Giờ hạn: 15:30 · Người xử lý: Ngọc - 11443 · Mức độ: Khẩn · Nhắc trước: 1 giờ + 15 phút + đúng hạn · Âm thanh: Đọc chữ · Câu đọc: Kiểm tra lệnh chuyển hàng gấp'],
@@ -203,8 +225,8 @@ function dungHuongDan_(sheet) {
   soDong_(sheet, dong.length);
   sheet.getRange(1, 1, dong.length, 2).setValues(dong).setWrap(true).setVerticalAlignment('top').setFontSize(11);
   sheet.getRange('A1').setFontSize(16).setFontWeight('bold').setFontColor(MAU.tieuDe);
-  sheet.getRange('A11').setFontSize(13).setFontWeight('bold').setFontColor(MAU.tieuDe);
-  sheet.getRange('A3:A13').setFontWeight('bold').setFontColor('#0f172a');
+  sheet.getRange('A12').setFontSize(13).setFontWeight('bold').setFontColor(MAU.tieuDe);
+  sheet.getRange('A3:A14').setFontWeight('bold').setFontColor('#0f172a');
   sheet.setColumnWidth(1, 160);
   sheet.setColumnWidth(2, 820);
   sheet.setHiddenGridlines(true);
@@ -228,12 +250,19 @@ function taoMauNhacViec() {
   const checklist = ss.insertSheet('Checklist', 1);
   const danhMuc = ss.insertSheet('Danh mục', 2);
   const huongDan = ss.insertSheet('Hướng dẫn', 3);
+  const nhatKy = ss.insertSheet('Nhật ký', 4);
+  const baoCao = ss.insertSheet('Báo cáo checklist', 5);
   ss.deleteSheet(tam);
 
   dungDanhMuc_(danhMuc);
   dungChecklist_(checklist, danhMuc);
   dungNhacViec_(nhacViec, danhMuc, checklist);
   dungHuongDan_(huongDan);
+  dungTrangApp_(nhatKy, ['Lúc xong', 'Mã việc', 'Tiêu đề', 'Lần hạn', 'Người xong', 'Mốc lần hạn (app dùng)'], [150, 80, 300, 150, 150, 120], '#7c3aed',
+    'Mỗi lần ai đó bấm Đã xong trong app, app ghi một dòng ở đây.', [1, 4]);
+  dungTrangApp_(baoCao, ['Lúc hoàn tất', 'Checklist', 'Ngày', 'Người làm', 'Kết quả', 'Có vấn đề', 'Chưa làm', 'Ghi chú chung', 'Chi tiết', 'Mã lượt (app dùng)'],
+    [150, 180, 95, 140, 85, 85, 85, 260, 420, 120], '#047857', 'Mỗi lượt checklist hoàn tất trong app, app ghi một dòng báo cáo ở đây.', [1]);
+  baoCao.getRange(2, 1, 999, 10).setWrap(true);
   ss.setActiveSheet(nhacViec);
   // Đặt ngôn ngữ Việt (ngày dạng ngày/tháng/năm) sau khi đã viết xong công thức tô màu
   ss.setSpreadsheetLocale('vi_VN');

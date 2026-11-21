@@ -285,6 +285,7 @@ const startApp = (): void => {
     isTest: Boolean(TEST_USER_DATA),
   });
   reminderHost.register();
+  (globalThis as { __reminderHost?: ReminderHost }).__reminderHost = reminderHost;
   startHidden = reminderHost.openedAtLogin;
 
   const updater = new Updater((state) => mainWindow?.webContents.send('update:state', state));

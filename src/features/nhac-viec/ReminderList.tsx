@@ -23,10 +23,13 @@ export const soundLabel = (reminder: Reminder): string => {
     return sound.name;
 };
 
-/** Một nhắc việc trong danh sách: mức độ, hạn, còn bao lâu, lặp lại, âm thanh, nút Xong và Sửa. */
-export const ReminderRow: React.FC<{ view: ReminderView; now: number; onEdit: (reminder: Reminder) => void; highlight?: boolean }> = ({ view, now, onEdit, highlight }) => {
-    const { completeReminder, saveReminder, sheet } = useNhacViec();
+/** Một nhắc việc trong danh sách: mức độ, hạn, còn bao lâu, lặp lại, âm thanh, nút Xong, Nhân bản và Sửa. */
+export const ReminderRow: React.FC<{ view: ReminderView; now: number; onEdit: (reminder: Reminder) => void; onCopy: (reminder: Reminder) => void; highlight?: boolean }> = ({ view, now, onEdit, onCopy, highlight }) => {
+    const { completeReminder, saveReminder, sheet, bridge } = useNhacViec();
     const fromSheet = view.reminder.source?.kind === 'sheet';
+    // Chỉ đọc file (link chia sẻ): sửa trong Google Sheet. Đồng bộ hai chiều: sửa ngay trong app.
+    const editInSheet = fromSheet && !bridge;
+    const fileUrl = sheet?.mode === 'bridge' ? sheet.sheetUrl : sheet?.url;
     const { reminder, state, occ, next } = view;
     const style = STATE_STYLE[state];
     return (
@@ -36,7 +39,7 @@ export const ReminderRow: React.FC<{ view: ReminderView; now: number; onEdit: (r
                 <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[15px] font-bold text-slate-900 break-words">{reminder.title}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${style.className}`}>{style.label}</span>
-                    {fromSheet && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200">Google Sheet · {reminder.source!.taskId}</span>}
+                    {fromSheet && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200">Google Sheet · {reminder.source!.taskId || 'đang gửi'}</span>}
                     {reminder.priority !== 'normal' && (
                         <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${reminder.priority === 'urgent' ? 'bg-rose-600 text-white' : 'bg-amber-500 text-white'}`}>
                             {PRIORITY_TEXT[reminder.priority]}
@@ -68,10 +71,11 @@ export const ReminderRow: React.FC<{ view: ReminderView; now: number; onEdit: (r
                 {state === 'stopped' && (
                     <Button size="sm" variant="secondary" onClick={() => saveReminder({ ...reminder, stopped: false, armedAt: Date.now(), updatedAt: Date.now() })}>Bật lại</Button>
                 )}
-                {fromSheet ? (
-                    // Việc giao từ Google Sheet: sửa trong file, app tự cập nhật ở lần đồng bộ sau
+                <Button size="sm" variant="secondary" icon="copy" aria-label={`Nhân bản ${reminder.title}`} title="Nhân bản: tạo việc mới giống việc này" onClick={() => onCopy(reminder)} />
+                {editInSheet ? (
+                    // Việc giao từ Google Sheet (chỉ đọc): sửa trong file, app tự cập nhật ở lần đồng bộ sau
                     <Button size="sm" variant="secondary" icon="externalLink" aria-label={`Mở Google Sheet của ${reminder.title}`} title="Sửa việc này trong Google Sheet"
-                        onClick={() => sheet && void window.stickerDesktop.reminders.openSheet(sheet.url)} />
+                        onClick={() => fileUrl && void window.stickerDesktop.reminders.openSheet(fileUrl)} />
                 ) : (
                     <Button size="sm" variant="secondary" icon="edit" aria-label={`Sửa ${reminder.title}`} onClick={() => onEdit(reminder)} />
                 )}
@@ -96,7 +100,7 @@ export const sortedViews = (reminders: Reminder[], now: number): ReminderView[] 
         .sort((a, b) => ORDER[a.state] - ORDER[b.state] || (a.state === 'done' ? (b.occ ?? 0) - (a.occ ?? 0) : (a.occ ?? 0) - (b.occ ?? 0)));
 
 /** Tab Nhắc việc: lọc theo trạng thái, tìm, tạo mới. */
-export const ReminderList: React.FC<{ onCreate: () => void; onEdit: (reminder: Reminder) => void; highlightId?: string }> = ({ onCreate, onEdit, highlightId }) => {
+export const ReminderList: React.FC<{ onCreate: () => void; onEdit: (reminder: Reminder) => void; onCopy: (reminder: Reminder) => void; highlightId?: string }> = ({ onCreate, onEdit, onCopy, highlightId }) => {
     const { reminders, now } = useNhacViec();
     const [filter, setFilter] = useState<Filter>('active');
     const [search, setSearch] = useState('');
@@ -129,7 +133,7 @@ export const ReminderList: React.FC<{ onCreate: () => void; onEdit: (reminder: R
                     <li className="rounded-card border border-dashed border-slate-300 bg-white/60 px-4 py-10 text-center text-[14px] text-slate-500">
                         {reminders.length === 0 ? 'Chưa có nhắc việc nào. Bấm Tạo nhắc việc để bắt đầu.' : 'Không có nhắc việc nào khớp bộ lọc.'}
                     </li>
-                ) : shown.map(view => <ReminderRow key={view.reminder.id} view={view} now={now} onEdit={onEdit} highlight={view.reminder.id === highlightId} />)}
+                ) : shown.map(view => <ReminderRow key={view.reminder.id} view={view} now={now} onEdit={onEdit} onCopy={onCopy} highlight={view.reminder.id === highlightId} />)}
             </ul>
         </div>
     );

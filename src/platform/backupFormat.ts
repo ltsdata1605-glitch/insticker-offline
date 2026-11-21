@@ -37,6 +37,12 @@ export const SETTING_KEYS = [
   'nhacViecRuns',
   'nhacViecMedia',
   'nhacViecState',
+  // Tạo mã: danh sách mã đang làm và cách in
+  'taoMaItems',
+  'taoMaSettings',
+  // Kiểm quỹ: lần đang đếm và lịch sử
+  'kiemQuyCurrent',
+  'kiemQuyHistory',
 ] as const;
 
 export interface BackupData {

@@ -1,7 +1,7 @@
 {
   "name": "insticker-offline",
   "productName": "In Sticker",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "description": "In Sticker offline cho macOS và Windows",
   "private": true,
   "type": "module",
@@ -84,7 +84,8 @@
       "identity": "-",
       "extendInfo": {
         "NSCameraUsageDescription": "In Sticker dùng camera để quét mã vạch sản phẩm và chụp ảnh checklist.",
-        "NSMicrophoneUsageDescription": "In Sticker dùng micro để ghi âm làm chuông nhắc việc."
+        "NSMicrophoneUsageDescription": "In Sticker dùng micro để ghi âm làm chuông nhắc việc.",
+        "NSAppSleepDisabled": true
       },
       "hardenedRuntime": false
     },

@@ -42,8 +42,8 @@ describe('Danh sách tab tắt đã lưu', () => {
   });
 
   it('không bao giờ tắt hết: còn lại Giá Sốc', () => {
-    expect(normalizeHiddenTabs(['gia-soc', 'gio-vang', 'sticker', 'draw', 'event', 'kiem-hang', 'nhac-viec']))
-      .toEqual(['gio-vang', 'sticker', 'draw', 'event', 'kiem-hang', 'nhac-viec']);
+    expect(normalizeHiddenTabs(['gia-soc', 'gio-vang', 'sticker', 'draw', 'event', 'kiem-hang', 'kiem-quy', 'nhac-viec', 'tao-ma']))
+      .toEqual(['gio-vang', 'sticker', 'draw', 'event', 'kiem-hang', 'kiem-quy', 'nhac-viec', 'tao-ma']);
   });
 
   it('tắt hết các tab In sticker vẫn được khi còn Kiểm hàng', () => {

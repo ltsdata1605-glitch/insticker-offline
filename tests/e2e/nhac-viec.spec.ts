@@ -28,7 +28,7 @@ const clickInPopup = async (popup: Page, name: string | RegExp) => {
   await expect.poll(() => popup.isClosed()).toBe(true);
 };
 
-test('Nhắc việc: tạo, nhắc trước hạn bằng cửa sổ luôn nằm trên cùng, hoãn 5 phút, bấm Đã xong; đóng cửa sổ thì app vẫn chạy nền', async () => {
+test('Nhắc việc: tạo, nhân bản, nhắc trước hạn bằng cửa sổ luôn nằm trên cùng, hoãn 5 phút, bấm Đã xong; đóng cửa sổ thì app vẫn chạy nền', async () => {
   const s = await openApp();
   const { win, app } = s;
   await openNhacViec(win);
@@ -53,6 +53,23 @@ test('Nhắc việc: tạo, nhắc trước hạn bằng cửa sổ luôn nằm 
   await expect(row).toContainText('Quan trọng');
   await expect(row).toContainText('Bíp dồn dập');
 
+  // Nhân bản: form điền sẵn như việc gốc, sửa vài chỗ rồi lưu thành việc mới; việc gốc giữ nguyên
+  await row.getByRole('button', { name: 'Nhân bản Gửi báo cáo kiểm hàng' }).click();
+  const copyForm = win.getByRole('dialog', { name: 'Nhân bản nhắc việc' });
+  await expect(copyForm.getByLabel('Tiêu đề công việc')).toHaveValue('Gửi báo cáo kiểm hàng');
+  await expect(copyForm.getByLabel('Nội dung công việc')).toHaveValue('Gửi báo cáo thiếu hàng cho kho chuyển');
+  await expect(copyForm.getByRole('radio', { name: 'Bíp dồn dập' })).toBeChecked();
+  await copyForm.getByLabel('Tiêu đề công việc').fill('Gửi báo cáo kiểm hàng ca chiều');
+  await copyForm.getByRole('button', { name: 'Tạo nhắc việc' }).click();
+  await expect(win.getByText('Đã tạo bản sao nhắc việc')).toBeVisible();
+  const copied = win.getByTestId('nhac-viec-dong').filter({ hasText: 'Gửi báo cáo kiểm hàng ca chiều' });
+  await expect(copied).toContainText('Quan trọng');
+  await expect(copied).toContainText('Bíp dồn dập');
+  await expect(win.getByTestId('nhac-viec-dong')).toHaveCount(2);
+  await copied.getByRole('button', { name: 'Sửa Gửi báo cáo kiểm hàng ca chiều' }).click();
+  await win.getByRole('button', { name: 'Xoá' }).click();
+  await expect(win.getByTestId('nhac-viec-dong')).toHaveCount(1);
+
   // Trước hạn 15 phút: cửa sổ nhắc bật lên, nằm trên mọi ứng dụng
   let popup = await nextPopup(app, () => jumpTo(win, deadline - 15 * 60_000 + 5_000));
   await expect(popup.getByRole('heading', { name: 'Gửi báo cáo kiểm hàng' })).toBeVisible();
@@ -76,6 +93,63 @@ test('Nhắc việc: tạo, nhắc trước hạn bằng cửa sổ luôn nằm 
   await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map(w => w.isVisible()))).toEqual([false]);
   await app.evaluate(({ app: electronApp }) => electronApp.emit('activate'));
   await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isVisible())).toBe(true);
+  await s.close();
+});
+
+/** Tạo nhắc việc qua form (mức độ thường, nhắc đúng hạn) */
+const createReminder = async (win: Page, title: string, deadline: number, priority?: 'Quan trọng' | 'Khẩn') => {
+  const d = new Date(deadline);
+  await win.getByRole('button', { name: 'Tạo nhắc việc' }).first().click();
+  await win.getByLabel('Tiêu đề công việc').fill(title);
+  await win.getByLabel('Ngày hạn').fill(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+  await win.getByLabel('Giờ hạn').fill(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
+  if (priority) await win.getByRole('group', { name: 'Mức độ' }).getByRole('button', { name: priority }).click();
+  await win.getByRole('button', { name: 'Tạo nhắc việc' }).last().click();
+  await expect(win.getByRole('dialog')).toHaveCount(0);
+};
+
+const volumeCalls = (app: ElectronApplication) => app.evaluate(() => (globalThis as unknown as { __reminderHost: { volume: { calls: string[] } } }).__reminderHost.volume.calls.join(','));
+
+test('Nhiều nhắc cùng lúc gộp chung một bảng: thêm vào bảng đang mở, mỗi thẻ có nút riêng, mở to âm lượng khi kêu và trả lại khi xong', async () => {
+  const s = await openApp();
+  const { win, app } = s;
+  await openNhacViec(win);
+  const deadline = Math.ceil((Date.now() + 3 * 3600_000) / 60_000) * 60_000;
+  await createReminder(win, 'Chuyển hàng Online', deadline, 'Quan trọng');
+  await createReminder(win, 'Book xe GHTK', deadline);
+  await createReminder(win, 'Kiểm két tiền', deadline + 20 * 60_000);
+
+  // Hai việc cùng giờ: một bảng, hai thẻ, việc quan trọng hơn nằm trên
+  const popup = await nextPopup(app, () => jumpTo(win, deadline + 5_000));
+  const cards = popup.getByTestId('the-nhac');
+  await expect(cards).toHaveCount(2);
+  await expect(cards.first()).toContainText('Chuyển hàng Online');
+  await expect(popup.getByTestId('cua-so-nhac')).toContainText('2 nhắc việc đang chờ');
+  expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().filter(w => w.getTitle().startsWith('Nhắc việc')).map(w => w.getTitle()))).toEqual(['Nhắc việc (2)']);
+  // Đang kêu: mở to âm lượng loa
+  await expect.poll(() => volumeCalls(app)).toBe('tang');
+
+  // Việc thứ ba đến khi bảng còn mở: thêm thẻ vào cùng bảng, không bật cửa sổ mới
+  await jumpTo(win, deadline + 20 * 60_000 + 5_000);
+  await expect(cards).toHaveCount(3);
+  await expect(cards.filter({ hasText: 'Kiểm két tiền' })).toContainText('Mới');
+  expect(app.windows().filter(page => page !== win && !page.isClosed())).toHaveLength(1);
+  // Bảng cao lên theo số thẻ
+  const height = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => w.getTitle().startsWith('Nhắc việc'))!.getContentSize()[1]);
+  expect(height).toBeGreaterThan(420);
+
+  // Mỗi thẻ bấm riêng: xong một việc, hoãn một việc; còn một thẻ thì bảng hiện to
+  await cards.filter({ hasText: 'Book xe GHTK' }).getByRole('button', { name: 'Đã xong' }).click();
+  await expect(cards).toHaveCount(2);
+  await cards.filter({ hasText: 'Chuyển hàng Online' }).getByRole('button', { name: /^10′$/ }).click();
+  await expect(popup.getByRole('heading', { level: 1, name: 'Kiểm két tiền' })).toBeVisible();
+  await clickInPopup(popup, 'Đã xong');
+  // Bảng đóng: trả lại âm lượng cũ
+  await expect.poll(() => volumeCalls(app)).toBe('tang,tra');
+
+  await win.getByRole('button', { name: 'Nhắc việc', exact: true }).last().click();
+  await win.getByRole('group', { name: 'Lọc nhắc việc' }).getByRole('button', { name: /^Đã xong/ }).click();
+  await expect(win.getByTestId('nhac-viec-dong')).toHaveCount(2);
   await s.close();
 });
 
@@ -116,7 +190,7 @@ test('Việc khẩn quá hạn: nhắc lại sau 10 phút, số đỏ trên than
   await s.close();
 });
 
-test('Checklist: tạo mẫu, làm từng việc với ghi chú và ảnh, hoàn tất khi còn thiếu, báo cáo sao chép, ảnh, Excel, thống kê', async () => {
+test('Checklist: tạo mẫu, nhân bản mẫu, làm từng việc với ghi chú và ảnh, hoàn tất khi còn thiếu, báo cáo sao chép, ảnh, Excel, thống kê', async () => {
   const s = await openApp();
   const { win, app } = s;
   await openNhacViec(win);
@@ -130,6 +204,20 @@ test('Checklist: tạo mẫu, làm từng việc với ghi chú và ảnh, hoàn
   await win.getByRole('dialog').locator('li').nth(1).getByRole('button', { name: 'Cần ảnh' }).click();
   await win.getByRole('button', { name: 'Tạo mẫu', exact: true }).click();
   await expect(win.getByTestId('mau-checklist')).toContainText('3 việc');
+
+  // Nhân bản mẫu: đủ 3 việc và việc cần ảnh, tên thêm (bản sao)
+  await win.getByTestId('mau-checklist').getByRole('button', { name: 'Nhân bản Mở ca sáng' }).click();
+  const copyForm = win.getByRole('dialog', { name: 'Nhân bản mẫu checklist' });
+  await expect(copyForm.getByLabel('Tên checklist')).toHaveValue('Mở ca sáng (bản sao)');
+  await expect(copyForm.getByLabel('Việc 2', { exact: true })).toHaveValue('Kiểm tem giá khu điện thoại');
+  await copyForm.getByLabel('Tên checklist').fill('Mở ca chiều');
+  await copyForm.getByRole('button', { name: 'Tạo mẫu', exact: true }).click();
+  await expect(win.getByText('Đã tạo bản sao mẫu checklist')).toBeVisible();
+  await expect(win.getByTestId('mau-checklist').filter({ hasText: 'Mở ca chiều' })).toContainText('3 việc');
+  await win.getByTestId('mau-checklist').filter({ hasText: 'Mở ca chiều' }).getByRole('button', { name: 'Sửa Mở ca chiều' }).click();
+  await expect(win.getByRole('dialog').locator('li').nth(1).getByRole('button', { name: 'Cần ảnh' })).toHaveAttribute('aria-pressed', 'true');
+  await win.getByRole('button', { name: 'Xoá mẫu' }).click();
+  await expect(win.getByTestId('mau-checklist')).toHaveCount(1);
 
   await win.getByTestId('mau-checklist').getByRole('button', { name: 'Bắt đầu' }).click();
   await win.getByLabel('Người làm').fill('Ngọc');
@@ -176,7 +264,29 @@ test('Checklist: tạo mẫu, làm từng việc với ghi chú và ảnh, hoàn
   const rows = XLSX.utils.sheet_to_json<unknown[]>(XLSX.read(fs.readFileSync(path.join(s.dirs.downloads, excel))).Sheets['Báo cáo'], { header: 1 });
   expect(rows.find(r => r[0] === 2)?.slice(0, 8)).toEqual([2, 'Kiểm tem giá khu điện thoại', 'Có', 'Có vấn đề', expect.stringMatching(/^\d\d:\d\d$/), 'Ngọc', '3 tem sai giá, đã in lại', 1]);
 
+  // Báo cáo ảnh ghi nổi bật người làm
+  await expect(win.getByTestId('bao-cao-nguoi-lam')).toContainText('Ngọc');
+
+  // Đã hoàn tất hôm nay: dòng mẫu ghi rõ, bấm vào dòng là mở lại lượt đã làm, không làm lại từ đầu
   await win.getByRole('button', { name: 'Quay lại' }).click();
+  const template = win.getByTestId('mau-checklist');
+  await expect(template).toHaveAttribute('data-trang-thai', 'da-xong');
+  await expect(template.getByTestId('trang-thai-hom-nay')).toContainText(/Đã xong hôm nay \d\d:\d\d · 2\/3/);
+  await expect(template.getByRole('button', { name: 'Xem' })).toBeVisible();
+  await template.getByText('Mở ca sáng', { exact: true }).click();
+  await expect(win.getByText(/^Đã hoàn tất lúc/)).toBeVisible();
+  await expect(win.getByTestId('tien-do-checklist')).toHaveText('2/3 việc · 67%');
+  // Muốn làm thêm lượt nữa thì bấm Làm lượt mới; lượt cũ giữ nguyên
+  await win.getByRole('button', { name: 'Làm lượt mới' }).click();
+  await expect(win.getByTestId('tien-do-checklist')).toHaveText('0/3 việc · 0%');
+  await win.getByRole('button', { name: 'Quay lại' }).click();
+  await expect(template).toHaveAttribute('data-trang-thai', 'dang-lam');
+  await template.click();
+  await expect(win.getByTestId('tien-do-checklist')).toHaveText('0/3 việc · 0%');
+  await win.getByRole('button', { name: 'Xoá lượt này' }).click();
+  await win.getByRole('button', { name: 'Xoá', exact: true }).click();
+  await expect(template).toHaveAttribute('data-trang-thai', 'da-xong');
+
   await win.getByRole('button', { name: 'Thống kê' }).click();
   await expect(win.getByText('Lượt checklist', { exact: true }).locator('..')).toContainText('1');
   await expect(win.getByText('Việc hay có vấn đề').locator('..')).toContainText('Kiểm tem giá khu điện thoại');
@@ -218,7 +328,7 @@ test('Nhận việc từ Google Sheet: dán link đã sao chép, báo việc m�
   // Clipboard chưa có link Google Sheet thì nhắc cách sao chép
   await app.evaluate(({ clipboard }) => clipboard.writeText('nội dung khác'));
   await settings.getByRole('button', { name: 'Dán link đã sao chép' }).click();
-  await expect(settings.getByRole('alert')).toContainText('Chưa có link Google Sheet');
+  await expect(settings.getByRole('alert')).toContainText('Chưa có Link kết nối');
 
   // Sao chép link trong Google Sheet rồi bấm một nút là kết nối
   await app.evaluate(({ clipboard }) => clipboard.writeText('https://docs.google.com/spreadsheets/d/1DrQV5W-YitTXIvEXjRfmqNStHy5MqC2AFDnWsOnCXyg/edit?usp=sharing'));
@@ -242,16 +352,16 @@ test('Nhận việc từ Google Sheet: dán link đã sao chép, báo việc m�
   await expect(template).toContainText('Google Sheet');
   await expect(template).toContainText('2 việc · Làm khi cần · Người làm: Ngọc - 11443');
 
-  // Đến hạn: hai việc cùng hạn nên bật hai cửa sổ; cửa sổ của CV001 ghi người xử lý, người giao và mở được checklist gắn kèm
-  await jumpTo(win, deadline + 5_000);
-  await expect.poll(() => app.windows().filter(page => page !== win && !page.isClosed()).length).toBe(2);
-  const popups = app.windows().filter(page => page !== win && !page.isClosed());
-  for (const page of popups) await page.waitForSelector('[data-testid="cua-so-nhac"]');
-  const texts = await Promise.all(popups.map(page => page.getByTestId('cua-so-nhac').innerText()));
-  popup = popups[texts.findIndex(text => text.includes('Kiểm lệnh chuyển hàng Online'))];
-  const other = popups.find(page => page !== popup)!;
-  await expect(popup.getByTestId('cua-so-nhac')).toContainText('Giao cho: Ngọc - 11443 · Người giao: QL Sơn');
-  await clickInPopup(other, /^30′$/);
+  // Đến hạn: hai việc cùng hạn nằm chung một bảng nhắc, mỗi việc một thẻ; thẻ của CV001 ghi người xử lý, người giao và mở được checklist gắn kèm
+  popup = await nextPopup(app, () => jumpTo(win, deadline + 5_000));
+  const cards = popup.getByTestId('the-nhac');
+  await expect(cards).toHaveCount(2);
+  await expect(popup.getByTestId('cua-so-nhac')).toContainText('2 nhắc việc đang chờ');
+  expect(app.windows().filter(page => page !== win && !page.isClosed())).toHaveLength(1);
+  await expect(cards.filter({ hasText: 'Kiểm lệnh chuyển hàng Online' })).toContainText('Giao cho: Ngọc - 11443 · Người giao: QL Sơn');
+  await cards.filter({ hasText: 'Dọn kho phụ kiện' }).getByRole('button', { name: /^30′$/ }).click();
+  // Còn một việc: bảng vẫn mở, hiện to như khi chỉ có một nhắc
+  await expect(popup.getByRole('heading', { level: 1, name: 'Kiểm lệnh chuyển hàng Online' })).toBeVisible();
   await clickInPopup(popup, 'Mở checklist liên kết');
   await expect(win.getByTestId('viec-checklist')).toHaveCount(2);
   await expect(win.getByText('Kiểm hàng nhận').first()).toBeVisible();
