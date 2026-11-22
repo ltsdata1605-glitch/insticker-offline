@@ -144,7 +144,6 @@ export const generateCanvasTagHTML = (style: CanvasTagStyle, data: CanvasTagData
 /** CSS của các kiểu, gộp vào CSS bản in. Không có nền đen hay mảng tô lớn. */
 export const canvasTagCss = (): string => `
     .price-tag.canvas-tag {
-        border: 1px dashed #d1d5db;
         padding: 0;
         display: flex !important;
         align-items: center;

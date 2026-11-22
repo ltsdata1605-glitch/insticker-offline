@@ -609,7 +609,6 @@ const getPrintStyles = (settings: PrintSettings): string => {
       }
       
       .price-tag.modern {
-        border: 1px dashed #d1d5db;
         padding: 0;
         display: flex !important;
         align-items: center;
@@ -834,7 +833,8 @@ const getPrintStyles = (settings: PrintSettings): string => {
         width: ${tagWidth}mm;
         height: ${tagHeightCSS};
         ${priceTagExtraCSS}
-        border: 2px solid black;
+        /* Không viền đen bao quanh tem: chỗ cắt đã có đường nét đứt, mỗi kiểu tem có viền thiết kế riêng bên trong */
+        border: none;
         box-sizing: border-box;
         padding: 4px;
         position: relative;
@@ -1012,7 +1012,7 @@ const getPrintStyles = (settings: PrintSettings): string => {
       /* Layout: 1 per page (Single) */
       .size-single .original-price::after { height: 6px; }
       .size-single .ghost-bar, .size-single .vertical-info-container { width: 40px; }
-      .size-single .price-tag { border: 2px solid black; padding: 20px; }
+      .size-single .price-tag { padding: 20px; }
       .size-single .inner-border { border-top: 10px solid black; border-left: 10px solid black; border-right: 10px solid black; border-bottom: 14px solid black; padding: 10px 0; }
       .size-single .qr-code { width: 30mm; height: 30mm; }
       
@@ -1059,7 +1059,7 @@ const getPrintStyles = (settings: PrintSettings): string => {
       /* Layout: 2 per page (Double) */
       .size-double .original-price::after { height: 5px; }
       .size-double .ghost-bar, .size-double .vertical-info-container { width: 30px; }
-      .size-double .price-tag { border: 2px solid black; padding: 10px; }
+      .size-double .price-tag { padding: 10px; }
       .size-double .inner-border { border-top: 8px solid black; border-left: 8px solid black; border-right: 8px solid black; border-bottom: 12px solid black; padding: 8px 0; }
       .size-double .qr-code { width: 25mm; height: 25mm; }
       
@@ -1138,7 +1138,7 @@ const getPrintStyles = (settings: PrintSettings): string => {
       /* Layout: 8 per page (Medium) */
       .size-medium .original-price::after { height: 3px; }
       .size-medium .ghost-bar, .size-medium .vertical-info-container { width: 18px; }
-      .size-medium .price-tag { border: 2px solid black; padding: 4px; }
+      .size-medium .price-tag { padding: 4px; }
       .size-medium .inner-border { border-top: 6px solid black; border-left: 6px solid black; border-right: 6px solid black; border-bottom: 10px solid black; padding: 4px 0; }
       .size-medium .qr-code { width: 14mm; height: 14mm; }
       .size-medium .product-name { padding-right: 15mm; }
@@ -1175,7 +1175,7 @@ const getPrintStyles = (settings: PrintSettings): string => {
       /* Layout: 16 per page (Small) */
       .size-small .original-price::after { height: 2px; }
       .size-small .ghost-bar, .size-small .vertical-info-container { width: 14px; }
-      .size-small .price-tag { border: 1px solid black; padding: 3px; }
+      .size-small .price-tag { padding: 3px; }
       .size-small .inner-border { border-top: 4px solid black; border-left: 4px solid black; border-right: 4px solid black; border-bottom: 8px solid black; padding: 2px 0; }
       .size-small .qr-code { width: 5.5mm; height: 5.5mm; }
       .size-small .product-name { padding-right: 7mm; }
@@ -1221,7 +1221,7 @@ const getPrintStyles = (settings: PrintSettings): string => {
       /* Layout: 24 per page (Tiny) */
       .size-tiny .original-price::after { height: 1px; }
       .size-tiny .ghost-bar, .size-tiny .vertical-info-container { width: 12px; }
-      .size-tiny .price-tag { border-width: 1px; padding: 2px; }
+      .size-tiny .price-tag { padding: 2px; }
       .size-tiny .inner-border { border-top-width: 2px; border-left-width: 2px; border-right-width: 2px; border-bottom-width: 8px; padding: 2px 0; }
       .size-tiny .qr-code { width: 6mm; height: 6mm; }
       .size-tiny .product-name { padding-right: 8mm; }
@@ -1260,7 +1260,7 @@ const getPrintStyles = (settings: PrintSettings): string => {
       /* Layout: Bill Printer */
       .size-bill .original-price::after { height: 2px; }
       .size-bill .ghost-bar, .size-bill .vertical-info-container { width: 16px; }
-      .size-bill .price-tag { display: block; border-width: 2px; padding: 2mm; }
+      .size-bill .price-tag { display: block; padding: 2mm; }
       
       /* UPDATE: Symmetrical Border for Bill: Increased bottom border to 16px */
       .size-bill .inner-border { border-top-width: 2px; border-left-width: 2px; border-right-width: 2px; border-bottom-width: 32px; padding: 2mm 0; }

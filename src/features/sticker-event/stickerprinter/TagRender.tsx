@@ -160,6 +160,8 @@ export const TagRender: React.FC<TagRenderProps> = ({ products, settings, employ
                 -webkit-print-color-adjust: exact;
             }
             .tag-preview-stack .price-tag { background: #fff; }
+            /* Đường cắt nét đứt chỉ cần trên giấy (giữa các tem); xem trước một tem thì trông như viền thừa */
+            .tag-preview-stack .price-tag::after { display: none; }
             .${GHOST_CLASS} { opacity: 0.22; }
         </style><div class="tag-preview-stack ${preview.sizeClass}">${preview.tags.join('')}</div>`;
         const stack = root.querySelector<HTMLElement>('.tag-preview-stack');
