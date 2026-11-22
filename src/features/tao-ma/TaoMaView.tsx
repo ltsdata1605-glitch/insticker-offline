@@ -15,6 +15,18 @@ import { exportCodeImages, exportPageImages } from './maImage';
 const KEYS = { items: 'taoMaItems', settings: 'taoMaSettings' } as const;
 const MM = 96 / 25.4;
 
+const isBlankItem = (item: CodeItem) => !item.content.trim() && !item.title.trim();
+/**
+ * Đúng một dòng trống ở cuối: dòng cuối có chữ thì thêm dòng trống; hai dòng cuối cùng trống (vừa xoá chữ dòng áp chót) thì bỏ
+ * dòng trống cuối, giữ dòng đang gõ. Dòng trống ở giữa để nguyên, kẻo đang xoá để gõ lại thì mất dòng.
+ */
+const withBlankRow = (list: CodeItem[]): CodeItem[] => {
+    const next = [...list];
+    while (next.length >= 2 && isBlankItem(next[next.length - 1]) && isBlankItem(next[next.length - 2])) next.pop();
+    const last = next[next.length - 1];
+    return last && isBlankItem(last) ? next : [...next, newItem()];
+};
+
 const newItem = (title = '', content = ''): CodeItem => ({ id: `ma-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`, title, content, copies: 1 });
 
 /** Nút chọn một trong vài lựa chọn */
@@ -40,26 +52,31 @@ const ItemRow: React.FC<{
     onRemove: () => void;
     onEnter: () => void;
     contentRef: (element: HTMLInputElement | null) => void;
-}> = ({ item, index, kind, warning, onChange, onRemove, onEnter, contentRef }) => {
+    /** Dòng trống luôn có ở cuối để nhập tiếp */
+    blank: boolean;
+}> = ({ item, index, kind, warning, onChange, onRemove, onEnter, contentRef, blank }) => {
     const problem = item.content.trim() ? itemProblem(item, kind) : '';
     const field = 'h-9 w-full rounded-control border bg-white px-2.5 text-[14px] text-slate-900 focus:outline-none focus:border-sky-400';
     return (
-        <li data-testid="dong-ma" className={`rounded-card border bg-white px-3 py-2 ${problem ? 'border-rose-300' : 'border-slate-200'}`}>
+        <li data-testid="dong-ma" data-trong={blank ? '' : undefined} className={`rounded-card border px-3 py-2 ${problem ? 'border-rose-300 bg-white' : blank ? 'border-dashed border-slate-300 bg-white/70' : 'border-slate-200 bg-white'}`}>
             <div className="flex items-center gap-2">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[12px] font-bold text-slate-600">{index + 1}</span>
-                <input value={item.title} aria-label={`Tiêu đề mã ${index + 1}`} placeholder="Tiêu đề (không bắt buộc)" onChange={e => onChange({ ...item, title: e.target.value })}
-                    className={`${field} border-slate-200 basis-2/5 font-semibold`} />
-                <input ref={contentRef} value={item.content} aria-label={`Nội dung mã ${index + 1}`} placeholder="Nội dung: mã sản phẩm, đường link, chữ…"
+                {/* Nội dung đứng trước: chỉ cần gõ nội dung là có mã, tiêu đề không bắt buộc */}
+                <input ref={contentRef} value={item.content} aria-label={`Nội dung mã ${index + 1}`} placeholder={blank ? 'Gõ nội dung để tạo mã mới…' : 'Nội dung: mã sản phẩm, đường link, chữ…'}
                     onChange={e => onChange({ ...item, content: e.target.value })}
                     onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); onEnter(); } }}
-                    className={`${field} basis-3/5 ${problem ? 'border-rose-300' : 'border-slate-200'}`} />
+                    className={`${field} basis-3/5 font-semibold ${problem ? 'border-rose-300' : 'border-slate-200'}`} />
+                <input value={item.title} aria-label={`Tiêu đề mã ${index + 1}`} placeholder="Tiêu đề (nếu cần)" onChange={e => onChange({ ...item, title: e.target.value })}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); onEnter(); } }}
+                    className={`${field} border-slate-200 basis-2/5`} />
                 <label className="flex shrink-0 items-center gap-1 text-[12px] font-semibold text-slate-500" title="Số bản in của mã này">
                     ×
                     <input type="number" min={1} max={500} value={item.copies} aria-label={`Số bản mã ${index + 1}`}
                         onChange={e => onChange({ ...item, copies: Math.max(1, Math.min(500, Math.round(Number(e.target.value)) || 1)) })}
                         className="h-9 w-16 rounded-control border border-slate-200 px-2 text-[14px] text-slate-900 tabular-nums focus:outline-none focus:border-sky-400" />
                 </label>
-                <Button size="icon" variant="ghost" icon="delete" aria-label={`Xoá mã ${index + 1}`} title="Xoá dòng này" onClick={onRemove} className="text-slate-400 hover:text-rose-600" />
+                <Button size="icon" variant="ghost" icon="delete" aria-label={`Xoá mã ${index + 1}`} title="Xoá dòng này" onClick={onRemove}
+                    className={`text-slate-400 hover:text-rose-600 ${blank ? 'invisible' : ''}`} tabIndex={blank ? -1 : undefined} />
             </div>
             {problem && <p role="alert" className="mt-1 pl-9 text-[12px] font-semibold text-rose-600">{problem}</p>}
             {!problem && warning && <p className="mt-1 pl-9 text-[12px] font-semibold text-amber-700">{warning}</p>}
@@ -124,7 +141,9 @@ const PagePreview: React.FC<{ page: CodeItem[]; settings: PageSettings }> = ({ p
 /** Tạo mã QR, mã vạch từ nội dung nhập vào; mỗi mã có tiêu đề; xuất ảnh hoặc in nhiều mã trên trang A4 */
 export default function TaoMaView({ active }: { active: boolean }): React.JSX.Element {
     const [loaded, setLoaded] = useState(false);
-    const [items, setItems] = useState<CodeItem[]>([newItem()]);
+    const [items, setItemsRaw] = useState<CodeItem[]>([newItem()]);
+    /** Luôn có đúng một dòng trống ở cuối để gõ tiếp, không phải bấm Thêm mã */
+    const setItems = (change: CodeItem[] | ((list: CodeItem[]) => CodeItem[])) => setItemsRaw(list => withBlankRow(typeof change === 'function' ? change(list) : change));
     const [settings, setSettings] = useState<PageSettings>(DEFAULT_SETTINGS);
     const [bulk, setBulk] = useState(false);
     const [clearAsk, setClearAsk] = useState(false);
@@ -144,6 +163,7 @@ export default function TaoMaView({ active }: { active: boolean }): React.JSX.El
     useEffect(() => {
         void Promise.all([getSetting<CodeItem[]>(KEYS.items), getSetting<Partial<PageSettings>>(KEYS.settings)]).then(([savedItems, savedSettings]) => {
             if (Array.isArray(savedItems) && savedItems.length > 0) setItems(savedItems.map(item => ({ ...newItem(), ...item })));
+            else setItems(list => list);
             if (savedSettings) setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
             setLoaded(true);
         });
@@ -159,7 +179,8 @@ export default function TaoMaView({ active }: { active: boolean }): React.JSX.El
     }, [items, settings, loaded]);
     useEffect(() => {
         if (!focusNext.current) return;
-        inputs.current.get(focusNext.current)?.focus();
+        const target = focusNext.current === 'cuoi' ? items[items.length - 1]?.id : focusNext.current;
+        if (target) inputs.current.get(target)?.focus();
         focusNext.current = null;
     });
 
@@ -174,12 +195,12 @@ export default function TaoMaView({ active }: { active: boolean }): React.JSX.El
     const change = (next: Partial<PageSettings>) => setSettings(current => ({ ...current, ...next }));
 
     const updateItem = (next: CodeItem) => setItems(list => list.map(item => (item.id === next.id ? next : item)));
+    /** Đưa con trỏ tới dòng trống ở cuối */
     const addItem = () => {
-        const item = newItem();
-        focusNext.current = item.id;
-        setItems(list => [...list, item]);
+        const last = items[items.length - 1];
+        if (last) inputs.current.get(last.id)?.focus();
     };
-    const removeItem = (id: string) => setItems(list => (list.length === 1 ? [newItem()] : list.filter(item => item.id !== id)));
+    const removeItem = (id: string) => setItems(list => list.filter(item => item.id !== id));
     const addLines = (lines: { title: string; content: string }[], replace: boolean) => {
         const created = lines.map(line => newItem(line.title, line.content));
         setItems(list => (replace ? created : [...list.filter(item => item.content.trim() || item.title.trim()), ...created]));
@@ -233,12 +254,18 @@ export default function TaoMaView({ active }: { active: boolean }): React.JSX.El
                         <Button variant="ghost" icon="delete" className="text-rose-600" disabled={filled.length === 0} onClick={() => setClearAsk(true)}>Xoá hết</Button>
                     </div>
                     <p className="text-[12px] text-slate-500">
-                        Gõ nội dung rồi bấm Enter để sang dòng mới. Tiêu đề in to phía trên mã. Ô × là số bản in của mã đó.
+                        Chỉ cần gõ nội dung là có mã, bấm Enter để xuống dòng trống bên dưới gõ tiếp. Tiêu đề không bắt buộc, có thì in to phía trên mã. Ô × là số bản in.
                     </p>
                     <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-thin pr-1">
                         {items.map((item, index) => (
                             <ItemRow key={item.id} item={item} index={index} kind={settings.kind} warning={densityProblem(item, settings)} onChange={updateItem} onRemove={() => removeItem(item.id)}
-                                onEnter={() => (index === items.length - 1 ? addItem() : inputs.current.get(items[index + 1].id)?.focus())}
+                                blank={index === items.length - 1 && isBlankItem(item)}
+                                onEnter={() => {
+                                    // Dòng cuối vừa gõ thì dòng trống mới hiện ra ngay sau lần vẽ này: chờ nó rồi mới chuyển con trỏ
+                                    const next = items[index + 1];
+                                    if (next) inputs.current.get(next.id)?.focus();
+                                    else focusNext.current = 'cuoi';
+                                }}
                                 contentRef={element => { if (element) inputs.current.set(item.id, element); else inputs.current.delete(item.id); }} />
                         ))}
                     </ul>

@@ -78,6 +78,7 @@ interface Job {
 
 const paperLabel = (paper: PrintPaper, rollHeightMm?: number): string => {
   if (paper.kind === 'a4') return paper.landscape ? 'A4 ngang' : 'A4 dọc';
+  if (paper.kind === 'a5') return paper.landscape ? 'A5 ngang' : 'A5 dọc';
   return `Giấy cuộn ${paper.widthMm} mm × ${Math.round(rollHeightMm ?? 0)} mm mỗi tem`;
 };
 
@@ -175,7 +176,9 @@ export class PrintJobs {
     const silent = !request.useSystemDialog && Boolean(request.deviceName);
     const pageSize = job.paper.kind === 'a4'
       ? 'A4' as const
-      : { width: job.paper.widthMm * 1000, height: (job.rollHeightMm ?? 297) * 1000 };
+      : job.paper.kind === 'a5'
+        ? 'A5' as const
+        : { width: job.paper.widthMm * 1000, height: (job.rollHeightMm ?? 297) * 1000 };
 
     return new Promise((resolve) => {
       job.win.webContents.print(
@@ -186,7 +189,7 @@ export class PrintJobs {
           printBackground: true,
           margins: { marginType: 'none' },
           pageSize,
-          landscape: job.paper.kind === 'a4' ? job.paper.landscape : false,
+          landscape: job.paper.kind === 'roll' ? false : job.paper.landscape,
         },
         (ok, failureReason) => resolve({ ok, reason: ok ? undefined : failureReason }),
       );

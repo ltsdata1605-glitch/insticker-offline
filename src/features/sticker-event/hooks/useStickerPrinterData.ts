@@ -8,7 +8,7 @@ import { ghostTagPreview, stickerPageToTagProduct } from '../stickerprinter/tagP
 import { formatPriceChangePercent, normalizeTagQuantity } from '../utils/format';
 import { getHiddenTabs, resolveVisibleSub } from '../tabAccess';
 import type { Product } from '../types';
-import { resolvePagePrices, resolveQueuePage, tagQueueContext, generatePageHtml, isHistoryDuplicate, generateDrawPagesHtml } from '../stickerprinter/pageHtmlUtils';
+import { resolvePagePrices, resolveQueuePage, tagQueueContext, generatePageHtml, isHistoryDuplicate, generateDrawPagesHtml, autoListName } from '../stickerprinter/pageHtmlUtils';
 import { parsePercentValue, downloadStickerTemplate, parseTemplateExcelData } from '../stickerprinter/excelParsers';
 import { getStickerPreviewStyles } from '../stickerprinter/stickerPreviewStyles';
 import { PRINT_SKIP_ATTR } from '../stickerprinter/BarcodeField';
@@ -134,21 +134,21 @@ export function useStickerPrinterData() {
     const [stickerMode, setStickerMode] = useState<'sticker' | 'event' | 'tag'>('sticker');
     const [eventEverOpened, setEventEverOpened] = useState(false);
     // Tem đang chờ chọn kiểu và bố cục in ở tab Sticker; onPrinted ghi lịch sử in khi đã mở màn xem trước
-    const [tagPrint, setTagPrint] = useState<{ products: Product[]; onPrinted: (listName: string) => void } | null>(null);
+    const [tagPrint, setTagPrint] = useState<{ products: Product[]; onPrinted: () => void } | null>(null);
     // Giá Sốc, Giờ Vàng: sticker đang chờ chọn số sticker mỗi tờ A4, và cách xếp lần in trước
-    const [sheetPrint, setSheetPrint] = useState<{ count: number; print: (perPage: StickersPerPage, listName: string) => void } | null>(null);
+    const [sheetPrint, setSheetPrint] = useState<{ count: number; print: (perPage: StickersPerPage) => void } | null>(null);
     const [stickersPerPage, setStickersPerPage] = useState<StickersPerPage>(1);
     useEffect(() => {
         getSetting<number>(STICKERS_PER_PAGE_KEY)
             .then(saved => setStickersPerPage(normalizeStickersPerPage(saved)))
             .catch(() => {});
     }, []);
-    const chooseStickersPerPage = (perPage: StickersPerPage, listName: string) => {
+    const chooseStickersPerPage = (perPage: StickersPerPage) => {
         const pending = sheetPrint;
         setSheetPrint(null);
         setStickersPerPage(perPage);
         saveSetting(STICKERS_PER_PAGE_KEY, perPage).catch(() => {});
-        pending?.print(perPage, listName);
+        pending?.print(perPage);
     };
     const [stickerType, setStickerType] = useState<'gia_soc' | 'gio_vang' | 'draw'>('draw');
     const [bgImage, setBgImage] = useState('/frame/bg_phieu.png');
@@ -209,10 +209,6 @@ export function useStickerPrinterData() {
         return manualPages.length > 0 ? listCopies : editorQuantity;
     }, [manualPages, batchItems, editorQuantity]);
     const [printHistory, setPrintHistory] = useState<PrintHistoryEntry[]>([]);
-    /** Tên các lần in trước (mới nhất trước), gợi ý ở ô tên danh sách khi in. */
-    const listNameSuggestions = useMemo(() => Array.from(new Set(
-        printHistory.filter(entry => entry.id !== DEFAULT_HISTORY_ID && entry.stickerType !== 'draw').map(entry => entry.label),
-    )).slice(0, 20), [printHistory]);
     const [showHistory, setShowHistory] = useState(false);
     const [savedLists, setSavedLists] = useState<SavedStickerList[]>([]);
     // true = savedLists vừa được cập nhật từ storage (indexeddb-change), không phải người
@@ -1445,8 +1441,8 @@ export function useStickerPrinterData() {
         const queueContext = { stickerType, headerTextContent, subHeaderTextContent, footerTextContent };
         const queuePage = (page: StickerPage): StickerPage => resolveQueuePage(page, queueContext);
 
-        // Tên danh sách người dùng đặt lúc in, để tra cứu lại ở tab Lịch sử
-        const recordHistory = (listName: string) => {
+        // Mỗi lần in tự lưu danh sách vào tab Lịch sử, tên tự đặt theo tên sản phẩm
+        const recordHistory = () => {
             // Chỉ in sticker đang soạn (danh sách trống): lưu chính sticker đó vào lịch sử, mở lại là có đúng sticker đã in
             const savedPages = batchItems.length === 0 && manualPages.length === 0
                 ? [{
@@ -1462,7 +1458,7 @@ export function useStickerPrinterData() {
             const historyEntry: PrintHistoryEntry = {
                 id: `history_${Date.now()}`,
                 timestamp: Date.now(),
-                label: listName.trim() || headerTextContent || 'Sticker',
+                label: autoListName([...batchItems.filter(item => item.selected).map(item => item.name), ...savedPages.map(page => page.label)], headerTextContent),
                 printedAs: stickerMode === 'tag' ? 'tag' : undefined,
                 pageCount: totalPages,
                 stickerType,
@@ -1482,8 +1478,8 @@ export function useStickerPrinterData() {
                 discountDisplayMode,
             };
             setPrintHistory(prev => {
-                // In lại đúng danh sách cũ với cùng tên: đưa lên đầu. Đặt tên khác thì là một mục riêng để tra cứu.
-                const dupIdx = prev.findIndex(entry => entry.label === historyEntry.label && isHistoryDuplicate(entry, historyEntry));
+                // In lại đúng danh sách đã có trong Lịch sử: không lưu thêm, chỉ đưa mục cũ lên đầu (giữ tên cũ)
+                const dupIdx = prev.findIndex(entry => isHistoryDuplicate(entry, historyEntry));
                 let next;
                 if (dupIdx !== -1) {
                     const matched = { ...prev[dupIdx], timestamp: Date.now(), printedAs: historyEntry.printedAs };
@@ -1556,8 +1552,8 @@ export function useStickerPrinterData() {
         const printTitle = headerTextContent || 'Sticker';
         setSheetPrint({
             count: stickers.length,
-            print: (perPage, listName) => {
-                recordHistory(listName);
+            print: (perPage) => {
+                recordHistory();
                 const sheets = buildStickerSheets(stickers, perPage);
                 openPrintPreview({
                     title: printTitle,
@@ -1621,7 +1617,6 @@ export function useStickerPrinterData() {
         barcodeImei, setBarcodeImei,
         manualPages, setManualPages,
         printHistory, setPrintHistory,
-        listNameSuggestions,
         editorQuantity, setEditorQuantity, setPageQuantity, stickerPrintCount,
         showHistory, setShowHistory,
         savedLists, setSavedLists,

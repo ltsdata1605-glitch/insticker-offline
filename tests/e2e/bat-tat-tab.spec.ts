@@ -54,6 +54,7 @@ test('Event mặc định tắt; bấm 7 lần vào logo, nhập mật khẩu đ
   await tabSwitch(win, 'Kiểm quỹ').click();
   await tabSwitch(win, 'Nhắc việc').click();
   await tabSwitch(win, 'Tạo mã').click();
+  await tabSwitch(win, 'In nhãn').click();
   for (const name of ['Giờ Vàng', 'Sticker']) await tabSwitch(win, name).click();
   expect(await modeNames(win)).toEqual(['Phiếu']);
   await expect(tabSwitch(win, 'Phiếu')).toBeDisabled();

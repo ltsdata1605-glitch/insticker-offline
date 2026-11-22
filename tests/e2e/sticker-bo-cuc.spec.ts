@@ -9,8 +9,6 @@ import { chooseMode, chooseStickersPerPage, chooseSubTab, closePreview, evalInPr
 const layoutDialog = (win: Page) => win.getByRole('dialog', { name: 'Chọn Kiểu & Bố Cục In' });
 const pressPrint = (win: Page) => win.getByRole('button', { name: /Bấm để in/ }).first().click();
 const tagPreview = (win: Page) => win.getByTestId('tag-preview');
-/** Mỗi lần in phải đặt tên danh sách để lưu vào Lịch sử. */
-const nameList = (win: Page, name = 'Danh sách thử') => layoutDialog(win).getByLabel('Tên danh sách').fill(name);
 // Tem xem trước nằm trong shadow DOM; bộ chọn CSS của Playwright đi xuyên qua được
 const previewTags = (win: Page) => tagPreview(win).getByTestId('tag-render').locator('.price-tag');
 
@@ -70,8 +68,8 @@ test('Tab Sticker: đứng trước Phiếu, xem trước là tem giá theo ki�
   await expect(win.getByTestId('print-preview')).toHaveCount(0);
 
   await pressPrint(win);
-  await expect(layoutDialog(win).getByRole('button', { name: /^8 Sticker \/ Trang/ })).toBeDisabled();
-  await nameList(win, 'Quạt điều hoà tuần 1');
+  // Không phải đặt tên danh sách: bấm bố cục là in, danh sách tự lưu vào Lịch sử
+  await expect(layoutDialog(win).getByLabel('Tên danh sách')).toHaveCount(0);
   await layoutDialog(win).getByRole('button', { name: /^8 Sticker \/ Trang/ }).click();
   expect(await printSummary(win)).toContain('A4 dọc');
   const tag = await evalInPrintDoc<{ count: number; name: string; price: string; old: string; qr: number }>(s, `(() => {
@@ -127,7 +125,6 @@ test('Tab Sticker: nhập file mẫu thành tem từng sản phẩm, in kiểu h
   await pressPrint(win);
   const dialog = layoutDialog(win);
   await dialog.getByRole('button', { name: 'Kiểu hiện đại' }).click();
-  await nameList(win);
   await dialog.getByRole('button', { name: /Máy in bill/ }).click();
   expect(await printSummary(win)).toContain('Giấy cuộn 80 mm');
   expect(await evalInPrintDoc<number>(s, `document.querySelectorAll('.price-tag.modern').length`)).toBe(2);
@@ -202,7 +199,6 @@ test('Tab Sticker: bấm Thêm thì các ô để trống cho sticker sau; ô tr
 
   // Bản in là hai sticker đã thêm, sticker đang soạn chưa bấm Thêm thì không in
   await pressPrint(win);
-  await nameList(win);
   await layoutDialog(win).getByRole('button', { name: /^4 Sticker \/ Trang/ }).click();
   await printSummary(win);
   const printed = await evalInPrintDoc<string[]>(s, `[...document.querySelectorAll('.price-tag')].map((tag) => tag.textContent)`);
@@ -260,7 +256,6 @@ test('Tab Sticker: xem trước đúng phông và cỡ chữ bản in; người 
   await employee.fill('21707');
   await expect(render().locator('.price-tag')).toContainText('21707');
   await pressPrint(win);
-  await nameList(win);
   await layoutDialog(win).getByRole('button', { name: /^1 Sticker \/ Trang/ }).click();
   await printSummary(win);
   expect(await evalInPrintDoc<string>(s, `document.body.textContent`)).toContain('21707');
@@ -279,48 +274,48 @@ test('Tab Sticker: xem trước đúng phông và cỡ chữ bản in; người 
   await s.close();
 });
 
-test('Mỗi lần in đặt tên danh sách; Lịch sử hiện đúng tên và nơi in, tìm được theo tên không dấu, mở lại được', async () => {
+test('Mỗi lần in tự lưu danh sách vào Lịch sử, tên theo sản phẩm; in lại danh sách trùng thì không lưu thêm; tìm không dấu, mở lại được', async () => {
   const s = await openApp();
   const { win } = s;
+  const printTag = async () => {
+    await pressPrint(win);
+    await layoutDialog(win).getByRole('button', { name: /^4 Sticker \/ Trang/ }).click();
+    await printSummary(win);
+    await closePreview(win);
+  };
   await chooseMode(win, 'Sticker');
   await win.getByLabel('Tên sản phẩm').fill('Máy lọc nước Karofi');
-  await pressPrint(win);
-  await nameList(win, 'Máy lọc nước tuần 1');
-  await layoutDialog(win).getByRole('button', { name: /^4 Sticker \/ Trang/ }).click();
-  await printSummary(win);
-  await closePreview(win);
-
+  await printTag();
+  // Danh sách khác: thêm một mục
+  await win.getByLabel('Tên sản phẩm').fill('Nồi cơm Sharp');
+  await printTag();
+  // In lại đúng danh sách đó, ở tab Sticker hay Giá Sốc: không lưu thêm
+  await printTag();
   await chooseMode(win, 'Giá Sốc');
   await pressPrint(win);
-  await chooseStickersPerPage(win, 1, 'Quạt giá sốc');
+  await chooseStickersPerPage(win, 1);
   await printSummary(win);
   await closePreview(win);
 
-  // Hai tab dùng chung Lịch sử; tên mới nhất ở trên, ghi rõ in từ tab nào
+  // Hai tab dùng chung Lịch sử; tên tự đặt theo sản phẩm, mới in gần nhất ở trên
   await chooseSubTab(win, /Lịch sử/);
-  const history = win.locator('p', { hasText: /Máy lọc nước tuần 1|Quạt giá sốc/ });
-  await expect(history).toHaveText(['Quạt giá sốc', 'Máy lọc nước tuần 1']);
-  await expect(win.getByText('Máy lọc nước tuần 1').locator('xpath=../..')).toContainText('Sticker');
-  await expect(win.getByText('Quạt giá sốc').locator('xpath=../..')).toContainText('Giá Sốc');
+  const rows = win.locator('div.group').filter({ has: win.getByRole('button', { name: 'Khôi phục' }) });
+  await expect(rows).toHaveCount(2);
+  await expect(rows.locator('p.font-bold')).toHaveText(['Nồi cơm Sharp', 'Máy lọc nước Karofi']);
+  await expect(rows.nth(1)).toContainText('Sticker');
 
   // Tìm không cần dấu, không phân biệt chữ hoa
   const search = win.getByLabel('Tìm theo tên danh sách');
   await search.fill('MAY LOC');
-  await expect(history).toHaveText(['Máy lọc nước tuần 1']);
+  await expect(rows.locator('p.font-bold')).toHaveText(['Máy lọc nước Karofi']);
   await search.fill('tủ lạnh');
   await expect(win.getByText(/Không có danh sách nào tên giống/)).toBeVisible();
   await search.fill('may loc');
 
-  // Mở lại danh sách đã đặt tên: sticker đã in vào lại danh sách
-  await win.getByText('Máy lọc nước tuần 1').locator('xpath=../..').getByRole('button', { name: 'Khôi phục' }).click();
+  // Mở lại danh sách đã in: sticker đã in vào lại danh sách
+  await rows.first().getByRole('button', { name: 'Khôi phục' }).click();
   await expect(win.getByTestId('sticker-thumbnail')).toHaveCount(1);
   await expect(win.getByTestId('sticker-thumbnail')).toHaveAttribute('aria-label', /Máy lọc nước Karofi/);
-
-  // Lần in sau gợi ý lại các tên đã dùng
-  await pressPrint(win);
-  const suggestions = await win.locator('datalist option').evaluateAll((options) => options.map((o) => (o as HTMLOptionElement).value));
-  expect(suggestions).toEqual(['Quạt giá sốc', 'Máy lọc nước tuần 1']);
-  await win.keyboard.press('Escape');
   await s.close();
 });
 
@@ -360,7 +355,6 @@ test('Tab Sticker: các kiểu làm nổi giá (không nền đen), chọn ở k
   for (const [layout, label] of [[16, /^16 Sticker \/ Trang/], [80, /Máy in bill/]] as const) {
     await pressPrint(win);
     await layoutDialog(win).getByRole('button', { name: 'Kiểu giá to' }).click();
-    await nameList(win);
     await layoutDialog(win).getByRole('button', { name: label }).click();
     await printSummary(win);
     const fit = await evalInPrintDoc<{ count: number; inside: boolean; old: string; price: string }>(s, `(() => {
@@ -397,7 +391,6 @@ test('Tab Sticker: trang in có đường cắt nét đứt nằm giữa khe gi�
   await qty.fill('2');
   await qty.press('Enter');
   await pressPrint(win);
-  await nameList(win);
   await layoutDialog(win).getByRole('button', { name: /^8 Sticker \/ Trang/ }).click();
   await printSummary(win);
   const cut = await evalInPrintDoc<{ vertical: number; horizontal: number; middleBetween: boolean; aroundTags: boolean; dashed: string }>(s, `(() => {
@@ -431,7 +424,6 @@ test('Máy in bill 80mm: cả bốn kiểu tem nằm gọn giữa khổ giấy, 
       return inner.left >= tag.left - 1 && inner.right <= tag.right + 1;
     });
     await pressPrint(win);
-    await nameList(win);
     await layoutDialog(win).getByRole('button', { name: /Máy in bill/ }).click();
     const summary = await printSummary(win);
     const rollMm = Number(/Giấy cuộn 80 mm × (\d+) mm/.exec(summary)?.[1]);

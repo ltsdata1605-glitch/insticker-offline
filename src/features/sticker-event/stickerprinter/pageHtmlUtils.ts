@@ -244,6 +244,21 @@ export const generatePageHtml = (
     </div>`;
 };
 
+/**
+ * Tên danh sách tự đặt khi in (không phải gõ): tên sản phẩm, nhiều sản phẩm thì hai tên đầu và số sản phẩm còn lại.
+ * Tìm trong Lịch sử theo tên sản phẩm là ra.
+ */
+export const autoListName = (names: string[], fallback: string): string => {
+    const unique = [...new Set(names.map(name => name.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean))];
+    if (unique.length === 0) return fallback.trim() || 'Sticker';
+    const [first, second] = unique;
+    const more = unique.length - 2;
+    const text = unique.length === 1 ? first : `${first}, ${second}${more > 0 ? ` và ${more} sản phẩm khác` : ''}`;
+    if (text.length <= 80) return text;
+    const tail = unique.length > 1 ? ` và ${unique.length - 1} sản phẩm khác` : '';
+    return `${first.slice(0, 80 - tail.length - 1).trim()}…${tail}`;
+};
+
 export const isHistoryDuplicate = (a: PrintHistoryEntry, b: PrintHistoryEntry): boolean => {
     if (a.stickerType !== b.stickerType) return false;
     if (a.headerTextContent !== b.headerTextContent) return false;

@@ -71,8 +71,19 @@ export const newDirs = (): Dirs => {
   return dirs;
 };
 
-/** Mở app với dữ liệu tạm. Gọi lại với cùng `dirs` để kiểm tra dữ liệu còn sau khi đóng và mở lại. */
-export const openApp = async (dirs: Dirs = newDirs(), extraArgs: string[] = [], extraEnv: Record<string, string> = {}): Promise<AppSession> => {
+/** Chuyển sang chức năng In sticker trên thanh bên trái (thanh ẩn khi chỉ còn một chức năng thì thôi). */
+export const openStickerModule = async (win: Page) => {
+  const button = win.getByRole('navigation', { name: 'Chức năng' }).getByRole('button', { name: 'In sticker' });
+  if ((await button.count()) === 0 || (await button.getAttribute('aria-current')) === 'page') return;
+  await button.click();
+  await win.waitForTimeout(300);
+};
+
+/**
+ * Mở app với dữ liệu tạm. Gọi lại với cùng `dirs` để kiểm tra dữ liệu còn sau khi đóng và mở lại. App mở vào Nhắc việc; phần lớn bài
+ * test làm việc với In sticker nên chuyển sang In sticker, trừ khi `startScreen` (xem đúng màn mở đầu).
+ */
+export const openApp = async (dirs: Dirs = newDirs(), extraArgs: string[] = [], extraEnv: Record<string, string> = {}, options: { startScreen?: boolean } = {}): Promise<AppSession> => {
   const app = await electron.launch({
     args: ['.', ...extraArgs],
     env: { ...process.env, STICKER_USER_DATA: dirs.userData, STICKER_DOWNLOAD_DIR: dirs.downloads, ...extraEnv },
@@ -108,6 +119,7 @@ export const openApp = async (dirs: Dirs = newDirs(), extraArgs: string[] = [], 
   win.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()} @ ${m.location().url}`); });
   await win.waitForSelector('#global-header-actions button', { timeout: 120_000 });
   await win.waitForTimeout(800);
+  if (!options.startScreen) await openStickerModule(win);
 
   return {
     app, win, dirs, errors,
@@ -153,11 +165,9 @@ export const rowWith = (cells: Record<number, unknown>): unknown[] => {
   return Array.from({ length: max + 1 }, (_, i) => cells[i] ?? '');
 };
 
-/** Giá Sốc, Giờ Vàng: sau khi bấm in, đặt tên danh sách và chọn số sticker trên một trang A4 (mặc định 1, như trước nay). */
-export const chooseStickersPerPage = async (win: Page, perPage: 1 | 2 | 4 | 8 | 16 = 1, listName = 'Danh sách thử') => {
+/** Giá Sốc, Giờ Vàng: sau khi bấm in, chọn số sticker trên một trang A4 (mặc định 1). Danh sách tự lưu vào Lịch sử. */
+export const chooseStickersPerPage = async (win: Page, perPage: 1 | 2 | 4 | 8 | 16 = 1) => {
   const dialog = win.getByRole('dialog', { name: 'Chọn số sticker trên 1 trang A4' });
-  // Mỗi lần in phải đặt tên danh sách để lưu vào Lịch sử
-  await dialog.getByLabel('Tên danh sách').fill(listName);
   await dialog.getByRole('button', { name: new RegExp(`^${perPage} sticker / trang`) }).click();
   await dialog.waitFor({ state: 'detached' });
 };

@@ -43,6 +43,8 @@ export const SETTING_KEYS = [
   // Kiểm quỹ: lần đang đếm và lịch sử
   'kiemQuyCurrent',
   'kiemQuyHistory',
+  // In nhãn Tomy: các tem đang soạn, căn chỉnh in, danh sách màu FIFO
+  'inNhanState',
 ] as const;
 
 export interface BackupData {

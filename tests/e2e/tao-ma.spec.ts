@@ -12,10 +12,12 @@ test('Tạo mã: nhập mã có tiêu đề, dán nhiều dòng, QR và mã vạ
   await rail(win).getByRole('button', { name: 'Tạo mã' }).click();
   await expect(win.getByRole('heading', { level: 1 })).toHaveText('Tạo mã');
 
-  // Gõ một mã có tiêu đề, Enter sang dòng mới để gõ tiếp
-  await win.getByLabel('Tiêu đề mã 1').fill('Tủ lạnh LG 260L');
+  // Chỉ có một dòng trống, ô nội dung đứng trước; gõ nội dung là dòng trống mới hiện ra bên dưới, Enter xuống gõ tiếp
+  await expect(win.getByTestId('dong-ma')).toHaveCount(1);
   await win.getByLabel('Nội dung mã 1').fill('SP-00123');
-  await win.getByLabel('Nội dung mã 1').press('Enter');
+  await expect(win.getByTestId('dong-ma')).toHaveCount(2);
+  await win.getByLabel('Tiêu đề mã 1').fill('Tủ lạnh LG 260L');
+  await win.getByLabel('Tiêu đề mã 1').press('Enter');
   await expect(win.getByLabel('Nội dung mã 2')).toBeFocused();
   await win.keyboard.type('https://insticker.vn/san-pham?id=123');
   const preview = win.getByTestId('trang-xem-truoc');
@@ -29,7 +31,10 @@ test('Tạo mã: nhập mã có tiêu đề, dán nhiều dòng, QR và mã vạ
   await bulk.getByLabel('Các dòng mã').fill('Máy giặt Toshiba\tSP-00456\nĐồng hồ | Chữ có dấu\n8934563138165\n\n');
   await expect(bulk).toContainText('Đọc được 3 mã, 2 có tiêu đề');
   await bulk.getByRole('button', { name: 'Thêm 3 mã' }).click();
-  await expect(win.getByTestId('dong-ma')).toHaveCount(5);
+  // 5 mã và luôn một dòng trống ở cuối để gõ tiếp
+  await expect(win.getByTestId('dong-ma')).toHaveCount(6);
+  await expect(win.getByTestId('dong-ma').last()).toHaveAttribute('data-trong', '');
+  await expect(win.getByText('Danh sách mã (5)')).toBeVisible();
   await expect(win.getByLabel('Tiêu đề mã 3')).toHaveValue('Máy giặt Toshiba');
   await expect(win.getByRole('button', { name: /^In 5 mã/ })).toBeVisible();
 
@@ -87,8 +92,9 @@ test('Tạo mã: nhập mã có tiêu đề, dán nhiều dòng, QR và mã vạ
   await s.close();
   s = await openApp(dirs);
   win = s.win;
+  await rail(win).getByRole('button', { name: 'Tạo mã' }).click();
   await expect(win.getByRole('heading', { level: 1 })).toHaveText('Tạo mã');
-  await expect(win.getByTestId('dong-ma')).toHaveCount(5);
+  await expect(win.getByTestId('dong-ma')).toHaveCount(6);
   await expect(win.getByLabel('Số bản mã 1')).toHaveValue('6');
   await expect(win.getByLabel('Số mã mỗi trang')).toHaveValue('4');
   await expect(win.getByRole('group', { name: 'Loại mã' }).getByRole('button', { name: 'QR + mã vạch' })).toHaveAttribute('aria-pressed', 'true');

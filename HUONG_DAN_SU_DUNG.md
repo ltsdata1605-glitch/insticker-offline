@@ -12,7 +12,7 @@ Dùng và in không cần mạng, không cần đăng nhập. App chỉ vào m�
 
 ## Năm chức năng
 
-Thanh bên trái, ngay dưới logo, chọn chức năng: **In sticker** (năm chế độ bên dưới), **Kiểm hàng** (đối chiếu hàng nhận với file phiếu chuyển kho), **Kiểm quỹ** (đếm tiền theo mệnh giá, đối chiếu sổ, lưu lịch sử), **Nhắc việc** (nhắc việc có chuông, checklist và báo cáo) và **Tạo mã** (mã QR, mã vạch có tiêu đề, in nhiều mã trên một trang). Tiêu đề và icon trên thanh trên cùng đổi theo chức năng đang mở. Chuyển qua lại không mất việc đang làm dở ở chức năng kia. Số đỏ trên biểu tượng Nhắc việc là số việc đang quá hạn.
+Thanh bên trái, ngay dưới logo, chọn chức năng theo thứ tự: **Nhắc việc** (nhắc việc có chuông, checklist và báo cáo), **Kiểm quỹ** (đếm tiền theo mệnh giá, đối chiếu sổ, lưu lịch sử), **Kiểm hàng** (đối chiếu hàng nhận với file phiếu chuyển kho), **Tạo mã** (mã QR, mã vạch có tiêu đề, in nhiều mã trên một trang), **In nhãn** (tem Tomy A5 tròn 117, vuông 105) và **In sticker** (năm chế độ bên dưới). Mở app là vào **Nhắc việc**. Tiêu đề và icon trên thanh trên cùng đổi theo chức năng đang mở. Chuyển qua lại không mất việc đang làm dở ở chức năng kia. Số đỏ trên biểu tượng Nhắc việc là số việc đang quá hạn.
 
 ## Năm chế độ
 
@@ -52,7 +52,7 @@ Kiểu giá to và Kiểu phiếu giảm giá chỉ dùng chữ và đường vi
 
 Trang in (A4, 1 đến 24 tem mỗi trang) có **đường cắt** nét đứt màu xám chạy giữa khe giữa các tem và quanh khối tem; cắt theo đường là tách được từng tem. Trang cuối ít tem thì đường cắt chỉ chạy quanh các tem có in. Máy in bill không có đường cắt. Cả sáu dùng được ở mọi bố cục và máy in bill; không có giá gốc thì tem chỉ in giá bán. Tem hiện theo bố cục lần in trước.
 - **Sửa nội dung** ở các ô dưới tem: Tên sản phẩm, Mã QR, Giá cũ, Giá mới (nghìn đồng, như Giá Sốc) và Khuyến mãi. Gõ giá mới đủ số (từ 100.000) thì app tự đổi ra nghìn đồng.
-- **Bấm để in** hiện hộp **Chọn Kiểu & Bố Cục In**: gõ **Tên danh sách**, đổi kiểu nếu cần, rồi chọn 1, 2, 4, 8, 16 hoặc 24 sticker mỗi trang A4, hoặc **Máy in bill (80mm)**. Chọn xong là mở màn xem trước bản in. Đóng hộp thì không in.
+- **Bấm để in** hiện hộp **Chọn Kiểu & Bố Cục In**: đổi kiểu nếu cần, rồi chọn 1, 2, 4, 8, 16 hoặc 24 sticker mỗi trang A4, hoặc **Máy in bill (80mm)**. Chọn xong là mở màn xem trước bản in. Đóng hộp thì không in.
 - Tem luôn có ngày giờ in cạnh mã QR, kèm người in nếu đã nhập.
 
 Mỗi sticker in thành một tem giá như tab Event: tên sản phẩm, giá cũ là giá gạch, giá mới là giá bán, dòng khuyến mãi. Sticker có mã thì tem luôn có mã QR; xoá trống ô Mã QR nếu không muốn in QR. Tem không in thưởng. **Người in** nhập ở ô cạnh Kiểu sticker, riêng với tab Event; để trống thì tem chỉ in giờ in.
@@ -93,7 +93,7 @@ Gõ mã hoặc tên vào ô tìm kiếm, dùng phím mũi tên lên, xuống đ�
 
 ## In nhiều sticker trên 1 trang A4 (Giá Sốc, Giờ Vàng)
 
-**Bấm để in** hiện hộp **Chọn số sticker trên 1 trang A4**. Gõ **Tên danh sách** trước, rồi chọn số sticker mỗi trang:
+**Bấm để in** hiện hộp **Chọn số sticker trên 1 trang A4**: chọn số sticker mỗi trang (không phải đặt tên danh sách):
 
 | Chọn | Khổ giấy | Cỡ mỗi sticker |
 |---|---|---|
@@ -107,12 +107,11 @@ Gõ mã hoặc tên vào ô tìm kiếm, dùng phím mũi tên lên, xuống đ�
 - Lựa chọn lần in trước được chọn sẵn, bấm Enter là in luôn. Giá Sốc và Giờ Vàng dùng chung lựa chọn này.
 - Đóng hộp thì không in. Tab Phiếu vẫn in 4 phiếu mỗi trang như cũ.
 
-## Tên danh sách và Lịch sử in (Giá Sốc, Giờ Vàng, Sticker)
+## Lịch sử in (Giá Sốc, Giờ Vàng, Sticker)
 
-- Mỗi lần in phải gõ **Tên danh sách** trong hộp in; chưa có tên thì chưa chọn được bố cục. Ô tên gợi ý lại các tên đã dùng. Gõ tên xong bấm Enter là in theo bố cục đang chọn sẵn.
-- Danh sách vừa in được lưu vào tab **Lịch sử** với tên đó, kèm giờ in, số trang và nơi in (Giá Sốc, Giờ Vàng hay Sticker). Chỉ in sticker đang soạn thì sticker đó cũng được lưu.
-- Ô **Tìm theo tên danh sách** ở đầu tab Lịch sử tìm không cần dấu, không phân biệt chữ hoa. Bấm **Khôi phục** để đưa danh sách đã in về lại.
-- In lại đúng danh sách cũ với cùng tên thì mục cũ được đưa lên đầu; đặt tên khác thì thành một mục mới.
+- Mỗi lần in, danh sách **tự lưu** vào tab **Lịch sử**, không phải gõ tên. Tên tự đặt theo sản phẩm (ví dụ "Quạt đứng, Nồi cơm và 3 sản phẩm khác"), kèm giờ in, số trang và nơi in (Giá Sốc, Giờ Vàng hay Sticker). Chỉ in sticker đang soạn thì sticker đó cũng được lưu.
+- In lại đúng danh sách đã có trong Lịch sử thì **không lưu thêm**: mục cũ được đưa lên đầu.
+- Ô **Tìm theo tên danh sách** ở đầu tab Lịch sử tìm theo tên sản phẩm, không cần dấu, không phân biệt chữ hoa. Bấm **Khôi phục** để đưa danh sách đã in về lại.
 
 ## Chỉnh cỡ chữ
 
@@ -189,7 +188,7 @@ Kết quả tự lưu sau mỗi lần quét: lỡ đóng app thì mở lại ki�
 
 Đếm tiền trong két theo mệnh giá, đối chiếu với số theo sổ và lưu lại từng lần kiểm.
 
-1. Ghi **Tên lần kiểm** (ví dụ "62864 - Phùng Minh Lâm": mã và tên người kiểm). Phải có tên mới lưu được.
+1. Ghi **Tên lần kiểm** (ví dụ "Ca sáng: 62864 - Phùng Minh Lâm": ca, mã và tên người kiểm). Phải có tên mới lưu được.
 2. Gõ **số tờ** từng mệnh giá (500.000 đến 500 đồng), bấm Enter là sang mệnh giá kế tiếp; hoặc bấm **+**, **−** để cộng trừ từng tờ. Thành tiền từng dòng và **Tổng tiền thực tế** (kèm số tờ và số tiền bằng chữ) tự tính. Tiền xu, tiền lẻ ngoài bảng ghi ở **Tiền khác**.
 3. Muốn đối chiếu thì gõ **Số tiền theo sổ / hệ thống**: app báo **Khớp sổ**, **Thừa** hoặc **Thiếu** bao nhiêu. Ghi lý do vào **Ghi chú**.
 4. **Lưu vào lịch sử.** Lưu xong màn trở về lần kiểm mới trống.
@@ -286,7 +285,7 @@ Nhắc việc, checklist, ảnh và âm thanh tự nhập đều có trong file 
 
 Tạo mã QR, mã vạch từ nội dung bất kỳ (mã sản phẩm, đường link, Wi-Fi, vị trí kệ…), mỗi mã có tiêu đề in to phía trên.
 
-1. **Nhập mã:** mỗi dòng một **Tiêu đề** (không bắt buộc) và **Nội dung**. Gõ nội dung rồi bấm Enter là sang dòng mới. Ô **×** là số bản in của mã đó (ví dụ in 24 tem giống nhau).
+1. **Nhập mã:** chỉ cần gõ **Nội dung** (ô đầu mỗi dòng) là có mã. Cuối danh sách luôn có sẵn một dòng trống: gõ xong bấm Enter là xuống dòng đó gõ tiếp. **Tiêu đề** không bắt buộc, có thì in to phía trên mã. Ô **×** là số bản in của mã đó (ví dụ in 24 tem giống nhau).
 2. **Nhập nhiều dòng:** dán nhiều mã một lần, mỗi dòng một mã. Có tiêu đề thì ghi `Tiêu đề | Nội dung`, hoặc chép hai cột từ Excel (cột A tiêu đề, cột B nội dung). Chọn **Thêm** vào danh sách hoặc **Thay cả danh sách**.
 3. **Loại mã:** **Mã QR** (nhận cả tiếng Việt có dấu, đường link dài), **Mã vạch** (Code 128, chỉ nhận chữ không dấu, số và ký hiệu) hoặc **QR + mã vạch**. Dòng không tạo được mã có viền đỏ và lý do, không in, không xuất. Mã vạch dài in trong ô nhỏ thì vạch quá mảnh, máy quét khó đọc: app báo màu vàng, nên chọn ít mã mỗi trang hơn hoặc dùng mã QR.
 4. **Số mã mỗi trang:** chọn từ 1 đến 70 mã trên một trang A4; app tự chia cột, hàng (ghi trong ngoặc) và cỡ chữ theo cỡ ô. Chọn khổ **Dọc** hoặc **Ngang**, bật tắt **Ghi nội dung dưới mã** và **Viền nét đứt để cắt**.
@@ -295,6 +294,21 @@ Tạo mã QR, mã vạch từ nội dung bất kỳ (mã sản phẩm, đường
 7. **Ảnh từng mã:** mỗi mã một ảnh PNG (tiêu đề, mã, nội dung), tên file theo số dòng và tiêu đề. **Ảnh theo trang:** mỗi trang A4 một ảnh, giống bản in. Ảnh lưu vào thư mục Tải về.
 
 Danh sách mã và cách in được giữ lại khi đóng app, và có trong file sao lưu. **Xoá hết** để làm danh sách mới.
+
+## In nhãn (Tomy A5)
+
+In lên tờ nhãn Tomy khổ A5: **Tròn 117** (48 tem tròn đường kính 23 mm, 8 x 6) hoặc **Vuông 105** (30 tem 25 x 37 mm, 5 x 6). Mỗi mẫu giữ danh sách tem riêng.
+
+- **Nhập tay:** bấm vào tem trên tờ để sửa, chọn loại **Chữ** (ba dòng, dòng 1 chữ to như ngày 22/11), **Mã QR** hoặc **Mã vạch** (nội dung mã và tên sản phẩm). Tem mã in tên sản phẩm, mã và dòng chữ của mã. Gõ xong bấm Enter là sang tem kế tiếp. **Chép tem này vào các ô trống của tờ** để in nhiều tem giống nhau.
+- **Tạo nhanh nhiều tem** (bắt đầu từ ô **In từ vị trí**, để in tiếp trên tờ đã dùng dở):
+  - **FIFO theo màu:** ngày tháng, mỗi màu ghi số lượng và ghi chú (ví dụ 1020 hay 8/128), bấm **Tạo … tem FIFO**.
+  - **Mã tự tăng:** đầu mã, số bắt đầu, số tem (ví dụ SP001 đến SP030), chọn mã QR, mã vạch hoặc chữ, có thể in kèm tên sản phẩm.
+  - **Nhập Excel:** file có cột Tên sản phẩm, Mã, Số tem (bấm **Tải file mẫu**), chọn in thành mã QR, mã vạch hoặc chữ. Nhiều tem hơn một tờ thì sang tờ tiếp theo.
+- Tem lỗi (mã vạch có dấu, mã QR quá dài) tô đỏ và không in. Mã vạch quá dài so với tem báo màu vàng.
+- **In:** khi in chọn khổ giấy **A5**, tỉ lệ **100%**, đặt tờ nhãn đúng chiều.
+- **Căn chỉnh vị trí in:** lần đầu bấm **In thử khung** ra giấy thường, áp lên tờ nhãn soi đèn; khung lệch bao nhiêu thì chỉnh **Dịch sang phải**, **Dịch xuống dưới** (mm), lệch dần theo cột, hàng thì chỉnh **Nới khoảng cách cột/hàng**. Mỗi mẫu tem nhớ căn chỉnh riêng.
+
+Tem đang soạn, căn chỉnh và danh sách màu FIFO được giữ khi tắt app, và có trong file sao lưu.
 
 ## Quét mã
 

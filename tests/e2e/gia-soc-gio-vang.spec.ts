@@ -426,7 +426,6 @@ test('In nhiều sticker trên 1 trang A4: chọn lúc bấm in, đúng số tra
   // Tìm theo cửa sổ hiện tại, vì giữa bài app được mở lại
   const dialog = () => win.getByRole('dialog', { name: 'Chọn số sticker trên 1 trang A4' });
   const option = (perPage: number) => dialog().getByRole('button', { name: new RegExp(`^${perPage} sticker / trang`) });
-  const nameList = (name: string) => dialog().getByLabel('Tên danh sách').fill(name);
 
   // Lần đầu chọn sẵn 1 sticker mỗi trang; mỗi cách xếp báo số trang sẽ in
   await printButton().click();
@@ -434,11 +433,10 @@ test('In nhiều sticker trên 1 trang A4: chọn lúc bấm in, đúng số tra
   for (const [perPage, pages] of [[1, 5], [2, 3], [4, 2], [8, 1], [16, 1]]) {
     await expect(option(perPage)).toContainText(`${pages} trang`);
   }
-  // Chưa đặt tên danh sách thì chưa in được
-  await expect(dialog().getByLabel('Tên danh sách')).toBeFocused();
-  await expect(option(4)).toBeDisabled();
-  await nameList('Thử 5 sticker');
-  await expect(option(4)).toBeEnabled();
+  // Không phải đặt tên: danh sách tự lưu vào Lịch sử; cách xếp đang chọn được chọn sẵn, bấm Enter là in
+  await expect(dialog()).toContainText('Danh sách tự lưu vào tab Lịch sử');
+  await expect(dialog().getByLabel('Tên danh sách')).toHaveCount(0);
+  await expect(option(1)).toBeFocused();
   // Đóng hộp thì không in
   await win.keyboard.press('Escape');
   await expect(dialog()).toHaveCount(0);
@@ -446,7 +444,6 @@ test('In nhiều sticker trên 1 trang A4: chọn lúc bấm in, đúng số tra
 
   // 4 sticker mỗi trang: A4 dọc, 2 trang, sticker đúng tỉ lệ và nằm gọn trong trang
   await printButton().click();
-  await nameList('Quạt 4 sticker');
   await option(4).click();
   expect(await printSummary(win)).toMatch(/A4 dọc \| Số trang \| 2/);
   const sheet = await evalInPrintDoc<{ sheets: number[]; widthMm: number; ratio: number; inside: boolean; fontRatio: number }>(s, `(() => {
@@ -482,7 +479,6 @@ test('In nhiều sticker trên 1 trang A4: chọn lúc bấm in, đúng số tra
   await printButton().click();
   await expect(option(4)).toHaveAttribute('aria-pressed', 'true');
   await expect(option(1)).toHaveAttribute('aria-pressed', 'false');
-  await nameList('Quạt 2 sticker');
   await option(2).click();
   expect(await printSummary(win)).toMatch(/A4 ngang \| Số trang \| 3/);
   expect(await evalInPrintDoc<number>(s, `document.querySelectorAll('.sticker-sheet').length`)).toBe(3);
@@ -493,18 +489,16 @@ test('In nhiều sticker trên 1 trang A4: chọn lúc bấm in, đúng số tra
   s = await openApp(dirs);
   ({ win } = s);
 
-  // Giờ Vàng dùng chung lựa chọn đã lưu; gõ tên rồi bấm Enter là in theo cách đang chọn
+  // Giờ Vàng dùng chung lựa chọn đã lưu; bấm Enter là in theo cách đang chọn
   await chooseMode(win, 'Giờ Vàng');
   await printButton().click();
   await expect(option(2)).toHaveAttribute('aria-pressed', 'true');
-  await nameList('Giờ vàng 8 sticker');
   await option(8).click();
   expect(await printSummary(win)).toMatch(/A4 ngang \| Số trang \| 1/);
   expect(await evalInPrintDoc<string>(s, `document.querySelector('.sticker-sheet .sticker-container').dataset.type`)).toBe('gio_vang');
   await closePreview(win);
   await printButton().click();
-  await expect(dialog().getByLabel('Tên danh sách')).toBeFocused();
-  await win.keyboard.type('In lại 8 sticker');
+  await expect(option(8)).toBeFocused();
   await win.keyboard.press('Enter');
   expect(await printSummary(win)).toMatch(/A4 ngang \| Số trang \| 1/);
   await closePreview(win);
@@ -604,7 +598,6 @@ test('Số bản in cho từng sticker: đọc từ file mẫu, sửa trên ản
   await expect(editorQty.locator('input')).toHaveValue('2');
 
   await printButton.click();
-  await win.getByRole('dialog', { name: 'Chọn Kiểu & Bố Cục In' }).getByLabel('Tên danh sách').fill('Thử số bản');
   await win.getByRole('dialog', { name: 'Chọn Kiểu & Bố Cục In' }).getByRole('button', { name: /^24 Sticker \/ Trang/ }).click();
   await printSummary(win);
   expect(await evalInPrintDoc<number>(s, `document.querySelectorAll('.price-tag').length`)).toBe(12);

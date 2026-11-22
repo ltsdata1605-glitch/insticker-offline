@@ -3,7 +3,7 @@ import { AppIcon } from '../../../components/shared/ui/icon/AppIcon';
 import { StickerPage, BatchItem, PrintHistoryEntry, SavedStickerList } from './types';
 import { DEFAULT_HISTORY_ID, DEFAULT_DRAW_HISTORY_ENTRY } from '../hooks/useStickerPrinterData';
 import { StickerManualQueue } from './StickerManualQueue';
-import { searchKey } from './ListNameField';
+import { searchKey } from './listSearch';
 import { Button, Input, Tabs, EmptyState, SectionCard, Switch } from '../../../components/shared/ui';
 import type { TabItem } from '../../../components/shared/ui';
 import { Checkbox } from '../../../components/shared/ui/Checkbox';
@@ -163,7 +163,7 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
     }, [filteredHistory, historyQuery]);
 
     const guideItems: { lead: string; text: React.ReactNode }[] = choosesLayoutOnPrint ? [
-        { lead: 'Khi bấm in', text: <>Đặt <strong>tên danh sách</strong> (lưu vào Lịch sử), chọn <strong>kiểu sticker</strong> và <strong>bố cục trang</strong>: 1 đến 24 sticker mỗi trang A4 hoặc máy in bill 80mm. Xem trước bản in, chọn máy in rồi bấm <strong>In ngay</strong>.</> },
+        { lead: 'Khi bấm in', text: <>Chọn <strong>kiểu sticker</strong> và <strong>bố cục trang</strong>: 1 đến 24 sticker mỗi trang A4 hoặc máy in bill 80mm. Xem trước bản in, chọn máy in rồi bấm <strong>In ngay</strong>. Danh sách <strong>tự lưu vào Lịch sử</strong>, in lại đúng danh sách cũ thì không lưu thêm.</> },
         { lead: 'Kiểu sticker', text: 'Chọn ngay trên khung xem trước. Kiểu giá to và Kiểu phiếu giảm giá chỉ dùng chữ và đường viền nên in trắng đen ít tốn mực. Trang in có đường cắt nét đứt giữa các tem.' },
         { lead: 'Sửa nhanh', text: 'Sửa tên, mã QR, giá cũ, giá mới, khuyến mãi ở các ô dưới tem. Tem luôn in mã QR khi có mã.' },
         { lead: 'Thêm', text: 'Nút Thêm nằm ngay trên các ô. Thêm xong các ô để trống để soạn sticker tiếp theo.' },
@@ -172,7 +172,7 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
         { lead: 'Sửa nhanh', text: 'Sửa chữ ở phiếu số 1, các phiếu còn lại đổi theo.' },
         { lead: 'Cỡ chữ', text: <>Bôi đen chữ trên phiếu để tăng giảm. Nút <strong>Cỡ chữ gốc</strong> đưa về mặc định.</> },
     ] : [
-        { lead: 'Khi bấm in', text: <>Đặt <strong>tên danh sách</strong> (lưu vào Lịch sử) và chọn <strong>số sticker trên 1 trang A4</strong>: 1, 2, 4, 8 hoặc 16. App tự đặt <strong>không lề</strong> và <strong>có in nền</strong>. Xem trước bản in, chọn máy in rồi bấm <strong>In ngay</strong>.</> },
+        { lead: 'Khi bấm in', text: <>Chọn <strong>số sticker trên 1 trang A4</strong>: 1, 2, 4, 8 hoặc 16. App tự đặt <strong>không lề</strong> và <strong>có in nền</strong>. Xem trước bản in, chọn máy in rồi bấm <strong>In ngay</strong>. Danh sách <strong>tự lưu vào Lịch sử</strong>, in lại đúng danh sách cũ thì không lưu thêm.</> },
         { lead: 'Cỡ chữ', text: <>Bôi đen chữ trên bản xem trước để tăng giảm. Nút <strong>Cỡ chữ gốc</strong> đưa tất cả về mặc định.</> },
         { lead: 'Sửa nhanh', text: 'Click trực tiếp vào chữ trên sticker ở khung preview.' },
         { lead: 'Tính % tự động', text: 'Chỉ cần nhập Giá cũ & Giá mới.' },

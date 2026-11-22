@@ -5,6 +5,7 @@ import { downloadedFiles, newDirs, openApp, waitForDownloads } from './helpers';
 const rail = (win: Page) => win.getByRole('navigation', { name: 'Chức năng' });
 const sheets = (win: Page, denomination: string) => win.getByLabel(`Số tờ ${denomination}`, { exact: true });
 
+
 test('Kiểm quỹ: nhập số tờ theo mệnh giá, tiền khác, đối chiếu sổ; tắt app giữa chừng vẫn còn; đặt tên, lưu lịch sử, sao chép, xuất ảnh, mở lại để sửa, xoá', async () => {
   const dirs = newDirs();
   let s = await openApp(dirs);
@@ -34,6 +35,8 @@ test('Kiểm quỹ: nhập số tờ theo mệnh giá, tiền khác, đối chi�
   await s.close();
   s = await openApp(dirs);
   win = s.win;
+  // Mở lại app thì vào Nhắc việc; chuyển sang Kiểm quỹ
+  await rail(win).getByRole('button', { name: 'Kiểm quỹ' }).click();
   await expect(win.getByRole('heading', { level: 1 })).toHaveText('Kiểm quỹ');
   await expect(sheets(win, '500.000')).toHaveValue('3');
   await expect(sheets(win, '10.000')).toHaveValue('5');
@@ -62,6 +65,7 @@ test('Kiểm quỹ: nhập số tờ theo mệnh giá, tiền khác, đối chi�
   await s.close();
   s = await openApp(dirs);
   win = s.win;
+  await rail(win).getByRole('button', { name: 'Kiểm quỹ' }).click();
   await expect(win.getByTestId('lich-su-kiem-quy')).toHaveCount(1);
 
   // Xem lần đã lưu: sao chép để gửi, xuất ảnh

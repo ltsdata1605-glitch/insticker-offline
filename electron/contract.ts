@@ -3,6 +3,8 @@
 /** A4 theo hướng giấy, hoặc giấy cuộn (K80): chiều cao đo từ nội dung lúc dựng bản in. */
 export type PrintPaper =
   | { kind: 'a4'; landscape: boolean }
+  /** Tờ nhãn khổ A5 (Tomy) */
+  | { kind: 'a5'; landscape: boolean }
   | { kind: 'roll'; widthMm: number };
 
 export interface PrintJobRequest {

@@ -30,7 +30,7 @@ export default function StickerPrinterView() {
         stickerMode, setStickerMode,
         eventEverOpened, setEventEverOpened,
         tagPrint, closeTagPrint, tagPreviewProducts, tagPreviewGhost,
-        sheetPrint, closeSheetPrint, stickersPerPage, chooseStickersPerPage, listNameSuggestions,
+        sheetPrint, closeSheetPrint, stickersPerPage, chooseStickersPerPage,
         stickerType, setStickerType,
         bgImage, setBgImage,
         priceSource, setPriceSource,
@@ -328,7 +328,6 @@ export default function StickerPrinterView() {
                     onTagsPerPageChosen={tag.setTagsPerPage}
                     onClose={closeTagPrint}
                     onPrinted={tagPrint.onPrinted}
-                    nameSuggestions={listNameSuggestions}
                 />
             )}
 
@@ -337,7 +336,6 @@ export default function StickerPrinterView() {
                     count={sheetPrint.count}
                     current={stickersPerPage}
                     onSelect={chooseStickersPerPage}
-                    nameSuggestions={listNameSuggestions}
                     onClose={closeSheetPrint}
                 />
             )}

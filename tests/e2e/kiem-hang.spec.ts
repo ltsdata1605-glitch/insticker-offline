@@ -145,10 +145,11 @@ test('Kiểm hàng: nhập nhiều file, quét mã, IMEI, mã lạ, thừa, hoà
   expect(copied).not.toContain('[ĐỦ]');
   await win.keyboard.press('Escape');
 
-  // Đóng và mở lại app: vẫn kiểm tiếp được
+  // Đóng và mở lại app (mở vào Nhắc việc), chuyển sang Kiểm hàng: vẫn kiểm tiếp được
   await s.close();
   s = await openApp(dirs);
   win = s.win;
+  await openKiemHang(win);
   await expect(rail(win).getByRole('button', { name: 'Kiểm hàng' })).toHaveAttribute('aria-current', 'page');
   await expect(kpi(win, 'da-kiem')).toHaveText('10');
   await expect(kpi(win, 'ma-la')).toHaveText('2');
@@ -193,7 +194,7 @@ test('Kiểm hàng: nhập nhiều file, quét mã, IMEI, mã lạ, thừa, hoà
   await s.close();
 });
 
-test('Tắt Kiểm hàng, Kiểm quỹ, Nhắc việc và Tạo mã thì thanh bên trái ẩn; tắt hết tab In sticker thì chỉ còn Kiểm hàng', async () => {
+test('Tắt Kiểm hàng, Kiểm quỹ, Nhắc việc, Tạo mã và In nhãn thì thanh bên trái ẩn; tắt hết tab In sticker thì chỉ còn Kiểm hàng', async () => {
   const s = await openApp();
   const { win } = s;
   // Cửa sổ nhỏ nhất (như máy Mac của CI): bảng bật tắt tab cao gần hết cửa sổ, nút Đóng không được bị thanh trên che
@@ -209,6 +210,7 @@ test('Tắt Kiểm hàng, Kiểm quỹ, Nhắc việc và Tạo mã thì thanh b
   await panel.getByRole('switch', { name: 'Kiểm hàng' }).click();
   await panel.getByRole('switch', { name: 'Tạo mã' }).click();
   await panel.getByRole('switch', { name: 'Kiểm quỹ' }).click();
+  await panel.getByRole('switch', { name: 'In nhãn' }).click();
   await panel.getByRole('button', { name: /Đóng/ }).first().click();
   // Chỉ còn In sticker thì không cần thanh bên trái
   await expect(rail(win)).toHaveCount(0);

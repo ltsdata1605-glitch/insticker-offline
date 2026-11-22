@@ -10,6 +10,7 @@ import KiemHangView from './features/kiem-hang/KiemHangView';
 import NhacViecView from './features/nhac-viec/NhacViecView';
 import TaoMaView from './features/tao-ma/TaoMaView';
 import KiemQuyView from './features/kiem-quy/KiemQuyView';
+import InNhanView from './features/in-nhan/InNhanView';
 import { NhacViecProvider, useNhacViec } from './features/nhac-viec/NhacViecProvider';
 import { ModuleRail, RAIL_ITEMS } from './components/layout/ModuleRail';
 import type { RailItem } from './components/layout/ModuleRail';
@@ -56,6 +57,7 @@ const MODULE_HEADER: Record<AppModule, { first: string; second: string; icon: Ic
   'tools-nhac-viec': { first: 'Nhắc', second: 'việc', icon: 'notification' },
   'tools-tao-ma': { first: 'Tạo', second: 'mã', icon: 'qrCode' },
   'tools-kiem-quy': { first: 'Kiểm', second: 'quỹ', icon: 'cash' },
+  'tools-in-nhan': { first: 'In', second: 'nhãn', icon: 'tag' },
 };
 
 /** Thanh bên trái kèm số việc quá hạn của Nhắc việc */
@@ -64,7 +66,7 @@ const Rail: React.FC<{ items: readonly RailItem[]; current: AppModule; onSelect:
   return <ModuleRail {...props} badges={{ 'tools-nhac-viec': badge }} />;
 };
 
-/** Khung app: thanh trên cùng, thanh chức năng bên trái (In sticker, Kiểm hàng, Kiểm quỹ, Nhắc việc, Tạo mã) và màn của chức năng đang mở. */
+/** Khung app: thanh trên cùng, thanh chức năng bên trái (Nhắc việc, Kiểm quỹ, Kiểm hàng, Tạo mã, In nhãn, In sticker) và màn của chức năng đang mở. */
 export default function App(): React.JSX.Element {
   return (
     <ActiveTabProvider>
@@ -85,7 +87,8 @@ function AppShell(): React.JSX.Element {
   const nhacViecVisible = !hiddenTabs.includes('nhac-viec');
   const taoMaVisible = !hiddenTabs.includes('tao-ma');
   const kiemQuyVisible = !hiddenTabs.includes('kiem-quy');
-  const visible: Record<AppModule, boolean> = { 'tools-print-sticker': stickerVisible, 'tools-kiem-hang': kiemHangVisible, 'tools-nhac-viec': nhacViecVisible, 'tools-tao-ma': taoMaVisible, 'tools-kiem-quy': kiemQuyVisible };
+  const inNhanVisible = !hiddenTabs.includes('in-nhan');
+  const visible: Record<AppModule, boolean> = { 'tools-print-sticker': stickerVisible, 'tools-kiem-hang': kiemHangVisible, 'tools-nhac-viec': nhacViecVisible, 'tools-tao-ma': taoMaVisible, 'tools-kiem-quy': kiemQuyVisible, 'tools-in-nhan': inNhanVisible };
   const { activeTab, setActiveTab } = useActiveTab();
   const railItems = RAIL_ITEMS.filter(item => visible[item.id]);
   const current: AppModule = visible[activeTab] ? activeTab : railItems[0]?.id ?? 'tools-print-sticker';
@@ -149,6 +152,13 @@ function AppShell(): React.JSX.Element {
               <ModuleLayer shown={current === 'tools-nhac-viec'}>
                 <ErrorBoundary name="NhacViec">
                   <NhacViecView active={current === 'tools-nhac-viec'} />
+                </ErrorBoundary>
+              </ModuleLayer>
+            )}
+            {inNhanVisible && opened.has('tools-in-nhan') && (
+              <ModuleLayer shown={current === 'tools-in-nhan'}>
+                <ErrorBoundary name="InNhan">
+                  <InNhanView active={current === 'tools-in-nhan'} />
                 </ErrorBoundary>
               </ModuleLayer>
             )}

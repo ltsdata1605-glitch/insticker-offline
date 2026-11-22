@@ -9,12 +9,14 @@ export interface RailItem {
     icon: IconName;
 }
 
+/** Thứ tự trên thanh bên trái; Nhắc việc đứng đầu và mở sẵn khi mở app */
 export const RAIL_ITEMS: readonly RailItem[] = [
-    { id: 'tools-print-sticker', label: 'In sticker', icon: 'print' },
-    { id: 'tools-kiem-hang', label: 'Kiểm hàng', icon: 'checklist' },
-    { id: 'tools-kiem-quy', label: 'Kiểm quỹ', icon: 'cash' },
     { id: 'tools-nhac-viec', label: 'Nhắc việc', icon: 'notification' },
+    { id: 'tools-kiem-quy', label: 'Kiểm quỹ', icon: 'cash' },
+    { id: 'tools-kiem-hang', label: 'Kiểm hàng', icon: 'checklist' },
     { id: 'tools-tao-ma', label: 'Tạo mã', icon: 'qrCode' },
+    { id: 'tools-in-nhan', label: 'In nhãn', icon: 'tag' },
+    { id: 'tools-print-sticker', label: 'In sticker', icon: 'print' },
 ];
 
 /** Thanh chức năng bên trái, nằm ngay dưới logo. Chỉ hiện khi có từ hai chức năng đang bật. */

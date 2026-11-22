@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Modal } from '../../../components/shared/ui/Modal';
 import { STICKER_SHEET_LAYOUTS, stickerSizeMm } from './stickerSheets';
 import type { StickerSheetLayout, StickersPerPage } from './stickerSheets';
-import { ListNameField } from './ListNameField';
 
 const cm = (mm: number) => (Math.round(mm) / 10).toLocaleString('vi-VN', { maximumFractionDigits: 1 });
 
@@ -24,21 +23,14 @@ interface StickerPerPageDialogProps {
     count: number;
     /** Cách xếp lần in trước, được chọn sẵn: bấm Enter là in luôn. */
     current: StickersPerPage;
-    /** Tên các lần in trước, để chọn lại nhanh. */
-    nameSuggestions: string[];
-    onSelect: (perPage: StickersPerPage, listName: string) => void;
+    onSelect: (perPage: StickersPerPage) => void;
     onClose: () => void;
 }
 
-/** Giá Sốc và Giờ Vàng: bấm in thì đặt tên danh sách và chọn số sticker trên một tờ A4. */
-export const StickerPerPageDialog: React.FC<StickerPerPageDialogProps> = ({ count, current, nameSuggestions, onSelect, onClose }) => {
-    const [listName, setListName] = useState('');
-    const named = listName.trim().length > 0;
-    return (
+/** Giá Sốc và Giờ Vàng: bấm in thì chọn số sticker trên một tờ A4. Danh sách tự lưu vào Lịch sử, không phải đặt tên. */
+export const StickerPerPageDialog: React.FC<StickerPerPageDialogProps> = ({ count, current, onSelect, onClose }) => (
     <Modal isOpen={true} onClose={onClose} title="Chọn số sticker trên 1 trang A4" maxWidth="lg">
-        <div className="mb-4">
-            <ListNameField value={listName} onChange={setListName} suggestions={nameSuggestions} onSubmit={() => onSelect(current, listName.trim())} />
-        </div>
+        <p className="mb-3 text-xs text-slate-500">Danh sách tự lưu vào tab Lịch sử để tra cứu lại; in lại đúng danh sách cũ thì không lưu thêm.</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {STICKER_SHEET_LAYOUTS.map(layout => {
                 const { width, height } = stickerSizeMm(layout);
@@ -49,8 +41,9 @@ export const StickerPerPageDialog: React.FC<StickerPerPageDialogProps> = ({ coun
                         key={layout.perPage}
                         type="button"
                         aria-pressed={chosen}
-                        disabled={!named}
-                        onClick={() => onSelect(layout.perPage, listName.trim())}
+                        // Cách xếp lần trước được chọn sẵn: bấm Enter là in luôn
+                        autoFocus={chosen}
+                        onClick={() => onSelect(layout.perPage)}
                         className={`flex items-center gap-4 w-full p-4 text-left rounded-card border transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed ${
                             chosen ? 'bg-sky-50 border-sky-400' : 'bg-slate-50 border-slate-200 hover:bg-sky-50 hover:border-sky-300'
                         }`}
@@ -72,5 +65,4 @@ export const StickerPerPageDialog: React.FC<StickerPerPageDialogProps> = ({ coun
             })}
         </div>
     </Modal>
-    );
-};
+);

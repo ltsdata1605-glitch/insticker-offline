@@ -191,7 +191,7 @@ export default function KiemQuyView({ active }: { active: boolean }): React.JSX.
                         <div className="flex flex-wrap items-end gap-3 rounded-card border border-slate-200 bg-white px-4 py-3">
                             <label className="min-w-[240px] flex-1 space-y-1">
                                 <span className="block text-[12px] font-bold text-slate-600">Tên lần kiểm</span>
-                                <input ref={nameRef} value={current.name} aria-label="Tên lần kiểm" placeholder="Ví dụ: 62864 - Phùng Minh Lâm"
+                                <input ref={nameRef} value={current.name} aria-label="Tên lần kiểm" placeholder="Ví dụ: Ca sáng: 62864 - Phùng Minh Lâm"
                                     onChange={e => { setNameError(false); update({ name: e.target.value }); }}
                                     className={`h-10 w-full rounded-control border bg-white px-3 text-[15px] font-bold text-slate-900 focus:outline-none focus:border-sky-400 ${nameError ? 'border-rose-400 bg-rose-50' : 'border-slate-200'}`} />
                             </label>

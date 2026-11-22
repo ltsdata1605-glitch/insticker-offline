@@ -12,10 +12,6 @@ interface LayoutSelectionModalProps {
     onStickerStyleChange: (style: StickerStyle) => void;
     modernPositions?: ModernLayoutPositions;
     onModernPositionsChange: (positions: ModernLayoutPositions) => void;
-    /** Tab Sticker: ô tên danh sách bắt buộc trước khi chọn bố cục. Tab Event không có. */
-    listName?: React.ReactNode;
-    /** Chưa đặt tên thì chưa chọn được bố cục. */
-    layoutDisabled?: boolean;
 }
 
 const LayoutOptionButton: React.FC<{
@@ -50,7 +46,7 @@ const OPTIONS: { value: PrintSettings['tagsPerPage']; label: string; description
 ];
 
 /** Hộp chọn kiểu tem và bố cục trang khi in, dùng cho tab Event và tab Sticker. */
-const LayoutSelectionModal: React.FC<LayoutSelectionModalProps> = ({ onSelect, onClose, stickerStyle, onStickerStyleChange, listName, layoutDisabled }) => {
+const LayoutSelectionModal: React.FC<LayoutSelectionModalProps> = ({ onSelect, onClose, stickerStyle, onStickerStyleChange }) => {
     return (
         <Modal
             isOpen={true}
@@ -60,7 +56,6 @@ const LayoutSelectionModal: React.FC<LayoutSelectionModalProps> = ({ onSelect, o
             maxWidth="lg"
         >
             <div className="space-y-4">
-                {listName}
                 <div className="py-2">
                     <h3 className="text-sm font-semibold text-slate-700 mb-2 uppercase tracking-wide">1. Chọn Kiểu Sticker</h3>
                     <StickerStylePicker value={stickerStyle} onChange={onStickerStyleChange} size="md" />
@@ -76,7 +71,6 @@ const LayoutSelectionModal: React.FC<LayoutSelectionModalProps> = ({ onSelect, o
                                 label={option.label}
                                 description={option.description}
                                 onSelect={onSelect}
-                                disabled={layoutDisabled}
                             />
                         ))}
                     </div>

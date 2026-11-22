@@ -28,6 +28,25 @@ const clickInPopup = async (popup: Page, name: string | RegExp) => {
   await expect.poll(() => popup.isClosed()).toBe(true);
 };
 
+test('Mở app là vào Nhắc việc; thanh bên trái xếp Nhắc việc, Kiểm quỹ, Kiểm hàng, Tạo mã, In nhãn, In sticker; tải lại trang vẫn ở chức năng đang mở', async () => {
+  const dirs = newDirs();
+  let s = await openApp(dirs, [], {}, { startScreen: true });
+  let { win } = s;
+  await expect(rail(win).getByRole('button')).toHaveText(['Nhắc việc', 'Kiểm quỹ', 'Kiểm hàng', 'Tạo mã', 'In nhãn', 'In sticker']);
+  await expect(rail(win).getByRole('button', { name: 'Nhắc việc' })).toHaveAttribute('aria-current', 'page');
+  await expect(win.getByRole('heading', { level: 1 })).toHaveText('Nhắc việc');
+  // Tải lại trang thì vẫn ở chức năng đang mở; tắt rồi mở lại app thì về Nhắc việc
+  await rail(win).getByRole('button', { name: 'Tạo mã' }).click();
+  await win.reload();
+  await expect(win.getByRole('heading', { level: 1 })).toHaveText('Tạo mã');
+  await win.waitForTimeout(400);
+  await s.close();
+  s = await openApp(dirs, [], {}, { startScreen: true });
+  ({ win } = s);
+  await expect(win.getByRole('heading', { level: 1 })).toHaveText('Nhắc việc');
+  await s.close();
+});
+
 test('Nhắc việc: tạo, nhân bản, nhắc trước hạn bằng cửa sổ luôn nằm trên cùng, hoãn 5 phút, bấm Đã xong; đóng cửa sổ thì app vẫn chạy nền', async () => {
   const s = await openApp();
   const { win, app } = s;
