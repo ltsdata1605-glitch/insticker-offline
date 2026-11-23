@@ -43,6 +43,8 @@ export interface SessionReport {
     toStores: string[];
     senders: string[];
     vouchers: string[];
+    /** Người kiểm hàng, rỗng nếu chưa nhập */
+    checker: string;
 }
 
 const distinct = (values: string[]) => [...new Set(values.map(value => value.trim()).filter(Boolean))];
@@ -92,6 +94,7 @@ export const buildReport = (session: KiemHangSession, at = Date.now()): SessionR
         toStores: distinct(session.invoices.map(invoice => invoice.toStoreName)),
         senders: distinct(session.invoices.map(senderText)),
         vouchers: distinct(session.invoices.map(invoice => invoice.transportVoucher)),
+        checker: (session.checker ?? '').trim(),
     };
 };
 
@@ -113,18 +116,28 @@ const invoiceHeading = (item: InvoiceReport): string => {
     return `MYC ${mycText(item.invoice)} (${ids})`;
 };
 
-/** Nội dung chữ để dán vào Zalo, tin nhắn hoặc email gửi người chuyển. */
-export const reportText = (report: SessionReport, options: { onlyProblems?: boolean } = {}): string => {
+/**
+ * Nội dung chữ để dán vào Zalo, tin nhắn hoặc email gửi người chuyển. Luôn ghi đủ các MYC; `compactComplete` gộp các MYC đủ
+ * hàng vào một dòng để tin nhắn ngắn, chỉ MYC chưa đủ mới có danh sách chi tiết.
+ */
+export const reportText = (report: SessionReport, options: { compactComplete?: boolean } = {}): string => {
     const out: string[] = [];
     out.push(`BÁO CÁO KIỂM HÀNG NHẬN - ${timeText(report.at).slice(0, 16)}`);
+    out.push('');
     if (report.fromStores.length) out.push(`Kho chuyển: ${report.fromStores.join(', ')}`);
     if (report.toStores.length) out.push(`Kho nhận: ${report.toStores.join(', ')}`);
     if (report.senders.length) out.push(`Người chuyển: ${report.senders.join(', ')}`);
+    if (report.checker) out.push(`Người kiểm: ${report.checker}`);
     if (report.vouchers.length) out.push(`Chứng từ vận chuyển: ${report.vouchers.join(', ')}`);
     out.push(`Kết quả: ${reportSummary(report)} Đã nhận ${n(report.totals.received)}/${n(report.totals.expected)} sản phẩm.`);
 
+    const complete = report.invoices.filter(item => item.complete);
+    if (options.compactComplete && complete.length > 0) {
+        out.push('');
+        out.push(`[ĐỦ] ${complete.length} MYC: ${complete.map(item => mycText(item.invoice)).join(', ')}`);
+    }
     for (const item of report.invoices) {
-        if (options.onlyProblems && item.complete) continue;
+        if (options.compactComplete && item.complete) continue;
         out.push('');
         const t = item.totals;
         if (item.complete) {
@@ -159,6 +172,7 @@ export const reportSheetRows = (report: SessionReport): (string | number)[][] =>
         ['Kho chuyển', report.fromStores.join(', ')],
         ['Kho nhận', report.toStores.join(', ')],
         ['Người chuyển', report.senders.join(', ')],
+        ['Người kiểm', report.checker],
         ['Chứng từ vận chuyển', report.vouchers.join(', ')],
         ['Kết quả', reportSummary(report)],
         [],

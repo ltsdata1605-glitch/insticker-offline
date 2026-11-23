@@ -22,6 +22,7 @@ export const asSession = (value: unknown): KiemHangSession | null => {
         received: raw.received && typeof raw.received === 'object' ? raw.received : {},
         unknown: Array.isArray(raw.unknown) ? raw.unknown : [],
         log: Array.isArray(raw.log) ? raw.log : [],
+        ...(typeof raw.checker === 'string' && raw.checker ? { checker: raw.checker } : {}),
     };
 };
 

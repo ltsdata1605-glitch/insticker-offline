@@ -1,7 +1,7 @@
 {
   "name": "insticker-offline",
   "productName": "Tools",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "description": "Tools: In Sticker, Kiểm hàng, Kiểm quỹ, Nhắc việc, Tạo mã, chạy offline trên macOS và Windows",
   "private": true,
   "type": "module",

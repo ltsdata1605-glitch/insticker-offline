@@ -101,6 +101,8 @@ export interface KiemHangSession {
     received: Record<string, number>;
     unknown: UnknownEntry[];
     log: ScanEvent[];
+    /** Tên người kiểm hàng, ghi vào báo cáo. Phiên lưu từ bản trước không có. */
+    checker?: string;
 }
 
 /** So khớp tên cột: bỏ dấu, đ thành d, bỏ khoảng trắng thừa, chữ thường. "Số hóa đơn" và "Số hoá đơn" là một. */

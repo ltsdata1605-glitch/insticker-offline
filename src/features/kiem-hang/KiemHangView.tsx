@@ -12,19 +12,23 @@ import {
 import { exportSessionToExcel } from './kiemHangExport';
 import { readExcelFiles } from './kiemHangFiles';
 import { loadCurrent, loadHistory, MAX_HISTORY, saveCurrent, saveHistory } from './kiemHangStore';
-import { KiemHangTable } from './KiemHangTable';
+import { KiemHangTable, UnknownTable } from './KiemHangTable';
+import { CodeText } from './KiemHangCode';
 import { KiemHangSidePanel } from './KiemHangSidePanel';
 import { KiemHangHistoryDialog } from './KiemHangHistoryDialog';
 import { KiemHangReportDialog } from './KiemHangReportDialog';
 
-type StatusFilter = 'all' | 'notdone' | 'ok' | 'over' | 'imei';
+/** Lọc danh sách. "unknown" không lọc dòng hàng mà đổi bảng sang danh sách mã lạ. */
+type StatusFilter = 'all' | 'checked' | 'notdone' | 'ok' | 'over' | 'imei' | 'unknown';
 
 const FILTERS: { id: StatusFilter; label: string; test: (line: KiemHangLine, got: number) => boolean }[] = [
     { id: 'all', label: 'Tất cả', test: () => true },
+    { id: 'checked', label: 'Đã kiểm', test: (_line, got) => got > 0 },
     { id: 'notdone', label: 'Chưa đủ', test: (line, got) => got < line.expected },
     { id: 'ok', label: 'Đủ', test: (line, got) => got === line.expected },
     { id: 'over', label: 'Thừa', test: (line, got) => got > line.expected },
     { id: 'imei', label: 'Có IMEI', test: line => Boolean(line.imei) },
+    { id: 'unknown', label: 'Mã lạ', test: () => false },
 ];
 
 const ACCEPT = '.xlsx,.xls,.xlsm,.csv';
@@ -35,7 +39,12 @@ interface Feedback {
     tick: number;
 }
 
-/** Dòng báo kết quả lần quét vừa rồi: xanh là nhận, vàng là cần chú ý, đỏ là sai phải quét lại, xanh dương là chờ IMEI. */
+const IMEI_KINDS: ScanOutcome['kind'][] = ['imei-ok', 'imei-dup', 'imei-unknown'];
+
+/**
+ * Thẻ kết quả lần quét vừa rồi: xanh là nhận, vàng là cần chú ý, đỏ là sai phải quét lại, xanh dương là chờ IMEI.
+ * Mã (hoặc IMEI) to hơn tên, 6 ký tự cuối đỏ và to nhất để dò nhanh với tem trên hộp.
+ */
 const ResultBanner: React.FC<{ feedback: Feedback | null; invoiceCount: number; invoiceOf: (transferId: string) => string }> = ({ feedback, invoiceCount, invoiceOf }) => {
     if (!feedback) {
         return (
@@ -49,6 +58,7 @@ const ResultBanner: React.FC<{ feedback: Feedback | null; invoiceCount: number; 
     const line = outcome.line;
     const count = outcome.codeExpected !== undefined ? `${outcome.codeReceived}/${outcome.codeExpected}` : '';
     const where = line ? invoiceOf(line.transferId) : '';
+    const isImei = IMEI_KINDS.includes(outcome.kind);
     const tone = {
         'ok': 'bg-emerald-50 border-emerald-300 text-emerald-900',
         'imei-ok': 'bg-emerald-50 border-emerald-300 text-emerald-900',
@@ -58,25 +68,33 @@ const ResultBanner: React.FC<{ feedback: Feedback | null; invoiceCount: number; 
         'imei-unknown': 'bg-rose-50 border-rose-300 text-rose-900',
         'unknown': 'bg-rose-50 border-rose-300 text-rose-900',
     }[outcome.kind];
+    const badgeTone = {
+        'ok': 'bg-emerald-600', 'imei-ok': 'bg-emerald-600', 'need-imei': 'bg-sky-600', 'over': 'bg-amber-500',
+        'imei-dup': 'bg-amber-500', 'imei-unknown': 'bg-rose-600', 'unknown': 'bg-rose-600',
+    }[outcome.kind];
     const icon = outcome.kind === 'ok' || outcome.kind === 'imei-ok' ? 'success' : outcome.kind === 'need-imei' ? 'scan' : outcome.kind === 'unknown' || outcome.kind === 'imei-unknown' ? 'error' : 'warning';
-    const title = {
-        'ok': line?.name ?? input,
-        'imei-ok': `IMEI ${input} khớp`,
-        'need-imei': `Quét IMEI của ${line?.name ?? input}`,
-        'over': `Thừa: ${line?.name ?? input}`,
-        'imei-dup': `IMEI ${input} đã quét rồi`,
-        'imei-unknown': `IMEI ${input} không có trong hoá đơn`,
-        'unknown': `Mã ${input} không có trong ${invoiceCount} hoá đơn`,
+    const badge = {
+        'ok': 'Đã nhận',
+        'imei-ok': 'IMEI khớp',
+        'need-imei': 'Quét IMEI',
+        'over': 'Thừa',
+        'imei-dup': 'IMEI đã quét rồi',
+        'imei-unknown': 'IMEI lạ',
+        'unknown': 'Mã lạ',
     }[outcome.kind];
+    // Dòng tên: sản phẩm của mã; mã lạ thì không có tên nên ghi lý do
+    const title = outcome.kind === 'unknown' ? `Mã này không có trong ${invoiceCount} hoá đơn` : line?.name ?? '';
     const detail = {
-        'ok': [line?.code, where].filter(Boolean).join(' · '),
-        'imei-ok': [line?.name, where].filter(Boolean).join(' · '),
+        'ok': where,
+        'imei-ok': [line?.code && `Mã ${line.code}`, where].filter(Boolean).join(' · '),
         'need-imei': 'Sản phẩm này có IMEI trong hoá đơn. Quét IMEI trên thân máy hoặc hộp để xác nhận. Bấm Esc để bỏ qua.',
-        'over': `Đã đủ số lượng theo file, đang nhận dư. Kiểm tra lại hàng hoặc bấm Hoàn tác.`,
-        'imei-dup': [line?.name, where].filter(Boolean).join(' · '),
+        'over': 'Đã đủ số lượng theo file, đang nhận dư. Kiểm tra lại hàng hoặc bấm Hoàn tác.',
+        'imei-dup': [line?.code && `Mã ${line.code}`, where].filter(Boolean).join(' · '),
         'imei-unknown': `Không khớp IMEI nào của ${line?.name ?? 'sản phẩm này'}. Quét lại IMEI.`,
-        'unknown': 'Quét lại. Mã đã được ghi vào danh sách Mã lạ.',
+        'unknown': 'Mã đã được ghi vào danh sách Mã lạ.',
     }[outcome.kind];
+    // IMEI vừa quét, hoặc mã sản phẩm (mã lạ thì là mã vừa quét)
+    const shown = isImei || outcome.kind === 'unknown' ? input : line?.code ?? input;
     return (
         <div
             key={feedback.tick}
@@ -85,14 +103,23 @@ const ResultBanner: React.FC<{ feedback: Feedback | null; invoiceCount: number; 
             data-kind={outcome.kind}
             className={`rounded-card border-2 px-4 py-2.5 flex items-center gap-3 animate-in fade-in zoom-in-95 duration-150 ${tone}`}
         >
-            <AppIcon name={icon} size="lg" className="shrink-0" />
+            <AppIcon name={icon} px={30} className="shrink-0" />
             <div className="min-w-0 flex-1">
-                <p className="text-[16px] font-bold leading-snug truncate">{title}</p>
-                <p className="text-[12px] opacity-80 truncate">{detail}</p>
+                <p className="flex items-baseline gap-2 min-w-0">
+                    <span className={`shrink-0 self-center rounded-full px-2 py-0.5 text-[11px] font-black uppercase text-white ${badgeTone}`}>{badge}</span>
+                    {isImei && <span className="shrink-0 text-[13px] font-bold opacity-70">IMEI</span>}
+                    <CodeText
+                        value={shown}
+                        className="min-w-0 truncate text-[24px] font-bold leading-tight text-slate-900"
+                        tailClassName="text-[34px] font-black text-rose-600"
+                    />
+                </p>
+                {title && <p className="text-[15px] font-semibold leading-snug truncate">{title}</p>}
+                {detail && <p className="text-[12px] opacity-80 truncate">{detail}</p>}
             </div>
             {count && outcome.kind !== 'unknown' && (
                 <div className="shrink-0 text-right">
-                    <p className="text-[24px] font-black tabular-nums leading-none">{count}</p>
+                    <p className="text-[28px] font-black tabular-nums leading-none">{count}</p>
                     <p className="text-[11px] font-semibold opacity-75">{outcome.codeReceived === outcome.codeExpected ? 'Đủ' : 'đã nhận / file'}</p>
                 </div>
             )}
@@ -100,12 +127,141 @@ const ResultBanner: React.FC<{ feedback: Feedback | null; invoiceCount: number; 
     );
 };
 
-const Kpi: React.FC<{ label: string; value: number; tone?: string; testId: string }> = ({ label, value, tone = 'text-slate-900', testId }) => (
-    <div className="rounded-card bg-white border border-slate-200 px-3 py-1.5">
-        <p className="text-[11px] font-semibold text-slate-500">{label}</p>
-        <p data-testid={testId} className={`text-[20px] font-black tabular-nums leading-tight ${tone}`}>{value.toLocaleString('vi-VN')}</p>
-    </div>
-);
+/** Màu của từng ô số: chữ luôn mang màu riêng; có số (khác 0) thì cả ô tô màu để dễ thấy. */
+const KPI_TONE = {
+    neutral: { label: 'text-slate-500', value: 'text-slate-900', alert: '' },
+    good: { label: 'text-emerald-700', value: 'text-emerald-600', alert: '' },
+    missing: { label: 'text-orange-700', value: 'text-orange-600', alert: 'bg-orange-50 border-orange-300' },
+    extra: { label: 'text-rose-700', value: 'text-rose-600', alert: 'bg-rose-50 border-rose-300' },
+    unknown: { label: 'text-red-700', value: 'text-red-600', alert: 'bg-red-50 border-red-400' },
+} as const;
+
+/** Ô số liệu, bấm vào thì lọc danh sách theo ô đó (như các nút lọc). */
+const Kpi: React.FC<{ label: string; value: number; tone: keyof typeof KPI_TONE; selected: boolean; onClick: () => void; testId: string }> = ({ label, value, tone, selected, onClick, testId }) => {
+    const style = KPI_TONE[tone];
+    const alert = value > 0 && style.alert;
+    return (
+        <button
+            type="button"
+            aria-pressed={selected}
+            onClick={onClick}
+            title={`Lọc danh sách: ${label}`}
+            className={`text-left rounded-card border-2 px-3 py-1.5 transition-colors ${alert || 'bg-white border-slate-200'} ${selected ? '!border-sky-500 ring-2 ring-sky-200' : 'hover:border-sky-300'}`}
+        >
+            <span className={`flex items-center justify-between text-[12px] font-bold ${style.label}`}>
+                {label}
+                {selected && <AppIcon name="filter" size="xs" className="text-sky-600" />}
+            </span>
+            <span data-testid={testId} className={`block text-[24px] font-black tabular-nums leading-tight ${style.value}`}>{value.toLocaleString('vi-VN')}</span>
+        </button>
+    );
+};
+
+interface UnknownAlertState {
+    value: string;
+    kind: 'unknown' | 'imei-unknown';
+    /** Sản phẩm đang chờ IMEI, khi là IMEI lạ */
+    forName?: string;
+}
+
+/**
+ * Báo mã lạ chặn màn: người kiểm phải tự nhấn Enter (hoặc bấm nút) mới quét tiếp, để không lỡ tay bắn tiếp mà bỏ quên sản
+ * phẩm lạ. Súng quét cũng gõ Enter sau mỗi mã, nên Enter đi liền sau các ký tự vừa gõ (tức là vừa bắn thêm một mã) không
+ * được tính: mã đó bị bỏ, màn báo phải xác nhận trước rồi quét lại.
+ */
+const UnknownAlert: React.FC<{
+    alert: UnknownAlertState;
+    invoiceCount: number;
+    /** Ô quét đang có chữ (mã dán hoặc gõ vào) */
+    hasTypedInput: () => boolean;
+    /** Mã quét vào lúc chưa xác nhận đã bị bỏ: xoá chữ trong ô quét */
+    onBlocked: () => void;
+    onConfirm: () => void;
+    onDiscard: () => void;
+}> = ({ alert, invoiceCount, hasTypedInput, onBlocked, onConfirm, onDiscard }) => {
+    const [blocked, setBlocked] = useState(0);
+    const confirmRef = useRef<HTMLButtonElement>(null);
+    const handlers = useRef({ hasTypedInput, onBlocked, onConfirm });
+    handlers.current = { hasTypedInput, onBlocked, onConfirm };
+
+    useEffect(() => {
+        confirmRef.current?.focus();
+        let typed = '';
+        const onKeyDown = (event: KeyboardEvent) => {
+            // Phím tắt hệ thống (chép, thoát app...) vẫn dùng được; chỉ chặn hoàn tác để không đổi số khi màn báo đang mở
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() !== 'z') return;
+            if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(event.key)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (event.key !== 'Enter') {
+                if (event.key.length === 1) typed += event.key;
+                return;
+            }
+            if (event.repeat) return;
+            if (typed || handlers.current.hasTypedInput()) {
+                typed = '';
+                handlers.current.onBlocked();
+                setBlocked(count => count + 1);
+                beep('error');
+                return;
+            }
+            handlers.current.onConfirm();
+        };
+        window.addEventListener('keydown', onKeyDown, true);
+        return () => window.removeEventListener('keydown', onKeyDown, true);
+    }, []);
+
+    const imei = alert.kind === 'imei-unknown';
+    return (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-rose-950/60 p-6 backdrop-blur-sm">
+            <div
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="kiem-hang-ma-la-tieu-de"
+                aria-describedby="kiem-hang-ma-la-mo-ta"
+                className="w-full max-w-xl overflow-hidden rounded-[20px] border-4 border-rose-500 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-150"
+            >
+                <div className="flex items-center gap-3 bg-rose-600 px-5 py-3 text-white">
+                    <AppIcon name="alert" px={30} className="shrink-0 animate-pulse" />
+                    <h2 id="kiem-hang-ma-la-tieu-de" className="text-[20px] font-black uppercase tracking-wide">
+                        {imei ? 'IMEI lạ' : 'Mã lạ'}: không có trong hoá đơn
+                    </h2>
+                </div>
+                <div className="space-y-3 px-5 py-4">
+                    <p className="flex items-baseline gap-2 min-w-0">
+                        {imei && <span className="shrink-0 text-[15px] font-bold text-slate-500">IMEI</span>}
+                        <CodeText value={alert.value} className="min-w-0 truncate text-[30px] font-bold text-slate-900" tailClassName="text-[42px] font-black text-rose-600" />
+                    </p>
+                    <p id="kiem-hang-ma-la-mo-ta" className="text-[15px] leading-relaxed text-slate-700">
+                        {imei
+                            ? <>IMEI này không khớp chiếc nào của <b>{alert.forName ?? 'sản phẩm đang quét'}</b>.</>
+                            : <>Mã này không có trong {invoiceCount} hoá đơn đang kiểm.</>}
+                        {' '}Đã ghi vào danh sách <b>Mã lạ</b>. <b>Để riêng sản phẩm này ra</b> rồi nhấn <b>Enter</b> để quét tiếp.
+                    </p>
+                    {blocked > 0 && (
+                        <p role="status" data-testid="ma-la-chan" className="rounded-control border-2 border-rose-300 bg-rose-50 px-3 py-2 text-[14px] font-semibold text-rose-800">
+                            Vừa có mã quét vào nhưng chưa được tính. Nhấn Enter để xác nhận mã lạ trước, rồi quét lại sản phẩm đó.
+                        </p>
+                    )}
+                </div>
+                <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-3">
+                    <Button variant="secondary" onClick={onDiscard} title="Quét nhầm (ví dụ bắn nhầm mã vạch khác trên hộp): bỏ mã này khỏi danh sách Mã lạ">
+                        Quét nhầm, bỏ mã này
+                    </Button>
+                    <button
+                        ref={confirmRef}
+                        type="button"
+                        onClick={onConfirm}
+                        className="inline-flex items-center gap-2 rounded-control bg-rose-600 px-4 h-11 text-[15px] font-bold text-white shadow hover:bg-rose-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-rose-300"
+                    >
+                        Đã để riêng, quét tiếp
+                        <kbd className="rounded border border-white/40 bg-white/15 px-1.5 text-[12px] font-bold">Enter</kbd>
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 /** Màn trống: chọn hoặc kéo thả file Excel phiếu chuyển kho. */
 const Landing: React.FC<{ onPick: () => void; onHistory: () => void; historyCount: number; dragging: boolean }> = ({ onPick, onHistory, historyCount, dragging }) => (
@@ -146,6 +302,11 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
     const [reportOf, setReportOf] = useState<{ session: KiemHangSession; mode: 'view' | 'finish' } | null>(null);
     const [cameraOpen, setCameraOpen] = useState(false);
     const [dragging, setDragging] = useState(false);
+    /** Mã vừa quét: các dòng của mã này lên đầu danh sách, dòng vừa cộng tô sáng. Giữ nguyên khi lần sau là mã lạ. */
+    const [focusLine, setFocusLine] = useState<{ key: string; code: string } | null>(null);
+    const [unknownAlert, setUnknownAlert] = useState<UnknownAlertState | null>(null);
+    // Chặn quét ngay khi vừa báo mã lạ, không chờ vẽ lại (súng quét bắn rất nhanh, camera cũng gọi liên tục)
+    const alertOpenRef = useRef(false);
     const scanRef = useRef<HTMLInputElement>(null);
     const fileRef = useRef<HTMLInputElement>(null);
     const tickRef = useRef(0);
@@ -186,7 +347,8 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
     const importFiles = useCallback(async (files: File[]) => {
         if (files.length === 0) return;
         const parsed = await readExcelFiles(files);
-        const base = sessionRef.current ?? createSession();
+        // Phiên mới lấy tên người kiểm của lần kiểm gần nhất, sửa được ở cột phải
+        const base = sessionRef.current ?? { ...createSession(), ...(history[0]?.checker ? { checker: history[0].checker } : {}) };
         const { session: next, report } = mergeFiles(base, parsed);
         report.invalid.forEach(item => toast.error(`${item.fileName}: ${item.reason}`));
         if (report.duplicates.length > 0) toast.warning(`Bỏ qua ${report.duplicates.length} hoá đơn đã nhập trước đó: ${report.duplicates.join(', ')}`);
@@ -202,11 +364,16 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
         const missingDetail = next.invoices.filter(invoice => !invoice.hasDetail);
         if (missingDetail.length > 0) toast.warning(`Còn ${missingDetail.length} hoá đơn chưa có file chi tiết: ${missingDetail.map(invoiceLabel).join(', ')}`);
         focusScan();
-    }, [commit, focusScan]);
+    }, [commit, focusScan, history]);
 
     const submitScan = useCallback((raw: string) => {
         const value = raw.trim();
         if (!value) return false;
+        if (alertOpenRef.current) {
+            // Đang báo mã lạ: chưa xác nhận thì không nhận mã nào
+            beep('error');
+            return false;
+        }
         const current = sessionRef.current;
         if (!current || current.lines.length === 0) {
             toast.warning('Chưa có danh sách hàng. Nhập file Excel phiếu chuyển kho trước.');
@@ -215,7 +382,13 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
         const outcome = applyScan(current, value, { qty, pendingCode: pendingCode ?? undefined });
         commit(outcome.session);
         tickRef.current += 1;
-        setFeedback({ outcome, input: value.replace(/\s+/g, '').toUpperCase(), tick: tickRef.current });
+        const shown = value.replace(/\s+/g, '').toUpperCase();
+        setFeedback({ outcome, input: shown, tick: tickRef.current });
+        if (outcome.line) setFocusLine({ key: outcome.line.key, code: outcome.line.code });
+        if (outcome.kind === 'unknown' || outcome.kind === 'imei-unknown') {
+            alertOpenRef.current = true;
+            setUnknownAlert({ value: shown, kind: outcome.kind, forName: outcome.line?.name });
+        }
         setPendingCode(['need-imei', 'imei-unknown', 'imei-dup'].includes(outcome.kind) ? (outcome.pendingCode ?? pendingCode) : null);
         if (outcome.kind === 'ok' || outcome.kind === 'over') setQty(1);
         beep(outcome.kind === 'ok' || outcome.kind === 'imei-ok' || outcome.kind === 'need-imei' ? 'ok'
@@ -248,6 +421,18 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
         toast.success(`Đã hoàn tác: ${undone.input}`);
         focusScan();
     }, [commit, focusScan]);
+
+    const closeAlert = useCallback(() => {
+        alertOpenRef.current = false;
+        setUnknownAlert(null);
+        setInput('');
+        focusScan();
+    }, [focusScan]);
+
+    const setChecker = useCallback((name: string) => {
+        const current = sessionRef.current;
+        if (current) commit({ ...current, checker: name, updatedAt: Date.now() });
+    }, [commit]);
 
     // Súng quét gõ như bàn phím: đang không gõ ở ô nào thì đưa con trỏ về ô quét để không mất mã. Ctrl/⌘+Z để hoàn tác.
     useEffect(() => {
@@ -292,6 +477,25 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
             && (!searchKey || line.code.toLowerCase().includes(searchKey) || line.name.toLowerCase().includes(searchKey) || line.imei.toLowerCase().includes(searchKey)));
     }, [scopeLines, statusFilter, received, searchKey]);
 
+    // Các dòng của mã vừa quét lên đầu danh sách (dòng vừa cộng đứng đầu), các dòng khác giữ thứ tự trong file
+    const orderedLines = useMemo(() => {
+        if (!focusLine) return shownLines;
+        const top = shownLines.filter(line => line.code === focusLine.code);
+        if (top.length === 0) return shownLines;
+        top.sort((a, b) => Number(b.key === focusLine.key) - Number(a.key === focusLine.key));
+        return [...top, ...shownLines.filter(line => line.code !== focusLine.code)];
+    }, [shownLines, focusLine]);
+    const shownUnknown = useMemo(
+        () => (session?.unknown ?? []).filter(entry => !searchKey || entry.value.toLowerCase().includes(searchKey)),
+        [session, searchKey],
+    );
+    const nameOf = useCallback((code: string) => lines.find(line => line.code === code)?.name ?? '', [lines]);
+    const removeUnknown = useCallback((value: string, type: 'code' | 'imei') => {
+        const current = sessionRef.current;
+        if (current) commit({ ...current, unknown: current.unknown.filter(entry => !(entry.value === value && entry.type === type)), updatedAt: Date.now() });
+    }, [commit]);
+    const toggleFilter = (id: StatusFilter) => setStatusFilter(current => (current === id && id !== 'all' ? 'all' : id));
+
     const exportCurrent = async (target: KiemHangSession | null = sessionRef.current) => {
         if (!target) return;
         try {
@@ -310,6 +514,7 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
         commitHistory([done, ...history.filter(item => item.id !== done.id)]);
         commit(null);
         setFeedback(null);
+        setFocusLine(null);
         setPendingCode(null);
         setStatusFilter('all');
         setInvoiceFilter(null);
@@ -326,6 +531,7 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
         commit({ ...target, finishedAt: undefined });
         setHistoryOpen(false);
         setFeedback(null);
+        setFocusLine(null);
         setPendingCode(null);
         toast.success(`Đã mở lại ${sessionTitle(target)}`);
         focusScan();
@@ -435,11 +641,11 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
                         <ResultBanner feedback={feedback} invoiceCount={session!.invoices.length} invoiceOf={invoiceOf} />
 
                         <div className="shrink-0 grid grid-cols-5 gap-2">
-                            <Kpi label="Theo file" value={totals.expected} testId="kpi-theo-file" />
-                            <Kpi label="Đã kiểm" value={totals.received} tone="text-emerald-700" testId="kpi-da-kiem" />
-                            <Kpi label="Còn thiếu" value={totals.missing} tone={totals.missing ? 'text-amber-600' : 'text-slate-900'} testId="kpi-con-thieu" />
-                            <Kpi label="Thừa" value={totals.extra} tone={totals.extra ? 'text-rose-600' : 'text-slate-900'} testId="kpi-thua" />
-                            <Kpi label="Mã lạ" value={unknownCount} tone={unknownCount ? 'text-rose-600' : 'text-slate-900'} testId="kpi-ma-la" />
+                            <Kpi label="Theo file" value={totals.expected} tone="neutral" selected={statusFilter === 'all'} onClick={() => toggleFilter('all')} testId="kpi-theo-file" />
+                            <Kpi label="Đã kiểm" value={totals.received} tone="good" selected={statusFilter === 'checked'} onClick={() => toggleFilter('checked')} testId="kpi-da-kiem" />
+                            <Kpi label="Còn thiếu" value={totals.missing} tone="missing" selected={statusFilter === 'notdone'} onClick={() => toggleFilter('notdone')} testId="kpi-con-thieu" />
+                            <Kpi label="Thừa" value={totals.extra} tone="extra" selected={statusFilter === 'over'} onClick={() => toggleFilter('over')} testId="kpi-thua" />
+                            <Kpi label="Mã lạ" value={unknownCount} tone="unknown" selected={statusFilter === 'unknown'} onClick={() => toggleFilter('unknown')} testId="kpi-ma-la" />
                         </div>
                         <div className="shrink-0 flex items-center gap-3">
                             <div className="flex-1 h-2 rounded-full bg-slate-200 overflow-hidden" role="progressbar" aria-label="Tiến độ kiểm" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
@@ -452,9 +658,9 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
                             <div className="shrink-0 flex flex-wrap items-center gap-2 px-3 py-2 border-b border-slate-100">
                                 <div role="group" aria-label="Lọc theo kết quả" className="flex flex-wrap gap-1.5">
                                     {FILTERS.map(filter => {
-                                        const count = scopeLines.filter(line => filter.test(line, received[line.key] ?? 0)).length;
-                                        if (filter.id === 'imei' && count === 0) return null;
+                                        const count = filter.id === 'unknown' ? session!.unknown.length : scopeLines.filter(line => filter.test(line, received[line.key] ?? 0)).length;
                                         const selected = statusFilter === filter.id;
+                                        if ((filter.id === 'imei' || filter.id === 'unknown') && count === 0 && !selected) return null;
                                         return (
                                             <button
                                                 key={filter.id}
@@ -489,23 +695,27 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
                                     type="search"
                                     value={search}
                                     onChange={event => setSearch(event.target.value)}
-                                    placeholder="Tìm mã, tên, IMEI…"
+                                    placeholder={statusFilter === 'unknown' ? 'Tìm mã lạ…' : 'Tìm mã, tên, IMEI…'}
                                     aria-label="Tìm trong danh sách"
                                     className="w-44 h-8 rounded-control border border-slate-200 px-2.5 text-[13px] focus:outline-none focus:border-sky-400"
                                 />
                             </div>
                             <div className="flex-1 min-h-0 overflow-auto scrollbar-thin">
+                                {statusFilter === 'unknown' ? (
+                                    <UnknownTable entries={shownUnknown} nameOf={nameOf} onRemove={removeUnknown} />
+                                ) : (
                                 <KiemHangTable
-                                    lines={shownLines}
+                                    lines={orderedLines}
                                     received={received}
                                     invoices={invoiceMap}
-                                    highlightKey={feedback?.outcome.line?.key}
+                                    highlightKey={focusLine?.key}
                                     highlightTick={feedback?.tick ?? 0}
                                     onSetReceived={(lineKey, value) => {
                                         const current = sessionRef.current;
                                         if (current) commit(setReceived(current, lineKey, value));
                                     }}
                                 />
+                                )}
                             </div>
                         </div>
                     </section>
@@ -520,10 +730,9 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
                         onReport={() => setReportOf({ session: session!, mode: 'view' })}
                         onHistory={() => setHistoryOpen(true)}
                         historyCount={history.length}
-                        onRemoveUnknown={(value, type) => {
-                            const current = sessionRef.current;
-                            if (current) commit({ ...current, unknown: current.unknown.filter(entry => !(entry.value === value && entry.type === type)), updatedAt: Date.now() });
-                        }}
+                        onRemoveUnknown={removeUnknown}
+                        onCheckerChange={setChecker}
+                        onCheckerDone={focusScan}
                     />
                 </div>
             )}
@@ -569,6 +778,21 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
                     }}
                     onExport={() => void exportCurrent(reportOf.session.id === session?.id ? session : reportOf.session)}
                     onFinish={finish}
+                    onCheckerChange={reportOf.session.id === session?.id ? setChecker : undefined}
+                />
+            )}
+
+            {unknownAlert && active && (
+                <UnknownAlert
+                    alert={unknownAlert}
+                    invoiceCount={session?.invoices.length ?? 0}
+                    hasTypedInput={() => Boolean(scanRef.current?.value.trim())}
+                    onBlocked={() => setInput('')}
+                    onConfirm={closeAlert}
+                    onDiscard={() => {
+                        undo();
+                        closeAlert();
+                    }}
                 />
             )}
         </div>

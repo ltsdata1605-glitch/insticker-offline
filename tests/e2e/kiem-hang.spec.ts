@@ -11,6 +11,8 @@ const openKiemHang = (win: Page) => rail(win).getByRole('button', { name: 'Kiể
 const scanBox = (win: Page) => win.getByLabel('Ô quét mã sản phẩm hoặc IMEI');
 const result = (win: Page) => win.getByTestId('kiem-hang-ket-qua');
 const kpi = (win: Page, id: string) => win.getByTestId(`kpi-${id}`);
+const rows = (win: Page) => win.locator('tbody tr');
+const unknownAlert = (win: Page) => win.getByRole('alertdialog');
 
 const scan = async (win: Page, value: string) => {
   await scanBox(win).fill(value);
@@ -55,10 +57,18 @@ test('Kiểm hàng: nhập nhiều file, quét mã, IMEI, mã lạ, thừa, hoà
   await expect(kpi(win, 'theo-file')).toHaveText('12');
   await expect(scanBox(win)).toBeFocused();
 
+  // Tên người kiểm: nhập ở cột phải, Enter thì về ô quét
+  await win.getByLabel('Người kiểm hàng').fill('Trần Thị Kiểm');
+  await win.getByLabel('Người kiểm hàng').press('Enter');
+  await expect(scanBox(win)).toBeFocused();
+
   // Mã có ở hai hoá đơn: đủ hoá đơn đầu rồi sang hoá đơn sau
   await scan(win, '0160010000745');
   await expect(result(win)).toHaveAttribute('data-kind', 'ok');
   await expect(result(win)).toContainText('1/3');
+  // Thẻ kết quả ghi mã trước tên; dòng của mã vừa quét lên đầu danh sách
+  await expect(result(win)).toContainText('0160010000745');
+  await expect(rows(win).first()).toContainText('0160010000745');
   await scan(win, '0160010000745');
   await scan(win, '0160010000745');
   await expect(result(win)).toContainText('3/3');
@@ -79,23 +89,52 @@ test('Kiểm hàng: nhập nhiều file, quét mã, IMEI, mã lạ, thừa, hoà
   await scan(win, '0162791000276');
   await expect(result(win)).toContainText('4/4');
   await expect(win.getByLabel('Số lượng mỗi lần quét')).toHaveValue('1');
+  await expect(rows(win).first()).toContainText('0162791000276');
 
-  // Mã lạ: báo đỏ, ghi vào danh sách mã lạ, không cộng gì
+  // Mã lạ: báo đỏ chặn màn, ghi vào danh sách mã lạ, không cộng gì
   await scan(win, '8936012345678');
   await expect(result(win)).toHaveAttribute('data-kind', 'unknown');
   await expect(result(win)).toContainText('không có trong 2 hoá đơn');
+  await expect(unknownAlert(win)).toContainText('8936012345678');
   await expect(kpi(win, 'ma-la')).toHaveText('1');
   await expect(win.getByRole('region', { name: 'Mã lạ' })).toContainText('8936012345678');
+  // Súng quét bắn tiếp khi chưa xác nhận (ký tự rồi Enter): mã đó không được tính, màn báo vẫn còn
+  await win.keyboard.type('0160010000745');
+  await win.keyboard.press('Enter');
+  await expect(unknownAlert(win).getByTestId('ma-la-chan')).toBeVisible();
   await expect(kpi(win, 'da-kiem')).toHaveText('7');
+  await expect(kpi(win, 'thua')).toHaveText('0');
+  // Người kiểm tự nhấn Enter: đóng màn báo, quét tiếp được ngay
+  await win.keyboard.press('Enter');
+  await expect(unknownAlert(win)).toHaveCount(0);
+  await expect(scanBox(win)).toBeFocused();
+  await expect(kpi(win, 'da-kiem')).toHaveText('7');
+  // Quét nhầm mã vạch khác: bấm Quét nhầm thì bỏ mã đó khỏi danh sách mã lạ
+  await scan(win, 'QUET-NHAM-01');
+  await unknownAlert(win).getByRole('button', { name: 'Quét nhầm, bỏ mã này' }).click();
+  await expect(unknownAlert(win)).toHaveCount(0);
+  await expect(kpi(win, 'ma-la')).toHaveText('1');
+  await expect(win.getByRole('region', { name: 'Mã lạ' })).not.toContainText('QUET-NHAM-01');
 
   // Sản phẩm có IMEI: quét mã thì chờ IMEI, IMEI sai báo đỏ, IMEI đúng thì nhận
   await scan(win, '0164779000261');
   await expect(result(win)).toHaveAttribute('data-kind', 'need-imei');
   await scan(win, 'XX-SAI-001');
   await expect(result(win)).toHaveAttribute('data-kind', 'imei-unknown');
+  // IMEI lạ cũng chặn màn; mã nhập vào ô quét rồi Enter cũng không qua được
+  await expect(unknownAlert(win)).toContainText('Loa Bluetooth Thử Đen');
+  await scan(win, 'ik20gf-bk022997');
+  await expect(unknownAlert(win).getByTestId('ma-la-chan')).toBeVisible();
+  await expect(result(win)).toHaveAttribute('data-kind', 'imei-unknown');
+  await win.keyboard.press('Enter');
+  await expect(unknownAlert(win)).toHaveCount(0);
   await scan(win, 'ik20gf-bk022997');
   await expect(result(win)).toHaveAttribute('data-kind', 'imei-ok');
   await expect(result(win)).toContainText('1/2');
+  await expect(result(win)).toContainText('IK20GF-BK022997');
+  // Các dòng của mã vừa quét lên đầu, dòng IMEI vừa nhận đứng trước
+  await expect(rows(win).nth(0)).toContainText('IK20GF-BK022997');
+  await expect(rows(win).nth(1)).toContainText('IK20GF-BK022998');
   await scan(win, 'IK20GF-BK022997');
   await expect(result(win)).toHaveAttribute('data-kind', 'imei-dup');
 
@@ -117,6 +156,17 @@ test('Kiểm hàng: nhập nhiều file, quét mã, IMEI, mã lạ, thừa, hoà
   await expect(kpi(win, 'con-thieu')).toHaveText('2');
   await win.getByRole('button', { name: /^Tất cả/ }).click();
 
+  // Bấm ô số liệu cũng lọc như các nút lọc; bấm lại thì bỏ lọc
+  await kpi(win, 'con-thieu').click();
+  await expect(rows(win)).toHaveCount(1);
+  await kpi(win, 'con-thieu').click();
+  await expect(rows(win)).toHaveCount(6);
+  await kpi(win, 'ma-la').click();
+  await expect(win.getByRole('table', { name: 'Mã lạ đã quét' }).locator('tbody tr')).toHaveCount(2);
+  await expect(win.getByRole('table', { name: 'Mã lạ đã quét' })).toContainText('XX-SAI-001');
+  await kpi(win, 'theo-file').click();
+  await expect(rows(win)).toHaveCount(6);
+
   // Lọc theo nhóm hàng
   await win.getByLabel('Lọc theo nhóm hàng').selectOption('Loa di động');
   await expect(win.locator('tbody tr')).toHaveCount(2);
@@ -134,15 +184,18 @@ test('Kiểm hàng: nhập nhiều file, quét mã, IMEI, mã lạ, thừa, hoà
   await expect(report).toContainText('Người chuyển10001 - Nguyễn Văn Thử');
   await expect(report).toContainText('Kho nhận900 - CH_THU - Cửa hàng thử');
   await expect(report.getByRole('list', { name: 'Kết quả theo MYC' })).toContainText('MYC CO0000000001');
+  await expect(report.getByLabel('Người kiểm')).toHaveValue('Trần Thị Kiểm');
   await expect(report).toContainText('Thiếu 2 SP · 1 nhóm');
   await report.getByRole('button', { name: 'Sao chép để gửi' }).click();
   await expect(win.getByText('Đã sao chép báo cáo', { exact: false })).toBeVisible();
   const copied = await s.app.evaluate(({ clipboard }) => clipboard.readText());
-  expect(copied).toContain('BÁO CÁO KIỂM HÀNG NHẬN');
+  // Tiêu đề, dòng trống, rồi mới tới nội dung
+  expect(copied).toMatch(/^BÁO CÁO KIỂM HÀNG NHẬN - .+\n\nKho chuyển: /);
+  expect(copied).toContain('Người kiểm: Trần Thị Kiểm');
   expect(copied).toContain('[CHƯA ĐỦ] MYC CO0000000001 (HĐ 2000001, phiếu SC0000000001)');
   expect(copied).toContain('0160014000813 Adapter sạc Thử 20W: thiếu 2 (nhận 1/3)');
-  // Mặc định chỉ gửi MYC chưa đủ
-  expect(copied).not.toContain('[ĐỦ]');
+  // Mặc định MYC đủ hàng gộp một dòng, vẫn có mã MYC
+  expect(copied).toContain('[ĐỦ] 1 MYC: CO0000000002');
   await win.keyboard.press('Escape');
 
   // Đóng và mở lại app (mở vào Nhắc việc), chuyển sang Kiểm hàng: vẫn kiểm tiếp được
@@ -153,6 +206,7 @@ test('Kiểm hàng: nhập nhiều file, quét mã, IMEI, mã lạ, thừa, hoà
   await expect(rail(win).getByRole('button', { name: 'Kiểm hàng' })).toHaveAttribute('aria-current', 'page');
   await expect(kpi(win, 'da-kiem')).toHaveText('10');
   await expect(kpi(win, 'ma-la')).toHaveText('2');
+  await expect(win.getByLabel('Người kiểm hàng')).toHaveValue('Trần Thị Kiểm');
 
   // Xuất Excel: đủ các trang, mã giữ dạng chữ, có số thực nhận và chênh lệch
   await win.getByRole('button', { name: 'Xuất Excel' }).click();
@@ -183,6 +237,7 @@ test('Kiểm hàng: nhập nhiều file, quét mã, IMEI, mã lạ, thừa, hoà
   await expect(history).toContainText('Chứng từ NB-THU-0001');
   await expect(history).toContainText('10/12 sản phẩm');
   await expect(history).toContainText('Thiếu 2, 2 mã lạ');
+  await expect(history).toContainText('Người kiểm Trần Thị Kiểm');
   await history.getByRole('button', { name: 'Mở lại' }).click();
   await expect(kpi(win, 'da-kiem')).toHaveText('10');
 

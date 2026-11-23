@@ -16,6 +16,8 @@ interface KiemHangReportDialogProps {
     onClose: () => void;
     onExport: () => void;
     onFinish?: () => void;
+    /** Có thì sửa được tên người kiểm ngay trong báo cáo (phiên đang kiểm); phiên trong lịch sử chỉ xem */
+    onCheckerChange?: (name: string) => void;
 }
 
 const InfoRow: React.FC<{ label: string; value: string }> = ({ label, value }) =>
@@ -83,9 +85,9 @@ const InvoiceBlock: React.FC<{ item: InvoiceReport }> = ({ item }) => {
 };
 
 /** Báo cáo kiểm hàng để gửi người chuyển: sao chép thành tin nhắn, hoặc xuất Excel. */
-export const KiemHangReportDialog: React.FC<KiemHangReportDialogProps> = ({ session, mode, onClose, onExport, onFinish }) => {
+export const KiemHangReportDialog: React.FC<KiemHangReportDialogProps> = ({ session, mode, onClose, onExport, onFinish, onCheckerChange }) => {
     const report = useMemo(() => buildReport(session), [session]);
-    const [onlyProblems, setOnlyProblems] = useState(true);
+    const [compact, setCompact] = useState(true);
     const allGood = report.completeCount === report.invoices.length && report.unknown.length === 0;
     const pending = session.invoices.filter(invoice => !invoice.hasDetail);
     const firstInvoice = session.invoices.find(invoice => invoice.hasDetail);
@@ -93,16 +95,16 @@ export const KiemHangReportDialog: React.FC<KiemHangReportDialogProps> = ({ sess
     const footer = (
         <div className="flex flex-wrap items-center gap-2 w-full">
             <Checkbox
-                checked={onlyProblems}
-                onChange={() => setOnlyProblems(value => !value)}
-                label="Chỉ gửi MYC chưa đủ"
+                checked={compact}
+                onChange={() => setCompact(value => !value)}
+                label="Gộp MYC đủ hàng vào một dòng"
                 wrapperClassName="flex items-center gap-2 text-[13px] text-slate-700 mr-auto"
             />
             <Button variant="secondary" icon="spreadsheet" onClick={onExport}>Xuất Excel</Button>
             <Button
                 variant={mode === 'finish' ? 'secondary' : 'primary'}
                 icon="copy"
-                onClick={() => void saoChep(reportText(report, { onlyProblems }), { thanhCong: 'Đã sao chép báo cáo, dán vào Zalo hoặc tin nhắn để gửi' })}
+                onClick={() => void saoChep(reportText(report, { compactComplete: compact }), { thanhCong: 'Đã sao chép báo cáo, dán vào Zalo hoặc tin nhắn để gửi' })}
             >
                 Sao chép để gửi
             </Button>
@@ -129,6 +131,22 @@ export const KiemHangReportDialog: React.FC<KiemHangReportDialogProps> = ({ sess
                     <InfoRow label="Kho chuyển" value={report.fromStores.join(', ') || (firstInvoice ? fromStoreText(firstInvoice) : '')} />
                     <InfoRow label="Kho nhận" value={report.toStores.join(', ')} />
                     <InfoRow label="Người chuyển" value={report.senders.join(', ')} />
+                    {onCheckerChange ? (
+                        <div className="min-w-0">
+                            <label htmlFor="bao-cao-nguoi-kiem" className="block text-[11px] font-semibold text-slate-500">Người kiểm</label>
+                            <input
+                                id="bao-cao-nguoi-kiem"
+                                value={session.checker ?? ''}
+                                onChange={event => onCheckerChange(event.target.value)}
+                                placeholder="Nhập tên người kiểm"
+                                autoComplete="off"
+                                spellCheck={false}
+                                className={`mt-0.5 w-full h-8 rounded-control border-2 px-2 text-[13px] font-semibold text-slate-800 focus:outline-none focus:border-sky-400 ${report.checker ? 'border-slate-200' : 'border-amber-300 bg-amber-50'}`}
+                            />
+                        </div>
+                    ) : (
+                        <InfoRow label="Người kiểm" value={report.checker} />
+                    )}
                     <InfoRow label="Chứng từ vận chuyển" value={report.vouchers.join(', ')} />
                     <InfoRow label="Bắt đầu kiểm" value={timeText(session.createdAt)} />
                     <InfoRow label="Lập báo cáo" value={timeText(report.at)} />

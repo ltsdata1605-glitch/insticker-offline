@@ -169,18 +169,19 @@ File gồm bảng giá và từng file đã nhập, lịch sử nhập, sản ph
 Dùng khi nhận kiện hàng kèm file Excel phiếu chuyển kho: đối chiếu số thực nhận với số trên file.
 
 1. **Nhập file:** bấm **Chọn file Excel** hoặc kéo thả file vào màn. Chọn được nhiều file cùng lúc, gồm cả file chi tiết sản phẩm lẫn file phiếu (file có Số hóa đơn). App tự nhận loại file và ghép theo mã phiếu chuyển, không cần đặt tên file đúng. Chỉ có file chi tiết thì hoá đơn hiện bằng mã phiếu chuyển; nhập thêm file phiếu sẽ có số hoá đơn. File đã nhập rồi thì bỏ qua, không nhân đôi.
-2. **Quét:** bắn mã bằng súng quét, gõ mã rồi bấm Enter, hoặc bấm **Camera**. Súng quét dùng được ngay cả khi con trỏ đang ở chỗ khác trên màn. Viền ô quét màu xanh lá là đang sẵn sàng.
-   - **Mã có trong file:** cộng 1, báo xanh kèm tiếng bíp, dòng đó được tô sáng trong danh sách. Mã có ở nhiều hoá đơn thì cộng đủ hoá đơn đầu rồi mới sang hoá đơn sau.
+2. **Người kiểm:** gõ tên vào ô **Người kiểm** ở cột phải (viền vàng là chưa nhập). Tên này có trong báo cáo. Phiên mới tự lấy tên của lần kiểm trước, sửa được bất cứ lúc nào.
+3. **Quét:** bắn mã bằng súng quét, gõ mã rồi bấm Enter, hoặc bấm **Camera**. Súng quét dùng được ngay cả khi con trỏ đang ở chỗ khác trên màn. Viền ô quét màu xanh lá là đang sẵn sàng.
+   - **Mã có trong file:** cộng 1, báo xanh kèm tiếng bíp. Thẻ kết quả ghi mã to hơn tên, 6 số cuối màu đỏ để dò nhanh với tem trên hộp. Các dòng của mã vừa quét lên đầu danh sách, dòng vừa cộng được tô sáng. Mã có ở nhiều hoá đơn thì cộng đủ hoá đơn đầu rồi mới sang hoá đơn sau.
    - **Hàng nhiều cái:** gõ số vào ô **SL** trước khi quét. Ô SL tự về 1 sau mỗi lần.
    - **Sản phẩm có IMEI trong file:** quét mã thì app chờ quét IMEI. Quét thẳng IMEI cũng được. IMEI không có trong hoá đơn thì báo đỏ; IMEI quét rồi thì báo trùng. Bấm Esc để thôi chờ IMEI.
-   - **Mã không có trong file:** báo đỏ, quét lại. Mã đó được ghi vào **Mã lạ đã quét** ở cột phải; bấm × để xoá nếu quét nhầm.
+   - **Mã không có trong file (mã lạ) hoặc IMEI lạ:** hiện bảng báo đỏ che màn, mã đó được ghi vào **Mã lạ**. Để riêng sản phẩm đó ra rồi **tự nhấn Enter** (hoặc bấm **Đã để riêng, quét tiếp**) mới quét tiếp được. Bắn tiếp mã khác khi chưa xác nhận thì mã đó không được tính, bảng báo nhắc xác nhận rồi quét lại. Bắn nhầm mã vạch khác trên hộp thì bấm **Quét nhầm, bỏ mã này**.
    - **Quét quá số lượng:** báo vàng, tính là thừa.
    - **Hoàn tác** (hoặc Ctrl+Z) huỷ lần quét vừa rồi. Có thể sửa tay số thực nhận bằng nút − và + trên từng dòng.
-3. **Theo dõi:** các ô Theo file, Đã kiểm, Còn thiếu, Thừa, Mã lạ cập nhật ngay. Lọc danh sách theo Chưa đủ, Đủ, Thừa, Có IMEI, theo **nhóm hàng**, hoặc bấm một hoá đơn ở cột phải để chỉ xem hoá đơn đó. Thẻ hoá đơn ghi đủ MYC, ngày tạo, kho chuyển và người chuyển.
-4. **Báo cáo:** bấm **Báo cáo** ở góc ô Đang kiểm. Báo cáo cho biết từng MYC đã đủ hay chưa, thiếu bao nhiêu sản phẩm thuộc bao nhiêu nhóm hàng, danh sách cụ thể theo nhóm, kho chuyển, kho nhận và người chuyển.
-   - **Sao chép để gửi:** chép báo cáo thành tin nhắn, dán vào Zalo gửi người chuyển. Mặc định chỉ gồm các MYC chưa đủ; bỏ chọn **Chỉ gửi MYC chưa đủ** để gửi cả MYC đã đủ.
+4. **Theo dõi:** các ô Theo file, Đã kiểm, Còn thiếu, Thừa, Mã lạ cập nhật ngay; Còn thiếu, Thừa, Mã lạ có số thì cả ô tô màu. **Bấm một ô để lọc danh sách** theo ô đó (bấm lại để bỏ lọc); ô Mã lạ đổi bảng thành danh sách mã lạ (mã, số lần quét, lúc quét). Các nút lọc Đã kiểm, Chưa đủ, Đủ, Thừa, Có IMEI, Mã lạ làm việc giống vậy. Lọc thêm theo **nhóm hàng**, hoặc bấm một hoá đơn ở cột phải để chỉ xem hoá đơn đó. Thẻ hoá đơn ghi đủ MYC, ngày tạo, kho chuyển và người chuyển.
+5. **Báo cáo:** bấm **Báo cáo** ở góc ô Đang kiểm. Báo cáo cho biết từng MYC đã đủ hay chưa, thiếu bao nhiêu sản phẩm thuộc bao nhiêu nhóm hàng, danh sách cụ thể theo nhóm, kho chuyển, kho nhận, người chuyển và người kiểm (sửa tên ngay trong báo cáo được).
+   - **Sao chép để gửi:** chép báo cáo thành tin nhắn, dán vào Zalo gửi người chuyển. Tiêu đề cách phần nội dung một dòng trống. Tin nhắn luôn ghi đủ các MYC: mặc định các MYC đủ hàng gộp vào một dòng `[ĐỦ] 3 MYC: …`, MYC chưa đủ có danh sách chi tiết; bỏ chọn **Gộp MYC đủ hàng vào một dòng** để mỗi MYC đủ một dòng kèm số lượng.
    - **Xuất Excel:** file có trang **Báo cáo** ở đầu, sau đó là Tổng hợp (theo hoá đơn), Chi tiết (đủ các cột của file kèm số thực nhận, chênh lệch, kết quả), Thiếu thừa, Mã lạ và Nhật ký quét.
-5. **Kết thúc:** hiện báo cáo để gửi trước, bấm **Kết thúc và lưu** thì phiên vào **Lịch sử**. Trong Lịch sử có thể xem lại báo cáo, xuất Excel, mở lại để kiểm tiếp hoặc xoá.
+6. **Kết thúc:** hiện báo cáo để gửi trước, bấm **Kết thúc và lưu** thì phiên vào **Lịch sử**. Trong Lịch sử có thể xem lại báo cáo, xuất Excel, mở lại để kiểm tiếp hoặc xoá.
 
 Kết quả tự lưu sau mỗi lần quét: lỡ đóng app thì mở lại kiểm tiếp được. Dữ liệu kiểm hàng có trong file sao lưu.
 

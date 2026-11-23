@@ -182,7 +182,9 @@ describe('Báo cáo', () => {
     session = scan(session, '0160014000813').session;
     session = scan(session, 'IK20GF-BK022997').session;
     session = scan(session, 'LA-001').session;
+    session = { ...session, checker: '  Trần Thị Kiểm ' };
     const report = buildReport(session, new Date(2026, 10, 20, 9, 5).getTime());
+    expect(report.checker).toBe('Trần Thị Kiểm');
 
     expect(report.invoices.map(item => [item.invoice.invoiceNo, item.complete, item.totals.missing, item.missingGroups])).toEqual([
       ['2000001', false, 3, 2],
@@ -196,7 +198,9 @@ describe('Báo cáo', () => {
     expect(reportSummary(report)).toBe('1/2 MYC đủ hàng, thiếu 3 sản phẩm thuộc 2 nhóm, 1 mã không có trong phiếu.');
 
     const text = reportText(report);
-    expect(text).toContain('BÁO CÁO KIỂM HÀNG NHẬN - 20/11/2026 09:05');
+    // Tiêu đề cách phần nội dung một dòng trống
+    expect(text.split('\n').slice(0, 3)).toEqual(['BÁO CÁO KIỂM HÀNG NHẬN - 20/11/2026 09:05', '', 'Kho chuyển: 20001 - KHO_THU - Kho tổng thử']);
+    expect(text).toContain('Người kiểm: Trần Thị Kiểm');
     expect(text).toContain('Kho chuyển: 20001 - KHO_THU - Kho tổng thử');
     expect(text).toContain('Người chuyển: 10001 - Nguyễn Văn Thử');
     expect(text).toContain('[CHƯA ĐỦ] MYC CO0000000001 (HĐ 2000001, phiếu SC0000000001): nhận 4/7, thiếu 3 SP, 2 nhóm');
@@ -204,14 +208,28 @@ describe('Báo cáo', () => {
     expect(text).toContain('  - 0164779000261 Loa Bluetooth Thử Đen - Imei (IMEI IK20GF-BK022998): thiếu 1 (nhận 0/1)');
     expect(text).toContain('[ĐỦ] MYC CO0000000002 (HĐ 2000002, phiếu SC0000000002): 5/5');
     expect(text).toContain('  - LA-001');
-    // Chỉ gửi phần chưa đủ
-    expect(reportText(report, { onlyProblems: true })).not.toContain('[ĐỦ]');
+    // Gộp MYC đủ hàng vào một dòng: vẫn ghi MYC, chỉ MYC chưa đủ mới có danh sách chi tiết
+    const compact = reportText(report, { compactComplete: true });
+    expect(compact).toContain('[ĐỦ] 1 MYC: CO0000000002');
+    expect(compact).not.toContain('[ĐỦ] MYC CO0000000002');
+    expect(compact).toContain('[CHƯA ĐỦ] MYC CO0000000001');
 
     const rows = reportSheetRows(report);
+    expect(rows).toContainEqual(['Người kiểm', 'Trần Thị Kiểm']);
     expect(rows.find(row => row[0] === 'CO0000000001')?.slice(0, 12)).toEqual([
       'CO0000000001', '2000001', 'SC0000000001', '17/11/2026 10:32', '10001 - Nguyễn Văn Thử', 7, 4, 3, 0, 2, 'Sạc/ Adapter (2), Loa di động (1)', 'Chưa đủ',
     ]);
     expect(rows.filter(row => row[3] === '0160014000813')).toEqual([['CO0000000001', '2000001', 'Sạc/ Adapter', '0160014000813', 'Adapter sạc Thử 20W', '', 3, 1, 2, 0]]);
+  });
+
+  it('đủ hết MYC: tin nhắn gộp vẫn ghi đủ các MYC; chưa nhập tên người kiểm thì không có dòng đó', async () => {
+    const { buildReport, reportText } = await import('../../src/features/kiem-hang/kiemHangReport');
+    let session = loadAB();
+    for (const line of session.lines) session = setReceived(session, line.key, line.expected);
+    const text = reportText(buildReport(session, new Date(2026, 10, 23, 19, 12).getTime()), { compactComplete: true });
+    expect(text).toContain('Kết quả: 2/2 MYC đủ hàng. Đã nhận 12/12 sản phẩm.');
+    expect(text).toContain('[ĐỦ] 2 MYC: CO0000000001, CO0000000002');
+    expect(text).not.toContain('Người kiểm');
   });
 
   it('chưa nhập file phiếu thì tên phiên theo kho chuyển', async () => {

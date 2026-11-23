@@ -31,7 +31,7 @@ export const KiemHangHistoryDialog: React.FC<KiemHangHistoryDialogProps> = ({ hi
                             <div className="min-w-0 flex-1">
                                 <p className="font-bold text-[14px] text-slate-800 truncate">{sessionTitle(session)}</p>
                                 <p className="text-[12px] text-slate-500">
-                                    {timeText(session.finishedAt ?? session.updatedAt)} · {session.invoices.length} hoá đơn · {totals.received}/{totals.expected} sản phẩm
+                                    {timeText(session.finishedAt ?? session.updatedAt)} · {session.invoices.length} hoá đơn · {totals.received}/{totals.expected} sản phẩm{session.checker ? ` · Người kiểm ${session.checker}` : ''}
                                 </p>
                                 <p className={`text-[12px] font-semibold ${ok ? 'text-emerald-700' : 'text-amber-700'}`}>
                                     {ok ? 'Đủ hàng' : [totals.missing && `Thiếu ${totals.missing}`, totals.extra && `Thừa ${totals.extra}`, unknown && `${unknown} mã lạ`].filter(Boolean).join(', ')}

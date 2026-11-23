@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { AppIcon } from '../../components/shared/ui/icon/AppIcon';
-import type { KiemHangInvoice, KiemHangLine, LineState } from './kiemHangData';
-import { lineState } from './kiemHangData';
+import type { KiemHangInvoice, KiemHangLine, LineState, UnknownEntry } from './kiemHangData';
+import { lineState, timeText } from './kiemHangData';
+import { CodeText } from './KiemHangCode';
 
 const STATE_STYLE: Record<LineState, { label: (diff: number) => string; className: string }> = {
     pending: { label: () => 'Chưa kiểm', className: 'bg-slate-100 text-slate-600' },
@@ -38,7 +39,7 @@ interface KiemHangTableProps {
     lines: KiemHangLine[];
     received: Record<string, number>;
     invoices: Map<string, KiemHangInvoice>;
-    /** Dòng vừa quét: tô sáng và cuộn tới */
+    /** Dòng vừa quét: tô sáng và cuộn tới. Các dòng của mã vừa quét đã được đưa lên đầu danh sách. */
     highlightKey?: string;
     highlightTick: number;
     onSetReceived: (lineKey: string, value: number) => void;
@@ -61,7 +62,7 @@ export const KiemHangTable: React.FC<KiemHangTableProps> = ({ lines, received, i
             <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-500">
                 <tr>
                     <th className="w-10 px-2 py-2 text-left border-b border-slate-200">#</th>
-                    <th className="w-[116px] px-2 py-2 text-left border-b border-slate-200">Mã sản phẩm</th>
+                    <th className="w-[164px] px-2 py-2 text-left border-b border-slate-200">Mã sản phẩm</th>
                     <th className="px-2 py-2 text-left border-b border-slate-200">Tên sản phẩm · hoá đơn</th>
                     <th className="w-[140px] px-2 py-2 text-center border-b border-slate-200 whitespace-nowrap">Thực nhận / file</th>
                     <th className="w-[92px] px-2 py-2 text-right border-b border-slate-200">Kết quả</th>
@@ -82,7 +83,9 @@ export const KiemHangTable: React.FC<KiemHangTableProps> = ({ lines, received, i
                             className={`scroll-mt-9 transition-colors ${highlighted ? 'bg-sky-50' : index % 2 ? 'bg-slate-50/50' : 'bg-white'}`}
                         >
                             <td className={`px-2 py-1.5 border-b border-slate-100 text-slate-400 tabular-nums ${highlighted ? 'border-l-4 border-l-sky-500' : ''}`}>{index + 1}</td>
-                            <td className="px-2 py-1.5 border-b border-slate-100 font-mono text-[12px] text-slate-700">{line.code}</td>
+                            <td className="px-2 py-1.5 border-b border-slate-100">
+                                <CodeText value={line.code} className="text-[15px] font-semibold text-slate-700" tailClassName="text-[18px] font-black text-rose-600" />
+                            </td>
                             <td className="px-2 py-1.5 border-b border-slate-100 min-w-0">
                                 <span className="block font-semibold text-slate-800 leading-snug">{line.name}</span>
                                 <span className="block text-[11px] text-slate-500">
@@ -90,12 +93,13 @@ export const KiemHangTable: React.FC<KiemHangTableProps> = ({ lines, received, i
                                     <span className="ml-2 font-semibold text-slate-600" title={line.transferId}>
                                         {invoice?.invoiceNo ? `HĐ ${invoice.invoiceNo}` : line.transferId}
                                     </span>
-                                    {line.imei && (
-                                        <span className="ml-2 inline-flex items-center gap-1 rounded bg-violet-50 px-1.5 text-violet-700 font-mono">
-                                            IMEI {line.imei}
-                                        </span>
-                                    )}
                                 </span>
+                                {line.imei && (
+                                    <span className="mt-1 inline-flex items-baseline gap-1.5 rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-violet-800">
+                                        <span className="text-[11px] font-bold">IMEI</span>
+                                        <CodeText value={line.imei} className="text-[15px] font-bold" tailClassName="text-[17px] font-black text-violet-950" />
+                                    </span>
+                                )}
                             </td>
                             <td className="px-2 py-1.5 border-b border-slate-100 text-center">
                                 {line.imei ? (
@@ -122,6 +126,58 @@ export const KiemHangTable: React.FC<KiemHangTableProps> = ({ lines, received, i
                         </tr>
                     );
                 })}
+            </tbody>
+        </table>
+    );
+};
+
+interface UnknownTableProps {
+    entries: UnknownEntry[];
+    /** Tên sản phẩm theo mã, để ghi IMEI lạ đang quét cho sản phẩm nào */
+    nameOf: (code: string) => string;
+    onRemove: (value: string, type: UnknownEntry['type']) => void;
+}
+
+/** Danh sách mã lạ, hiện khi bấm ô Mã lạ: mã nào, quét mấy lần, lúc nào, để tìm lại sản phẩm lạ trong kiện. */
+export const UnknownTable: React.FC<UnknownTableProps> = ({ entries, nameOf, onRemove }) => {
+    if (entries.length === 0) {
+        return <p className="py-10 text-center text-sm text-slate-500">Chưa quét mã lạ nào.</p>;
+    }
+    return (
+        <table aria-label="Mã lạ đã quét" className="w-full text-[13px] border-separate border-spacing-0">
+            <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                <tr>
+                    <th className="w-10 px-2 py-2 text-left border-b border-slate-200">#</th>
+                    <th className="px-2 py-2 text-left border-b border-slate-200">Mã đã quét</th>
+                    <th className="px-2 py-2 text-left border-b border-slate-200">Loại</th>
+                    <th className="w-[80px] px-2 py-2 text-center border-b border-slate-200">Số lần</th>
+                    <th className="w-[150px] px-2 py-2 text-left border-b border-slate-200">Quét lần cuối</th>
+                    <th className="w-10 px-2 py-2 border-b border-slate-200"><span className="sr-only">Xoá</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {entries.map((entry, index) => (
+                    <tr key={`${entry.type}:${entry.value}`} className={index % 2 ? 'bg-rose-50/40' : 'bg-white'}>
+                        <td className="px-2 py-1.5 border-b border-slate-100 text-slate-400 tabular-nums">{index + 1}</td>
+                        <td className="px-2 py-1.5 border-b border-slate-100">
+                            <CodeText value={entry.value} className="text-[15px] font-semibold text-slate-700" tailClassName="text-[18px] font-black text-rose-600" />
+                        </td>
+                        <td className="px-2 py-1.5 border-b border-slate-100 text-slate-700">
+                            {entry.type === 'imei'
+                                ? <>IMEI lạ{entry.forCode ? <span className="text-slate-500"> khi quét {nameOf(entry.forCode) || entry.forCode}</span> : null}</>
+                                : 'Mã không có trong hoá đơn'}
+                        </td>
+                        <td className="px-2 py-1.5 border-b border-slate-100 text-center font-bold tabular-nums text-rose-700">{entry.count}</td>
+                        <td className="px-2 py-1.5 border-b border-slate-100 text-slate-500 tabular-nums">{timeText(entry.lastAt)}</td>
+                        <td className="px-2 py-1.5 border-b border-slate-100 text-right">
+                            <button type="button" aria-label={`Xoá ${entry.value} khỏi mã lạ`} title="Quét nhầm thì xoá khỏi danh sách"
+                                onClick={() => onRemove(entry.value, entry.type)}
+                                className="w-6 h-6 rounded-full inline-flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-600">
+                                <AppIcon name="close" size="xs" />
+                            </button>
+                        </td>
+                    </tr>
+                ))}
             </tbody>
         </table>
     );

@@ -17,12 +17,16 @@ interface KiemHangSidePanelProps {
     onHistory: () => void;
     historyCount: number;
     onRemoveUnknown: (value: string, type: 'code' | 'imei') => void;
+    onCheckerChange: (name: string) => void;
+    /** Nhấn Enter trong ô tên: quay về ô quét */
+    onCheckerDone: () => void;
 }
 
 /** Cột phải: thông tin phiên, các hoá đơn kèm tiến độ (bấm để lọc), mã lạ và các nút xuất file, kết thúc, lịch sử. */
 export const KiemHangSidePanel: React.FC<KiemHangSidePanelProps> = ({
-    session, invoiceFilter, onInvoiceFilter, onAddFiles, onExport, onFinish, onReport, onHistory, historyCount, onRemoveUnknown,
+    session, invoiceFilter, onInvoiceFilter, onAddFiles, onExport, onFinish, onReport, onHistory, historyCount, onRemoveUnknown, onCheckerChange, onCheckerDone,
 }) => {
+    const checker = session.checker ?? '';
     const lineCount = (transferId: string) => session.lines.filter(line => line.transferId === transferId);
     return (
         <aside aria-label="Thông tin phiên kiểm" className="w-[300px] xl:w-[340px] shrink-0 flex flex-col gap-3 min-h-0">
@@ -35,6 +39,30 @@ export const KiemHangSidePanel: React.FC<KiemHangSidePanelProps> = ({
                     </div>
                     <Button size="sm" icon="report" onClick={onReport} className="shrink-0">Báo cáo</Button>
                 </div>
+                {/* Chưa nhập tên thì viền vàng để nhắc: tên này có trong báo cáo gửi người chuyển */}
+                <label className={`flex items-center gap-2 rounded-control border-2 px-2 h-9 transition-colors focus-within:border-sky-400 ${checker.trim() ? 'border-slate-200 bg-white' : 'border-amber-300 bg-amber-50'}`}>
+                    <AppIcon name="userCheck" size="sm" className={checker.trim() ? 'text-slate-500' : 'text-amber-600'} />
+                    <span className="shrink-0 text-[12px] font-semibold text-slate-500">Người kiểm</span>
+                    <input
+                        value={checker}
+                        onChange={event => onCheckerChange(event.target.value)}
+                        onKeyDown={event => {
+                            if (event.key === 'Enter') {
+                                event.preventDefault();
+                                onCheckerChange(checker.trim());
+                                onCheckerDone();
+                            }
+                        }}
+                        onBlur={() => {
+                            if (checker !== checker.trim()) onCheckerChange(checker.trim());
+                        }}
+                        aria-label="Người kiểm hàng"
+                        placeholder="Nhập tên người kiểm"
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="flex-1 min-w-0 bg-transparent text-[14px] font-bold text-slate-900 placeholder:font-normal placeholder:text-amber-700/70 focus:outline-none"
+                    />
+                </label>
                 <div className="grid grid-cols-2 gap-2">
                     <Button variant="secondary" size="sm" icon="upload" onClick={onAddFiles}>Thêm file</Button>
                     <Button variant="secondary" size="sm" icon="spreadsheet" onClick={onExport}>Xuất Excel</Button>
