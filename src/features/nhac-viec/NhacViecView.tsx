@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '../../components/shared/ui/Button';
+import { ConfirmDialog } from '../../components/shared/ui/ConfirmDialog';
 import { Input } from '../../components/shared/ui/Input';
 import { Modal } from '../../components/shared/ui/Modal';
 import { Switch } from '../../components/shared/ui/Switch';
@@ -9,7 +10,7 @@ import { TopBarActions } from '../../components/shared/ui/TopBarActions';
 import { toast } from '../../components/shared/ui/toast';
 import type { BackgroundChange, BackgroundSettings } from '../../../electron/contract';
 import type { ChecklistRun, ChecklistTemplate, Reminder } from './nhacViecModel';
-import { DAY, atTime, dateKey, dateTimeText as dateTimeTextOf, relativeText, runOfDay, runOnTime, runProgress, scheduledOn, startOfDay, statsBetween, timeOfDay, weekdayName } from './nhacViecModel';
+import { DAY, atTime, dateKey, dateTimeText as dateTimeTextOf, relativeText, runOfDay, runOnTime, runProgress, scheduledOn, splitRuns, startOfDay, statsBetween, timeOfDay, weekdayName } from './nhacViecModel';
 import { clockNow, useNhacViec } from './NhacViecProvider';
 import { TEMPLATE_COPY_URL } from './sheetTasks';
 import { ReminderForm } from './ReminderForm';
@@ -54,36 +55,50 @@ const todayStatus = (template: ChecklistTemplate, run: ChecklistRun | null, now:
     return { text: `Hôm nay ${template.schedule.start}–${template.schedule.due}`, tone: 'idle' };
 };
 
-const RunRow: React.FC<{ run: ChecklistRun; now: number; onOpen: () => void }> = ({ run, now, onOpen }) => {
+const dayText = (date: string): string => date.split('-').reverse().join('/');
+
+/** Một lượt: bấm để mở; có `onDelete` thì thêm nút thùng rác để xoá (hỏi lại trước khi xoá) */
+const RunRow: React.FC<{ run: ChecklistRun; now: number; onOpen: () => void; onDelete?: () => void }> = ({ run, now, onOpen, onDelete }) => {
     const progress = runProgress(run);
     const onTime = runOnTime(run);
     const late = !run.finishedAt && run.deadline !== undefined && now > run.deadline;
+    /** Bắt đầu ở ngày trước mà chưa bấm Hoàn tất */
+    const leftOver = !run.finishedAt && run.date < dateKey(now);
     return (
-        <li>
+        <li data-testid="luot-checklist" className="group relative">
             <button type="button" onClick={onOpen} className="w-full rounded-control border border-slate-200 bg-white px-3 py-2 text-left hover:border-sky-300">
-                <span className="flex items-center justify-between gap-2">
+                <span className={`flex items-center justify-between gap-2 ${onDelete ? 'pr-8' : ''}`}>
                     <span className="min-w-0 truncate text-[14px] font-bold text-slate-800">{run.name}</span>
-                    <span className={`shrink-0 text-[12px] font-bold ${run.finishedAt ? (onTime ? 'text-emerald-700' : 'text-rose-600') : late ? 'text-rose-600' : 'text-sky-700'}`}>
-                        {run.finishedAt ? (onTime ? 'Đúng hạn' : 'Trễ hạn') : late ? 'Quá hạn' : 'Đang làm'}
+                    <span className={`shrink-0 text-[12px] font-bold ${run.finishedAt ? (onTime ? 'text-emerald-700' : 'text-rose-600') : leftOver ? 'text-amber-700' : late ? 'text-rose-600' : 'text-sky-700'}`}>
+                        {run.finishedAt ? (onTime ? 'Đúng hạn' : 'Trễ hạn') : leftOver ? 'Chưa xong' : late ? 'Quá hạn' : 'Đang làm'}
                     </span>
                 </span>
                 <span className="block text-[12px] text-slate-500">
-                    {run.date.split('-').reverse().join('/')} · {progress.handled}/{progress.total} việc{progress.issue ? ` · ${progress.issue} có vấn đề` : ''}{run.performer ? ` · ${run.performer}` : ''}
+                    {dayText(run.date)} · {progress.handled}/{progress.total} việc{progress.issue ? ` · ${progress.issue} có vấn đề` : ''}{run.performer ? ` · ${run.performer}` : ''}
                 </span>
                 <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-slate-100">
                     <span className={`block h-full rounded-full ${progress.todo === 0 ? 'bg-emerald-500' : 'bg-sky-500'}`} style={{ width: `${progress.percent}%` }} />
                 </span>
             </button>
+            {onDelete && (
+                <button type="button" onClick={onDelete} aria-label={`Xoá lượt ${run.name} ngày ${dayText(run.date)}`} title="Xoá lượt này"
+                    className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-control text-slate-400 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400">
+                    <AppIcon name="delete" size="sm" />
+                </button>
+            )}
         </li>
     );
 };
 
 /** Tab Checklist: các mẫu (bắt đầu lượt, sửa), lượt đang làm, lượt gần đây. */
 const ChecklistPanel: React.FC<{ onOpenRun: (run: ChecklistRun) => void; onEditTemplate: (template: ChecklistTemplate | null) => void; onCopyTemplate: (template: ChecklistTemplate) => void }> = ({ onOpenRun, onEditTemplate, onCopyTemplate }) => {
-    const { templates, runs, now, openRunFor, sheet } = useNhacViec();
+    const { templates, runs, now, openRunFor, sheet, deleteRun } = useNhacViec();
     const today = dateKey(now);
-    const active = runs.filter(run => !run.finishedAt);
-    const recent = runs.filter(run => run.finishedAt).slice(0, 30);
+    const { active, stale, finished } = splitRuns(runs, today);
+    const recent = finished.slice(0, 30);
+    /** Lượt đang hỏi xoá, hoặc 'stale' là xoá hết lượt ngày trước chưa xong */
+    const [deleteAsk, setDeleteAsk] = useState<ChecklistRun | 'stale' | null>(null);
+    const row = (run: ChecklistRun) => <RunRow key={run.id} run={run} now={now} onOpen={() => onOpenRun(run)} onDelete={() => setDeleteAsk(run)} />;
     return (
         <div className="grid h-full min-h-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
             <section className="flex min-h-0 flex-col gap-3">
@@ -138,15 +153,45 @@ const ChecklistPanel: React.FC<{ onOpenRun: (run: ChecklistRun) => void; onEditT
                     })}
                 </ul>
             </section>
-            <section className="flex min-h-0 flex-col gap-3">
-                <p className="text-[14px] font-bold text-slate-700">Đang làm ({active.length})</p>
-                <ul className="space-y-2">{active.map(run => <RunRow key={run.id} run={run} now={now} onOpen={() => onOpenRun(run)} />)}</ul>
+            <section className="flex min-h-0 flex-col gap-3 overflow-y-auto scrollbar-thin pr-1">
+                <p className="text-[14px] font-bold text-slate-700">Đang làm hôm nay ({active.length})</p>
+                <ul aria-label="Đang làm hôm nay" className="space-y-2">
+                    {active.length === 0 ? <li className="text-[13px] text-slate-500">Không có lượt nào đang làm.</li> : active.map(row)}
+                </ul>
+                {stale.length > 0 && (
+                    <details className="group/cu rounded-card border border-amber-200 bg-amber-50/60 px-3 py-2">
+                        <summary className="flex cursor-pointer list-none items-center gap-2 text-[13px] font-bold text-amber-900">
+                            <AppIcon name="chevronRight" size="sm" className="transition-transform group-open/cu:rotate-90" />
+                            Ngày trước chưa hoàn tất ({stale.length})
+                        </summary>
+                        <p className="mt-1 text-[12px] text-amber-900/80">Lượt bắt đầu ở ngày trước mà chưa bấm Hoàn tất. Mở ra để làm nốt, hoặc xoá đi.</p>
+                        <ul aria-label="Ngày trước chưa hoàn tất" className="mt-2 space-y-2">{stale.map(row)}</ul>
+                        <Button variant="ghost" size="sm" icon="delete" className="mt-2 text-rose-600" onClick={() => setDeleteAsk('stale')}>Xoá hết {stale.length} lượt này</Button>
+                    </details>
+                )}
                 <p className="text-[14px] font-bold text-slate-700">Đã hoàn tất gần đây</p>
-                <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-thin pr-1">
-                    {recent.length === 0 ? <li className="text-[13px] text-slate-500">Chưa có lượt nào hoàn tất.</li>
-                        : recent.map(run => <RunRow key={run.id} run={run} now={now} onOpen={() => onOpenRun(run)} />)}
+                <ul aria-label="Đã hoàn tất gần đây" className="space-y-2">
+                    {recent.length === 0 ? <li className="text-[13px] text-slate-500">Chưa có lượt nào hoàn tất.</li> : recent.map(row)}
                 </ul>
             </section>
+            <ConfirmDialog
+                isOpen={deleteAsk !== null}
+                onClose={() => setDeleteAsk(null)}
+                onConfirm={() => {
+                    const targets = deleteAsk === 'stale' ? stale : deleteAsk ? [deleteAsk] : [];
+                    for (const run of targets) deleteRun(run.id);
+                    setDeleteAsk(null);
+                    toast.success(targets.length > 1 ? `Đã xoá ${targets.length} lượt checklist` : 'Đã xoá lượt checklist');
+                }}
+                title={deleteAsk === 'stale' ? `Xoá ${stale.length} lượt ngày trước chưa hoàn tất?` : 'Xoá lượt checklist?'}
+                variant="danger"
+                zIndex="z-[200]"
+                confirmText="Xoá"
+                cancelText="Không xoá"
+                message={deleteAsk === 'stale'
+                    ? 'Các lượt này cùng ghi chú và ảnh sẽ bị xoá, không lấy lại được.'
+                    : deleteAsk ? `Lượt ${deleteAsk.name} ngày ${dayText(deleteAsk.date)} cùng ghi chú và ảnh sẽ bị xoá, không lấy lại được.${deleteAsk.finishedAt ? ' Thống kê không còn tính lượt này.' : ''}` : ''}
+            />
         </div>
     );
 };
@@ -373,7 +418,7 @@ const SheetSection: React.FC = () => {
                     </SheetStep>
                     <SheetStep n={2} title="Bật đồng bộ hai chiều trong file">
                         <p className="text-[12px] text-slate-600">
-                            Trong file, menu <strong>Nhắc việc → Bật đồng bộ hai chiều</strong>, làm theo khung hướng dẫn bên phải (một lần, khoảng 2 phút). Xong bấm <strong>Sao chép Link kết nối</strong>.
+                            Trong file, menu <strong>Nhắc việc → Bật đồng bộ hai chiều</strong>, làm theo khung hướng dẫn bên phải (một lần, khoảng 2 phút): có bước <strong>Triển khai</strong> trong Apps Script, xong dán <strong>URL ứng dụng web</strong> vào khung. Rồi bấm <strong>Sao chép Link kết nối</strong>.
                             Chưa thấy menu Nhắc việc thì tải lại trang file. Máy khác chỉ cần Link kết nối quản lý gửi qua Zalo.
                         </p>
                     </SheetStep>

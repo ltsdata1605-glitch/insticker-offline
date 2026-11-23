@@ -596,16 +596,14 @@ function giaoViecTuForm(f) {
 
 // ---------- Bật đồng bộ hai chiều ----------
 
+/**
+ * URL ứng dụng web quản lý đã dán cho chính file này. Không đoán bằng ScriptApp.getService().getUrl(): hàm đó có lúc trả về mã
+ * triển khai không có thật, máy dán link vào thì báo không tìm thấy cầu nối. Bản sao của file khác không mang URL theo.
+ */
 function cnUrlUngDung_() {
-  const luu = PropertiesService.getScriptProperties().getProperty('urlUngDung');
-  if (luu) return luu;
-  try {
-    const url = ScriptApp.getService().getUrl();
-    if (url && /\/exec$/.test(url)) return url;
-  } catch (e) {
-    // Chưa triển khai
-  }
-  return '';
+  const props = PropertiesService.getScriptProperties();
+  const url = props.getProperty('urlUngDung');
+  return url && props.getProperty('urlChoFile') === SpreadsheetApp.getActiveSpreadsheet().getId() ? url : '';
 }
 
 /** Khung bên phải gọi vào: tình trạng đồng bộ và Link kết nối */
@@ -620,7 +618,7 @@ function luuUrlUngDung(url) {
   if (!/^https:\/\/script\.google\.com\/(a\/macros\/[^/]+|macros)\/s\/[A-Za-z0-9_-]{20,}\/exec$/.test(u)) {
     throw new Error('Đây chưa phải URL ứng dụng web. URL đúng bắt đầu bằng https://script.google.com/macros/s/ và kết thúc bằng /exec.');
   }
-  PropertiesService.getScriptProperties().setProperty('urlUngDung', u);
+  PropertiesService.getScriptProperties().setProperties({ urlUngDung: u, urlChoFile: SpreadsheetApp.getActiveSpreadsheet().getId() });
   return layThongTinDongBo();
 }
 
@@ -643,8 +641,10 @@ function moBatDongBo() {
     + '<li>Bấm <b>Triển khai</b>. Google hỏi quyền: <b>Cấp quyền truy cập</b>, chọn tài khoản, <b>Nâng cao</b>, <b>Chuyển tới … (không an toàn)</b>, <b>Cho phép</b>. Đây là script của chính bạn trong file này.</li>'
     + '<li>Bấm <b>Sao chép</b> ở dòng <b>URL ứng dụng web</b>, dán vào ô dưới rồi bấm Lưu.</li>'
     + '</ol>'
+    + '<p class="nho">Đã triển khai rồi thì không cần triển khai thêm: trong Apps Script bấm <b>Triển khai → Quản lý bản triển khai</b>, bấm <b>Sao chép</b> ở dòng URL rồi dán vào ô dưới.</p>'
     + '<input id="url" placeholder="https://script.google.com/macros/s/…/exec">'
     + '<button onclick="luu()">Lưu</button>'
+    + '<button class="phu" id="thoi" style="display:none" onclick="google.script.run.withSuccessHandler(hien).layThongTinDongBo()">Giữ URL cũ</button>'
     + '</div>'
     + '<div id="co" style="display:none">'
     + '<p><b>Đã bật đồng bộ hai chiều.</b> Gửi Link kết nối này qua Zalo cho từng máy:</p>'
@@ -656,10 +656,13 @@ function moBatDongBo() {
     + '</ol>'
     + '<p class="nho">Ai có link đều đọc và ghi được file qua app, chỉ gửi cho người trong cửa hàng. File không cần chia sẻ công khai nữa. Lỡ gửi nhầm: bấm Đổi mã, rồi gửi lại link mới cho các máy.</p>'
     + '<button class="phu" onclick="doiMa()">Đổi mã kết nối</button>'
+    + '<p class="nho">Máy dán link mà báo không tìm thấy cầu nối: URL ứng dụng web đã lưu không đúng. Bấm nút dưới, dán lại URL lấy ở Triển khai → Quản lý bản triển khai.</p>'
+    + '<button class="phu" onclick="doiUrl()">Dán lại URL ứng dụng web</button>'
     + '</div>'
     + '<div id="bao" class="bao"></div>'
     + '<script>'
-    + 'function hien(t){document.getElementById("chua").style.display=t.link?"none":"block";document.getElementById("co").style.display=t.link?"block":"none";document.getElementById("link").textContent=t.link;}'
+    + 'function hien(t){document.getElementById("chua").style.display=t.link?"none":"block";document.getElementById("co").style.display=t.link?"block":"none";document.getElementById("link").textContent=t.link;document.getElementById("thoi").style.display="none";}'
+    + 'function doiUrl(){document.getElementById("co").style.display="none";document.getElementById("chua").style.display="block";document.getElementById("thoi").style.display="block";document.getElementById("url").value="";document.getElementById("bao").style.display="none";document.getElementById("url").focus();}'
     + 'function bao(m,loi){var b=document.getElementById("bao");b.className=loi?"bao loi":"bao";b.style.display="block";b.textContent=m;}'
     + 'function luu(){google.script.run.withSuccessHandler(function(t){hien(t);bao("Đã lưu. Sao chép Link kết nối để gửi cho các máy.");}).withFailureHandler(function(e){bao(e.message,true);}).luuUrlUngDung(document.getElementById("url").value);}'
     + 'function chep(){var t=document.getElementById("link").textContent;var a=document.createElement("textarea");a.value=t;document.body.appendChild(a);a.select();'

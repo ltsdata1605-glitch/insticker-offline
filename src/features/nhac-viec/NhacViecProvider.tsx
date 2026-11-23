@@ -8,7 +8,7 @@ import type { BridgeResult, DoneEntry, NewOp, OutboxOp } from './sheetBridge';
 import { BRIDGE_SYNC_EVERY, applyDoneLog, applyResults, bridgeLinkFrom, buildOps, doneToday, enqueue, localReminders } from './sheetBridge';
 import type { ChecklistAlert, ChecklistRun, ChecklistTemplate, Reminder } from './nhacViecModel';
 import {
-    DAY, MINUTE, atTime, checklistAlerts, dateKey, dayOfKey, defaultSpeech, dropLeftoverRuns, markDone, markFired, newId, pendingAlerts, pruneReminder,
+    DAY, MINUTE, applyTemplateToRun, atTime, checklistAlerts, dateKey, dayOfKey, defaultSpeech, dropLeftoverRuns, markDone, markFired, newId, pendingAlerts, pruneReminder,
     reminderView, runOfDay, runProgress, startRun, startOfDay, timeOfDay,
 } from './nhacViecModel';
 
@@ -81,7 +81,7 @@ type BridgeFailure = Exclude<BridgeResponse, { ok: true }>['reason'] | 'key' | '
 const BRIDGE_ERRORS: Record<BridgeFailure, string> = {
     'invalid-url': 'Link kết nối không đúng. Trong file, menu Nhắc việc → Bật đồng bộ hai chiều → Sao chép Link kết nối.',
     'not-public': 'Cầu nối chưa cho máy khác dùng. Trong Apps Script: Triển khai → Quản lý bản triển khai → bút chì, chọn Người có quyền truy cập: Bất kỳ ai.',
-    'not-found': 'Không tìm thấy cầu nối: link sai hoặc bản triển khai đã bị xoá.',
+    'not-found': 'Không tìm thấy cầu nối: link không trỏ tới bản đã triển khai. Quản lý mở file, menu Nhắc việc → Bật đồng bộ hai chiều → Dán lại URL ứng dụng web, rồi gửi lại Link kết nối.',
     'offline': 'Không có mạng hoặc Google không trả lời. App giữ lại thay đổi và tự gửi khi có mạng.',
     'error': 'Cầu nối báo lỗi. App sẽ tự thử lại.',
     'key': 'Link kết nối đã đổi mã. Xin quản lý Link kết nối mới rồi dán lại.',
@@ -701,6 +701,13 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
             saveTemplate: template => {
                 const list = refs.current.templates;
                 commitTemplates(list.some(item => item.id === template.id) ? list.map(item => (item.id === template.id ? template : item)) : [...list, template]);
+                // Lượt hôm nay đang làm dở theo mẫu này nhận ngay tên, danh sách việc và giờ hạn mới (sửa mẫu ngay khi đang làm)
+                const today = dateKey(clockNow());
+                const runList = refs.current.runs;
+                if (runList.some(run => run.templateId === template.id && run.date === today && !run.finishedAt)) {
+                    commitRuns(runList.map(run => (run.date === today ? applyTemplateToRun(run, template) : run)));
+                    collectMedia();
+                }
             },
             deleteTemplate: id => {
                 commitTemplates(refs.current.templates.filter(item => item.id !== id));

@@ -1,12 +1,12 @@
 # Hướng dẫn sử dụng Tools
 
-Tools (trước đây tên In Sticker) gồm các chức năng In Sticker, Kiểm hàng, Kiểm quỹ, Nhắc việc, Tạo mã. Từ bản 1.6.0 app đổi tên và icon (hộp đồ nghề); máy đã cài tự cập nhật, dữ liệu giữ nguyên.
+Tools (trước đây tên In Sticker) gồm các chức năng In Sticker, Kiểm hàng, Kiểm quỹ, Nhắc việc, Tạo mã, In nhãn. Từ bản 1.6.0 app đổi tên và icon (hộp đồ nghề); máy đã cài tự cập nhật, dữ liệu giữ nguyên.
 
 Dùng và in không cần mạng, không cần đăng nhập. App chỉ vào mạng để kiểm tra và tải bản cập nhật. Dữ liệu nằm trên từng máy.
 
 ## Cài đặt
 
-**Mac (macOS Ventura trở lên):** giải nén rồi kéo `Tools.app` vào thư mục Applications (máy còn `In Sticker.app` từ bản cũ thì xoá bản cũ đi, dữ liệu không mất). Chọn bản đúng chip: `arm64` cho Mac M1 trở lên, `x64` cho Mac Intel. Lần đầu máy sẽ chặn vì app chưa ký số: vào System Settings > Privacy & Security, kéo xuống và bấm **Open Anyway**.
+**Mac (macOS Ventura trở lên):** giải nén rồi kéo `Tools.app` vào thư mục Applications (máy còn `In Sticker.app` từ bản cũ thì xoá bản cũ đi, dữ liệu không mất). Tệp `InSticker-…-mac-….zip` trong bản phát hành chỉ dành cho bản cũ tự cập nhật, không cần tải. In Sticker cũ còn chạy nền mà mở Tools thì Tools tự tắt bản cũ rồi mở lên. Chọn bản đúng chip: `arm64` cho Mac M1 trở lên, `x64` cho Mac Intel. Lần đầu máy sẽ chặn vì app chưa ký số: vào System Settings > Privacy & Security, kéo xuống và bấm **Open Anyway**.
 
 **Windows 10/11 64-bit:** giải nén tệp zip vào một thư mục cố định rồi chạy `Tools.exe`. Nếu hiện cảnh báo SmartScreen: bấm **More info**, rồi **Run anyway**. Cập nhật bản mới bằng cách giải nén đè; dữ liệu không mất vì được lưu riêng trong hồ sơ người dùng.
 
@@ -151,7 +151,7 @@ Khi có mạng, app tự kiểm tra bản mới lúc mở và 4 giờ một lầ
 - **Không có mạng:** app vẫn dùng bình thường.
 - **Tải hoặc cài bị lỗi:** có nút **Thử lại** và **Dùng tiếp lần này**, để sự cố cập nhật không chặn việc in. Lần mở sau app nhắc lại.
 - **Xem phiên bản và kiểm tra thủ công:** số phiên bản đang dùng (ví dụ **v1.1.2**) hiện ở góc phải thanh trên cùng. Bấm vào đó rồi bấm **Kiểm tra bản mới**; bảng này cũng cho biết lần kiểm tra gần nhất và cho bật tắt **Tự động tải và cài**. Tắt thì app báo có bản mới và chờ bạn bấm **Cập nhật ngay**.
-- **Trên Mac:** cần để app trong thư mục Applications, nếu không app sẽ báo cần chuyển vào đó. Sau khi cập nhật, macOS có thể hỏi lại quyền camera.
+- **Trên Mac:** cần để app trong thư mục Applications, nếu không app sẽ báo cần chuyển vào đó. Sau khi cập nhật, macOS có thể hỏi lại quyền camera. Máy cập nhật từ In Sticker 1.5 lên thì app vẫn nằm trong `In Sticker.app` (đã là Tools bên trong); lần cập nhật kế tiếp tự đổi tên thành `Tools.app`.
 - **Trên Windows:** chỉ bản cài bằng file `.exe` mới tự cập nhật. Bản giải nén từ file zip phải tải bộ cài về.
 
 ## Chuyển dữ liệu sang máy khác
@@ -239,7 +239,7 @@ Việc và checklist trên máy và trên một file Google Sheet là một: qu�
 **Quản lý làm một lần cho mỗi file:**
 
 1. Trong **Cài đặt** của Nhắc việc, bấm **Tạo file nhắc việc**. Trình duyệt mở trang của Google, đăng nhập rồi bấm **Tạo bản sao**: file mới nằm trong Google Drive của quản lý.
-2. Trong file, menu **Nhắc việc → Bật đồng bộ hai chiều** (chưa thấy menu thì tải lại trang). Khung bên phải hướng dẫn từng bước (khoảng 2 phút): Tiện ích mở rộng → Apps Script → **Triển khai → Tùy chọn triển khai mới → Ứng dụng web**, *Thực thi bằng: Tôi*, *Người có quyền truy cập: Bất kỳ ai*, bấm Triển khai, cho phép quyền, sao chép **URL ứng dụng web** dán vào khung rồi bấm Lưu.
+2. Trong file, menu **Nhắc việc → Bật đồng bộ hai chiều** (chưa thấy menu thì tải lại trang). Khung bên phải hướng dẫn từng bước (khoảng 2 phút): Tiện ích mở rộng → Apps Script → **Triển khai → Tùy chọn triển khai mới → Ứng dụng web**, *Thực thi bằng: Tôi*, *Người có quyền truy cập: Bất kỳ ai*, bấm Triển khai, cho phép quyền, sao chép **URL ứng dụng web** dán vào khung rồi bấm Lưu. Bước triển khai trong Apps Script là bắt buộc, mỗi file làm một lần; khung chưa có ô dán URL thì chưa xong bước này. Đã triển khai rồi thì không triển khai thêm: Apps Script → **Triển khai → Quản lý bản triển khai**, bấm **Sao chép** ở dòng URL.
 3. Bấm **Sao chép Link kết nối**, gửi qua Zalo cho từng máy.
 
 **Ở mỗi máy:** sao chép Link kết nối, vào **Nhắc việc → Cài đặt**, bấm **Dán link đã sao chép**. Ghi **Tên của bạn** (ví dụ "Ngọc - Quầy 1"): tên này ghi vào cột Người xong và Người giao. Việc đã tạo trên máy từ trước: bấm **Đưa N việc lên Google Sheet**.
@@ -264,6 +264,7 @@ Sau khi kết nối:
 Lưu ý:
 
 - Ai có Link kết nối đều đọc và ghi được file qua app: chỉ gửi cho người trong cửa hàng. Lỡ gửi nhầm: menu Nhắc việc → Bật đồng bộ hai chiều → **Đổi mã kết nối**, rồi gửi link mới cho các máy. File không cần chia sẻ công khai nữa.
+- Máy dán link mà báo **Không tìm thấy cầu nối**: URL ứng dụng web lưu trong file không đúng bản đã triển khai. Trong file: menu Nhắc việc → Bật đồng bộ hai chiều → **Dán lại URL ứng dụng web** (lấy ở Apps Script → Triển khai → Quản lý bản triển khai), rồi gửi lại Link kết nối mới cho các máy.
 - Dòng ghi sai (thiếu hạn, sai dạng ngày, trùng mã) được liệt kê trong Cài đặt để sửa.
 - Link chia sẻ file thường (docs.google.com, file để "Bất kỳ ai có đường liên kết") vẫn kết nối được nhưng **chỉ nhận việc**: bấm Đã xong trong app không ghi ngược lên file. Muốn hai chiều thì bật đồng bộ trong file rồi bấm **Dán Link kết nối** trong Cài đặt.
 - **Ngắt kết nối** bỏ các việc và checklist nhận từ file, những gì chỉ có trên máy giữ nguyên.
@@ -276,6 +277,8 @@ Lưu ý:
 4. **Hoàn tất checklist.** Còn việc bắt buộc chưa làm, hoặc thiếu ảnh, ghi chú, thì app hỏi lại; hãy ghi lý do vào **Ghi chú chung**.
 5. **Báo cáo:** **Sao chép để gửi** (dán Zalo), **Xuất ảnh**, **Xuất Excel**. Báo cáo ghi nổi bật **Người làm**, có từng việc, trạng thái, giờ, ghi chú, ảnh và đúng hạn hay trễ.
 6. Làm xong trong ngày, dòng mẫu có dấu xanh **Đã xong hôm nay** (giờ xong, số việc) và nút **Xem**: bấm vào là mở lại lượt đã làm, không làm lại từ đầu. Cần làm thêm một lượt nữa trong ngày thì mở lượt đã xong, bấm **Làm lượt mới**. Dòng mẫu cũng ghi **Đang làm**, **Đến giờ làm** hoặc **Quá hạn, chưa làm** theo lịch.
+7. **Sửa mẫu ngay khi đang làm:** trong màn làm checklist, bấm **Sửa mẫu** (cạnh ô Người làm) để sửa tên, việc, lịch. Lượt hôm nay đang làm nhận ngay thay đổi: việc mới thêm là chưa làm, việc đã đánh giữ nguyên kết quả, ghi chú và ảnh. Lượt đã hoàn tất giữ nguyên như đã báo cáo. Checklist lấy từ Google Sheet thì nút này mở file để sửa.
+8. **Cột bên phải tab Checklist:** **Đang làm hôm nay** chỉ gồm các lượt chưa hoàn tất của hôm nay. Lượt bắt đầu ở ngày trước mà quên bấm Hoàn tất (hoặc của mẫu đã xoá, đổi tên) nằm riêng trong mục **Ngày trước chưa hoàn tất**, bấm để mở ra: làm nốt, hoặc bấm **Xoá hết**. Mỗi lượt có nút thùng rác để xoá; app hỏi lại trước khi xoá, lượt đã xoá cùng ghi chú và ảnh không lấy lại được.
 
 Tab **Hôm nay** gom việc quá hạn, việc trong ngày và checklist theo lịch hôm nay. Tab **Thống kê** (7 hoặc 30 ngày) cho biết số lượt hoàn tất, tỉ lệ đúng hạn, trễ hạn, việc hay có vấn đề, nhắc việc đã xong và bị lỡ.
 

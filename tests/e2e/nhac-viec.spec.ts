@@ -312,6 +312,88 @@ test('Checklist: tạo mẫu, nhân bản mẫu, làm từng việc với ghi ch
   await s.close();
 });
 
+test('Checklist: lượt ngày trước chưa hoàn tất không dồn vào Đang làm, xoá từng lượt hoặc xoá hết; sửa mẫu ngay khi đang làm, giữ kết quả đã đánh', async () => {
+  const s = await openApp();
+  const { win } = s;
+  await openNhacViec(win);
+  await win.getByRole('button', { name: 'Checklist', exact: true }).click();
+  await win.getByRole('button', { name: 'Tạo mẫu checklist' }).click();
+  await win.getByLabel('Tên checklist').fill('Kho - ca sáng');
+  await win.getByLabel('Việc 1', { exact: true }).fill('Kiểm lệnh chuyển kho');
+  await win.getByLabel('Việc 2', { exact: true }).fill('Xử lý BCNB');
+  await win.getByRole('button', { name: 'Tạo mẫu', exact: true }).click();
+  const template = win.getByTestId('mau-checklist');
+  const item = (n: number) => win.getByTestId('viec-checklist').nth(n);
+
+  // Hai ngày trước và hôm qua: bắt đầu, đánh một việc rồi bỏ dở, không bấm Hoàn tất
+  const now = Date.now();
+  for (const daysAgo of [2, 1]) {
+    await jumpTo(win, now - daysAgo * 86_400_000);
+    await template.getByRole('button', { name: 'Bắt đầu' }).click();
+    await item(0).getByRole('button', { name: 'Hoàn tất' }).click();
+    await win.getByRole('button', { name: 'Quay lại' }).click();
+  }
+  await jumpTo(win, Date.now());
+  const active = win.getByRole('list', { name: 'Đang làm hôm nay' });
+  const stale = win.getByRole('list', { name: 'Ngày trước chưa hoàn tất' });
+  await expect(win.getByText('Đang làm hôm nay (0)')).toBeVisible();
+  await expect(active).toContainText('Không có lượt nào đang làm');
+  await expect(win.getByText('Ngày trước chưa hoàn tất (2)')).toBeVisible();
+
+  // Hôm nay bắt đầu lượt mới: chỉ lượt này ở Đang làm
+  await template.getByRole('button', { name: 'Bắt đầu' }).click();
+  await item(0).getByRole('button', { name: 'Hoàn tất' }).click();
+  await item(1).getByRole('button', { name: 'Có vấn đề' }).click();
+
+  // Sửa mẫu ngay trong lúc làm: đổi tên việc 1, thêm việc 3; lượt đang làm nhận ngay, giữ kết quả đã đánh
+  await win.getByRole('button', { name: 'Sửa mẫu' }).click();
+  const form = win.getByRole('dialog', { name: 'Sửa mẫu checklist' });
+  await form.getByLabel('Việc 1', { exact: true }).fill('Kiểm lệnh chuyển kho ONLINE');
+  await form.getByRole('button', { name: 'Thêm việc' }).click();
+  await form.getByLabel('Việc 3', { exact: true }).fill('Vệ sinh kệ kho');
+  await form.getByRole('button', { name: 'Lưu', exact: true }).click();
+  await expect(form).toHaveCount(0);
+  await expect(item(0)).toContainText('Kiểm lệnh chuyển kho ONLINE');
+  await expect(item(2)).toContainText('Vệ sinh kệ kho');
+  await expect(win.getByTestId('tien-do-checklist')).toHaveText('2/3 việc · 67%');
+  await win.getByRole('button', { name: 'Quay lại' }).click();
+  await expect(template).toContainText('3 việc');
+  await expect(active.getByTestId('luot-checklist')).toHaveCount(1);
+  await expect(active).toContainText('2/3 việc · 1 có vấn đề');
+
+  // Lượt ngày trước giữ nguyên danh sách việc cũ; xoá từng lượt bằng nút thùng rác
+  await win.getByText('Ngày trước chưa hoàn tất (2)').click();
+  await expect(stale.getByTestId('luot-checklist')).toHaveCount(2);
+  await expect(stale.getByTestId('luot-checklist').first()).toContainText('1/2 việc');
+  await expect(stale.getByTestId('luot-checklist').first()).toContainText('Chưa xong');
+  const yesterday = new Date(now - 86_400_000);
+  const yesterdayText = `${pad(yesterday.getDate())}/${pad(yesterday.getMonth() + 1)}/${yesterday.getFullYear()}`;
+  await stale.getByRole('button', { name: `Xoá lượt Kho - ca sáng ngày ${yesterdayText}` }).click();
+  await expect(win.getByRole('dialog')).toContainText(`Lượt Kho - ca sáng ngày ${yesterdayText}`);
+  await win.getByRole('button', { name: 'Xoá', exact: true }).click();
+  await expect(win.getByText('Ngày trước chưa hoàn tất (1)')).toBeVisible();
+
+  // Xoá hết lượt ngày trước còn lại
+  await win.getByRole('button', { name: 'Xoá hết 1 lượt này' }).click();
+  await win.getByRole('button', { name: 'Xoá', exact: true }).click();
+  await expect(win.getByText(/Ngày trước chưa hoàn tất/)).toHaveCount(0);
+  await expect(active.getByTestId('luot-checklist')).toHaveCount(1);
+
+  // Lượt đã hoàn tất cũng xoá được
+  await template.click();
+  await win.getByRole('button', { name: 'Hoàn tất checklist' }).click();
+  await win.getByRole('button', { name: 'Vẫn hoàn tất' }).click();
+  await win.getByRole('button', { name: 'Quay lại' }).click();
+  const finished = win.getByRole('list', { name: 'Đã hoàn tất gần đây' });
+  await expect(finished.getByTestId('luot-checklist')).toHaveCount(1);
+  await finished.getByRole('button', { name: /^Xoá lượt Kho - ca sáng ngày/ }).click();
+  await expect(win.getByRole('dialog')).toContainText('Thống kê không còn tính lượt này');
+  await win.getByRole('button', { name: 'Xoá', exact: true }).click();
+  await expect(finished).toContainText('Chưa có lượt nào hoàn tất');
+  await expect(template).toHaveAttribute('data-trang-thai', 'chua-lam');
+  await s.close();
+});
+
 test('Nhận việc từ Google Sheet: dán link đã sao chép, báo việc mới, checklist từ file, nhắc kèm người xử lý, cập nhật khi quản lý sửa hoặc huỷ, ngắt kết nối', async () => {
   const dirs = newDirs();
   const mock = path.join(dirs.inputs, 'google-sheet.xlsx');

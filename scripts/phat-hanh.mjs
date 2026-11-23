@@ -24,7 +24,15 @@ const prefix = JSON.parse(fs.readFileSync('package.json', 'utf8')).build.artifac
 const macFiles = [
   `${prefix}-${version}-mac-arm64.zip`, `${prefix}-${version}-mac-arm64.zip.blockmap`,
   `${prefix}-${version}-mac-x64.zip`, `${prefix}-${version}-mac-x64.zip.blockmap`, 'latest-mac.yml',
+  // Bản zip tên cũ cho máy Mac còn In Sticker 1.5.x (scripts/zip-ten-cu.mjs)
+  `InSticker-${version}-mac-arm64.zip`, `InSticker-${version}-mac-x64.zip`,
 ].map((name) => path.join(macDir, name));
+// Bộ cập nhật của In Sticker 1.5.x lấy tệp zip đầu tiên đúng chip: bản zip tên cũ phải đứng trước
+const macFeed = fs.readFileSync(path.join(macDir, 'latest-mac.yml'), 'utf8');
+for (const arch of ['arm64', 'x64']) {
+  const first = [...macFeed.matchAll(/url:\s*(\S+)/g)].map((match) => match[1]).find((url) => url.endsWith(`-${arch}.zip`));
+  if (first !== `InSticker-${version}-mac-${arch}.zip`) throw new Error(`latest-mac.yml: tệp ${arch} đầu tiên là ${first}, chưa chạy scripts/zip-ten-cu.mjs`);
+}
 const winFiles = [
   `${prefix}-${version}-win-x64.exe`, `${prefix}-${version}-win-x64.exe.blockmap`,
   `${prefix}-${version}-win-x64.zip`, 'latest.yml',

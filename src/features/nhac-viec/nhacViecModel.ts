@@ -380,6 +380,35 @@ export const runOfDay = (runs: ChecklistRun[], templateId: string, date: string)
 export const untouchedRun = (run: ChecklistRun): boolean => !run.finishedAt && !run.note.trim()
     && run.items.every(item => item.status === 'todo' && !item.note.trim() && item.photos.length === 0);
 
+/**
+ * Cột lượt bên phải tab Checklist: "Đang làm" chỉ gồm lượt chưa hoàn tất của hôm nay; lượt chưa hoàn tất từ ngày trước (quên
+ * bấm Hoàn tất, hay mẫu đã xoá hoặc đổi tên) xếp riêng để xem lại hoặc xoá, không dồn vào Đang làm.
+ */
+export const splitRuns = (runs: ChecklistRun[], today: string): { active: ChecklistRun[]; stale: ChecklistRun[]; finished: ChecklistRun[] } => ({
+    active: runs.filter(run => !run.finishedAt && run.date >= today),
+    stale: runs.filter(run => !run.finishedAt && run.date < today),
+    finished: runs.filter(run => run.finishedAt),
+});
+
+/**
+ * Sửa mẫu trong lúc đang làm: lượt chưa hoàn tất nhận tên, danh sách việc và giờ hạn mới; việc còn trong mẫu giữ nguyên kết
+ * quả, ghi chú, ảnh; việc mới thêm là chưa làm; việc đã bỏ khỏi mẫu thì bỏ khỏi lượt. Lượt đã hoàn tất giữ nguyên như đã báo cáo.
+ */
+export const applyTemplateToRun = (run: ChecklistRun, template: ChecklistTemplate): ChecklistRun => {
+    if (run.finishedAt || run.templateId !== template.id) return run;
+    return {
+        ...run,
+        name: template.name,
+        deadline: template.schedule.enabled && template.schedule.due ? atTime(dayOfKey(run.date), template.schedule.due) : run.deadline,
+        items: template.items.map(item => {
+            const before = run.items.find(old => old.id === item.id);
+            return before
+                ? { ...before, title: item.title, guide: item.guide, required: item.required, needPhoto: item.needPhoto, needNote: item.needNote }
+                : { ...item, status: 'todo' as const, note: '', photos: [] };
+        }),
+    };
+};
+
 /** Bỏ các lượt trống mở thừa sau khi mẫu đã hoàn tất trong ngày (bản cũ bấm Bắt đầu lần nữa là tạo lượt mới) */
 export const dropLeftoverRuns = (runs: ChecklistRun[]): ChecklistRun[] => {
     const finished = new Set(runs.filter(run => run.finishedAt).map(run => `${run.templateId}@${run.date}`));

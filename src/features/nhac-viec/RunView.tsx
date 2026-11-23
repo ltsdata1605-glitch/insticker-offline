@@ -10,6 +10,7 @@ import type { ChecklistRun, ChecklistRunItem, ItemStatus } from './nhacViecModel
 import { STATUS_TEXT, relativeText, runOnTime, runProgress, runReportText, timeOfDay } from './nhacViecModel';
 import { CameraCapture, compressImage } from './photos';
 import { clockNow, useNhacViec } from './NhacViecProvider';
+import { TemplateForm } from './TemplateForm';
 
 const STATUS_STYLE: Record<ItemStatus, { icon: string; button: string; text: string }> = {
     done: { icon: '✓', button: 'border-emerald-600 bg-emerald-600 text-white', text: 'text-emerald-700' },
@@ -202,8 +203,10 @@ const exportRunExcel = async (run: ChecklistRun) => {
 
 /** Làm một lượt checklist và báo cáo. */
 export const RunView: React.FC<{ run: ChecklistRun; onBack: () => void; onOpenRun: (run: ChecklistRun) => void }> = ({ run, onBack, onOpenRun }) => {
-    const { saveRun, deleteRun, setPerformer, now, templates, startNewRun } = useNhacViec();
-    const hasTemplate = templates.some(template => template.id === run.templateId);
+    const { saveRun, deleteRun, setPerformer, now, templates, startNewRun, sheet } = useNhacViec();
+    const template = templates.find(item => item.id === run.templateId) ?? null;
+    const hasTemplate = template !== null;
+    const [editingTemplate, setEditingTemplate] = useState(false);
     const [finishAsk, setFinishAsk] = useState(false);
     const [deleteAsk, setDeleteAsk] = useState(false);
     const reportRef = useRef<HTMLDivElement>(null);
@@ -229,10 +232,17 @@ export const RunView: React.FC<{ run: ChecklistRun; onBack: () => void; onOpenRu
                             {run.deadline ? ` · hạn ${timeOfDay(run.deadline)} (${finished ? (runOnTime(run) ? 'đúng hạn' : 'trễ hạn') : relativeText(run.deadline, now)})` : ''}
                         </p>
                     </div>
+                    {template && (template.source?.kind === 'sheet' ? (
+                        <Button variant="secondary" size="sm" icon="externalLink" title="Checklist này lấy từ Google Sheet: sửa trong file"
+                            onClick={() => { const url = sheet?.mode === 'bridge' ? sheet.sheetUrl : sheet?.url; if (url) void window.stickerDesktop.reminders.openSheet(url); }}>Sửa trong Google Sheet</Button>
+                    ) : (
+                        <Button variant="secondary" size="sm" icon="edit" title={finished ? 'Sửa mẫu cho các lượt sau, lượt đã hoàn tất giữ nguyên' : 'Sửa mẫu: tên, việc, lịch. Lượt đang làm nhận ngay thay đổi, giữ kết quả đã đánh'}
+                            onClick={() => setEditingTemplate(true)}>Sửa mẫu</Button>
+                    ))}
                     <label className="flex items-center gap-2 whitespace-nowrap text-[12px] font-bold text-slate-600">
                         Người làm
                         <Input value={run.performer} disabled={finished} aria-label="Người làm"
-                            onChange={e => { update({ performer: e.target.value }); setPerformer(e.target.value); }} className="w-40" placeholder="Tên hoặc mã NV" />
+                            onChange={e => { update({ performer: e.target.value }); setPerformer(e.target.value); }} className="w-52" placeholder="Tên hoặc mã NV" />
                     </label>
                 </div>
                 <div className="flex items-center gap-3">
@@ -292,6 +302,8 @@ export const RunView: React.FC<{ run: ChecklistRun; onBack: () => void; onOpenRu
                 )}
                 <Button variant="ghost" size="sm" icon="delete" className="text-rose-600" onClick={() => setDeleteAsk(true)}>Xoá lượt này</Button>
             </aside>
+
+            {editingTemplate && template && <TemplateForm template={template} onClose={() => setEditingTemplate(false)} />}
 
             <div aria-hidden="true" className="pointer-events-none fixed -left-[10000px] top-0">
                 <ReportCard ref={reportRef} run={run} />

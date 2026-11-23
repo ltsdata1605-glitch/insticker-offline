@@ -97,8 +97,17 @@ export const retryWhileBusy = async <T>(
 };
 
 /** Windows dùng bộ cài .exe. Mac dùng tệp zip đúng loại chip, vì tệp mô tả liệt kê cả hai. */
+/**
+ * Bản zip Mac mang tên cũ, đứng đầu latest-mac.yml cho máy còn In Sticker 1.5.x: bộ cập nhật cũ lấy tệp zip đầu tiên đúng
+ * chip và chỉ nhận thư mục "In Sticker.app" (xem scripts/zip-ten-cu.mjs). Bản này chọn bản zip tên Tools nếu có.
+ */
+export const LEGACY_MAC_ZIP_PREFIX = 'InSticker-';
+
 export const pickAsset = (feed: UpdateFeed, platform: string, arch: string): FeedAsset | null => {
   if (platform === 'win32') return feed.files.find((file) => file.url.endsWith('.exe')) ?? null;
-  if (platform === 'darwin') return feed.files.find((file) => file.url.endsWith(`-${arch}.zip`)) ?? null;
+  if (platform === 'darwin') {
+    const zips = feed.files.filter((file) => file.url.endsWith(`-${arch}.zip`));
+    return zips.find((file) => !file.url.startsWith(LEGACY_MAC_ZIP_PREFIX)) ?? zips[0] ?? null;
+  }
   return null;
 };

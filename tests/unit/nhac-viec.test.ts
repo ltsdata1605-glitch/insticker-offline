@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MINUTE, checklistAlerts, copyDeadline, dropLeftoverRuns, markDone, markFired, occurrencesBetween, pendingAlerts, reminderView, repeatText, runOfDay,
-  runProgress, runReportText, snooze, startRun, statsBetween,
+  MINUTE, applyTemplateToRun, checklistAlerts, copyDeadline, dropLeftoverRuns, markDone, markFired, occurrencesBetween, pendingAlerts, reminderView, repeatText, runOfDay,
+  runProgress, runReportText, snooze, splitRuns, startRun, statsBetween,
 } from '../../src/features/nhac-viec/nhacViecModel';
 import type { ChecklistTemplate, Reminder } from '../../src/features/nhac-viec/nhacViecModel';
 
@@ -135,6 +135,45 @@ describe('Checklist', () => {
     expect(runOfDay([second, done], template.id, '2026-11-21')?.id).toBe('lan-2');
     // Chưa có lượt nào hoàn tất trong ngày thì lượt trống vẫn giữ
     expect(dropLeftoverRuns([leftover]).map(run => run.id)).toEqual(['thua']);
+  });
+
+  it('Đang làm chỉ gồm lượt chưa xong của hôm nay; lượt chưa xong ngày trước xếp riêng', () => {
+    const today = { ...startRun(template, at(23, 8, 5), 'Sơn'), id: 'hom-nay' };
+    const yesterday = { ...startRun(template, at(22, 8, 5), 'Sơn'), id: 'hom-qua' };
+    const deleted = { ...startRun({ ...template, id: 'mau-da-xoa', name: 'Công việc kho' }, at(20, 9), 'Sơn'), id: 'mau-cu' };
+    const finished = { ...startRun(template, at(22, 8, 30), 'Sơn'), id: 'xong', finishedAt: at(22, 9) };
+    const { active, stale, finished: done } = splitRuns([today, yesterday, deleted, finished], '2026-11-23');
+    expect(active.map(run => run.id)).toEqual(['hom-nay']);
+    expect(stale.map(run => run.id)).toEqual(['hom-qua', 'mau-cu']);
+    expect(done.map(run => run.id)).toEqual(['xong']);
+  });
+
+  it('sửa mẫu khi đang làm: lượt chưa xong nhận tên, việc và giờ hạn mới, giữ kết quả việc cũ; lượt đã xong giữ nguyên', () => {
+    const run = startRun(template, at(23, 8, 5), 'Sơn');
+    run.items[0] = { ...run.items[0], status: 'done', doneAt: at(23, 8, 10), note: 'Đã bật' };
+    run.items[1] = { ...run.items[1], status: 'issue', photos: ['m1'] };
+    const edited: ChecklistTemplate = {
+      ...template,
+      name: 'Kho - ca sáng',
+      schedule: { ...template.schedule, due: '09:30' },
+      items: [
+        { ...template.items[0], title: 'Bật đèn và máy lạnh' },
+        template.items[1],
+        { id: 'moi', title: 'Đếm hàng giá trị cao', guide: '', required: true, needPhoto: false, needNote: false },
+      ],
+    };
+    const next = applyTemplateToRun(run, edited);
+    expect(next.name).toBe('Kho - ca sáng');
+    expect(next.deadline).toBe(at(23, 9, 30));
+    expect(next.items.map(item => [item.title, item.status])).toEqual([
+      ['Bật đèn và máy lạnh', 'done'], ['Kiểm tem giá khu điện thoại', 'issue'], ['Đếm hàng giá trị cao', 'todo'],
+    ]);
+    expect(next.items[0].note).toBe('Đã bật');
+    expect(next.items[1].photos).toEqual(['m1']);
+    // Lượt đã hoàn tất, hay lượt của mẫu khác: không đổi
+    const finished = { ...run, finishedAt: at(23, 8, 50) };
+    expect(applyTemplateToRun(finished, edited)).toBe(finished);
+    expect(applyTemplateToRun(run, { ...edited, id: 'khac' })).toBe(run);
   });
 
   it('nhắc lúc bắt đầu, 15 phút trước hạn và lúc hạn nếu chưa hoàn tất', () => {

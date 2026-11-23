@@ -7,6 +7,7 @@ import type { PrintJobRequest, PrintSendRequest, PrinterSummary, SavePdfRequest 
 import { PrintJobs } from './printJobs';
 import { Updater } from './updater';
 import { ReminderHost } from './reminders';
+import { stopOlderInstance } from './takeover';
 
 const SCHEME = 'app';
 const HOST = 'sticker';
@@ -319,9 +320,17 @@ app.on('window-all-closed', () => {
 });
 
 // Mỗi thư mục dữ liệu chỉ chạy một bản app. Kho dữ liệu chỉ cho một tiến trình mở, bản thứ hai sẽ trống dữ liệu và không lưu được gì.
-if (app.requestSingleInstanceLock()) {
-  app.on('second-instance', showMainWindow);
-  void app.whenReady().then(startApp);
+const takeLock = () => {
+  if (app.requestSingleInstanceLock()) {
+    app.on('second-instance', showMainWindow);
+    void app.whenReady().then(startApp);
+  } else {
+    app.quit();
+  }
+};
+// Mac: bản cũ hơn (In Sticker chạy nền) đang giữ dữ liệu thì tắt nó trước, kẻo mở bản mới chỉ hiện cửa sổ bản cũ
+if (process.platform === 'darwin' && app.isPackaged) {
+  void stopOlderInstance(app.getPath('userData'), app.getVersion(), (message) => console.log(`[Mở app] ${message}`)).finally(takeLock);
 } else {
-  app.quit();
+  takeLock();
 }

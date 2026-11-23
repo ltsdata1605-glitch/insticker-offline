@@ -2,6 +2,7 @@
 // tự thay sang bản mới từ máy chủ cục bộ và tự mở lại. Cần build trước. Chạy: npm run test:cap-nhat
 // Lỗi chỉ thỉnh thoảng mới xuất hiện thì lặp nhiều vòng và giảm thời gian chờ: LAP=12 CHO_GIAY=150 npm run test:cap-nhat
 // Cập nhật từ một bản đã phát hành (tải bộ cài thật về làm bản cũ), ví dụ từ In Sticker 1.5.0 lên Tools: BAN_CU=1.5.0 npm run test:cap-nhat
+// Mac: bản cũ nằm trong thư mục "In Sticker.app" (máy đã cập nhật từ 1.5.x lên) thì lần cập nhật này đổi thành Tools.app: TEN_CU=1 npm run test:cap-nhat
 import { execFile, execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createReadStream } from 'node:fs';
 import fs from 'node:fs';
@@ -9,6 +10,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { addLegacyMacZips } from './zip-ten-cu.mjs';
 
 const ROUNDS = Number(process.env.LAP ?? 1);
 const TIMEOUT_MS = Number(process.env.CHO_GIAY ?? 480) * 1000;
@@ -28,10 +30,16 @@ const RELEASES = 'https://github.com/ltsdata1605-glitch/insticker-offline-releas
 const fromRelease = process.env.BAN_CU ?? '';
 // App tên In Sticker tới 1.5.x, đổi thành Tools từ 1.6.0; tên tệp cài đổi theo
 const nameOf = (version) => (newer('1.6.0', version) ? { app: 'In Sticker', prefix: 'InSticker' } : { app: pkg.productName, prefix: 'Tools' });
+/** Mac: cài bản cũ từ bản zip tên cũ (thư mục In Sticker.app chứa app Tools), như máy đã cập nhật từ In Sticker 1.5.x */
+const legacyFolder = isMac && !fromRelease && process.env.TEN_CU === '1';
 const oldVersion = fromRelease || pkg.version;
 const newVersion = fromRelease && newer(pkg.version, fromRelease) ? pkg.version : bump(pkg.version);
-const oldName = fromRelease ? nameOf(fromRelease) : { app: pkg.productName, prefix: 'Tools' };
+const oldName = fromRelease ? nameOf(fromRelease) : legacyFolder ? { app: 'In Sticker', prefix: 'InSticker' } : { app: pkg.productName, prefix: 'Tools' };
 const newName = { app: pkg.productName, prefix: 'Tools' };
+// Bộ cập nhật trên Mac trước 1.6.0 chỉ thay app tại chỗ, không đổi được tên thư mục: bản mới vẫn nằm trong In Sticker.app,
+// lần cập nhật kế tiếp (bộ cập nhật mới) mới đổi thành Tools.app
+const keepsOldFolder = isMac && Boolean(fromRelease) && newer('1.6.0', fromRelease);
+const finalApp = keepsOldFolder ? oldName.app : newName.app;
 const newInstallerName = `${newName.prefix}-${newVersion}-win-x64.exe`;
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'thu-cap-nhat-'));
@@ -59,8 +67,11 @@ if (fromRelease) {
 } else {
   log(`Đóng gói bản cũ ${oldVersion} và bản mới ${newVersion}`);
   pack(dirs.old);
+  if (legacyFolder) addLegacyMacZips(dirs.old);
 }
 pack(dirs.new, [`-c.extraMetadata.version=${newVersion}`]);
+// Như lúc phát hành: thêm bản zip tên cũ lên đầu latest-mac.yml cho máy còn In Sticker 1.5.x
+if (isMac) log(`Thêm ${addLegacyMacZips(dirs.new).join(', ')}`);
 
 // Máy chủ giả chỉ phục vụ tệp của bản mới
 let requests = [];
@@ -91,7 +102,10 @@ const macPaths = (name = newName.app) => {
   const present = [newName.app, oldName.app].find((candidate) => fs.existsSync(path.join(dirs.app, `${candidate}.app`)));
   const appName = present ?? name;
   const bundle = path.join(dirs.app, `${appName}.app`);
-  return { bundle, exe: path.join(bundle, 'Contents', 'MacOS', appName), plist: path.join(bundle, 'Contents', 'Info.plist') };
+  const plist = path.join(bundle, 'Contents', 'Info.plist');
+  // Tên tệp chạy theo app bên trong, không theo tên thư mục (In Sticker.app có thể chứa app Tools)
+  const exe = () => path.join(bundle, 'Contents', 'MacOS', execFileSync('/usr/libexec/PlistBuddy', ['-c', 'Print :CFBundleExecutable', plist], { encoding: 'utf8' }).trim());
+  return { bundle, exe, plist };
 };
 const winPaths = (name = newName.app) => ({
   exe: path.join(dirs.app, `${name}.exe`),
@@ -103,7 +117,9 @@ const winPaths = (name = newName.app) => ({
 const installOld = () => {
   if (isMac) {
     execFileSync('/usr/bin/ditto', ['-x', '-k', path.join(dirs.old, oldFile), dirs.app]);
-    return macPaths(oldName.app).exe;
+    // Bản zip tên cũ chứa cả Tools.app: máy đã cập nhật từ In Sticker 1.5.x chỉ có In Sticker.app
+    if (legacyFolder) fs.rmSync(path.join(dirs.app, `${newName.app}.app`), { recursive: true, force: true });
+    return macPaths(oldName.app).exe();
   }
   const installer = path.join(dirs.old, oldFile);
   // Tham số /D của NSIS phải đứng cuối và không được có dấu ngoặc kép
@@ -233,7 +249,10 @@ const runRound = async (round) => {
 
     const { updated, seconds } = await waitForUpdate(timeline);
     check('Đã thay sang bản mới', updated, `sau ${seconds} giây`);
-    if (updated && oldName.app !== newName.app) {
+    if (updated && keepsOldFolder) {
+      const kept = fs.existsSync(path.join(dirs.app, `${oldName.app}.app`)) && !fs.existsSync(path.join(dirs.app, `${newName.app}.app`));
+      check(`Bản mới nằm trong ${oldName.app}.app (bộ cập nhật của ${fromRelease} không đổi được tên, lần cập nhật sau đổi thành ${newName.app}.app)`, kept);
+    } else if (updated && oldName.app !== newName.app) {
       // Đổi tên app: bản mới mang tên mới, không còn tệp chạy tên cũ
       const present = isMac ? fs.existsSync(path.join(dirs.app, `${newName.app}.app`)) : fs.existsSync(winPaths().exe);
       const stale = isMac ? fs.existsSync(path.join(dirs.app, `${oldName.app}.app`)) : fs.existsSync(winPaths(oldName.app).exe);
@@ -244,10 +263,16 @@ const runRound = async (round) => {
     check('Dữ liệu người dùng còn nguyên', fs.existsSync(marker));
     const names = requests.map((r) => r.name);
     check('Có tải tệp mô tả và tệp cài', names.some((name) => name.endsWith('.yml')) && names.some((name) => /\.(zip|exe)$/.test(name)), names.join(', '));
+    if (isMac) {
+      // Bộ cập nhật trước 1.7.1 lấy tệp zip đầu tiên (bản zip tên cũ, chứa cả In Sticker.app và Tools.app), từ 1.7.1 lấy bản zip tên Tools
+      const takesFirstZip = Boolean(fromRelease) && newer('1.7.1', fromRelease);
+      const zip = names.find((name) => name.endsWith('.zip')) ?? '';
+      check(`Tải bản zip ${takesFirstZip ? 'tên cũ' : 'tên Tools'}`, zip.startsWith(takesFirstZip ? 'InSticker-' : 'Tools-'), zip);
+    }
 
     if (isMac && reopened) {
       // Xoá bản cũ gồm hàng nghìn tệp nên cần chút thời gian sau khi app mở lại
-      const leftovers = () => fs.readdirSync(dirs.app).filter((name) => name !== `${newName.app}.app`);
+      const leftovers = () => fs.readdirSync(dirs.app).filter((name) => name !== `${finalApp}.app`);
       for (let waited = 0; waited < 30 && leftovers().length > 0; waited += 1) await sleep(1000);
       check('Đã dọn bản cũ và thư mục tạm', leftovers().length === 0, leftovers().join(', '));
       const signature = spawnSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', macPaths().bundle]);

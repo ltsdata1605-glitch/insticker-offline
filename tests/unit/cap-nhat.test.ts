@@ -106,6 +106,29 @@ describe('Chọn tệp đúng máy', () => {
     expect(pickAsset(mac, 'darwin', 'arm64')?.url).toBe('InSticker-1.0.1-mac-arm64.zip');
     expect(pickAsset(mac, 'darwin', 'x64')?.url).toBe('InSticker-1.0.1-mac-x64.zip');
   });
+  it('Mac: bản zip tên cũ đứng đầu để In Sticker 1.5.x tự cập nhật được, bản này vẫn chọn bản zip tên Tools', () => {
+    const feed = parseUpdateFeed(`version: 1.7.1
+files:
+  - url: InSticker-1.7.1-mac-arm64.zip
+    sha512: cu-arm==
+    size: 124452210
+  - url: InSticker-1.7.1-mac-x64.zip
+    sha512: cu-x64==
+    size: 131000000
+  - url: Tools-1.7.1-mac-x64.zip
+    sha512: x64==
+    size: 127800658
+  - url: Tools-1.7.1-mac-arm64.zip
+    sha512: arm==
+    size: 120809826
+path: Tools-1.7.1-mac-x64.zip
+`);
+    // Bộ cập nhật của 1.5.x: tệp zip đầu tiên đúng chip
+    expect(feed.files.find((file) => file.url.endsWith('-arm64.zip'))?.url).toBe('InSticker-1.7.1-mac-arm64.zip');
+    expect(feed.files.find((file) => file.url.endsWith('-x64.zip'))?.url).toBe('InSticker-1.7.1-mac-x64.zip');
+    expect(pickAsset(feed, 'darwin', 'arm64')?.url).toBe('Tools-1.7.1-mac-arm64.zip');
+    expect(pickAsset(feed, 'darwin', 'x64')?.url).toBe('Tools-1.7.1-mac-x64.zip');
+  });
   it('Windows chọn bộ cài exe', () => {
     expect(pickAsset(parseUpdateFeed(WIN_FEED), 'win32', 'x64')?.url).toBe('InSticker-1.0.1-win-x64.exe');
   });
