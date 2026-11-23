@@ -233,15 +233,18 @@ test('Tab Sticker: xem trước đúng phông và cỡ chữ bản in; người 
       inside: inner.bottom <= tag.bottom + 0.5 && inner.right <= tag.right + 0.5,
     };
   }, selector);
+  // Phông nét đậm của tem chỉ nạp khi kiểu tem cần tới lần đầu; đo lúc chưa nạp xong thì chữ còn ở phông dự phòng, rộng hơn
+  // nên xuống hai dòng (máy CI chậm hay gặp). Chờ đến khi chữ một dòng, quá hạn mới là lỗi thật.
+  const oneLine = (selector: string) => expect.poll(async () => (await fit(selector)).lines, { message: `${selector} một dòng` }).toBe(1);
+  await oneLine('.product-name');
   const plain = await fit('.product-name');
   expect(plain.family).toContain('Tem Oswald');
-  expect(plain.lines).toBe(1);
   expect(plain.inside).toBe(true);
   await tagPreview(win).getByRole('button', { name: 'Kiểu hiện đại' }).click();
   await expect(render().locator('.price-tag.modern')).toHaveCount(1);
+  await oneLine('.price-tag.modern h1');
   const modern = await fit('.price-tag.modern h1');
   expect(modern.family).toContain('Tem Roboto Condensed');
-  expect(modern.lines).toBe(1);
   expect(modern.inside).toBe(true);
   await tagPreview(win).getByRole('button', { name: 'Kiểu có sẵn' }).click();
 
