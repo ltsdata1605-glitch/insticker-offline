@@ -162,11 +162,13 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
         return q ? filteredHistory.filter(entry => searchKey(entry.label).includes(q)) : filteredHistory;
     }, [filteredHistory, historyQuery]);
 
+    // Gọn để vừa khung ở cửa sổ nhỏ nhất (1100 x 680) mà không có thanh cuộn
     const guideItems: { lead: string; text: React.ReactNode }[] = choosesLayoutOnPrint ? [
-        { lead: 'Khi bấm in', text: <>Chọn <strong>kiểu sticker</strong> và <strong>bố cục trang</strong>: 1 đến 24 sticker mỗi trang A4 hoặc máy in bill 80mm. Xem trước bản in, chọn máy in rồi bấm <strong>In ngay</strong>. Danh sách <strong>tự lưu vào Lịch sử</strong>, in lại đúng danh sách cũ thì không lưu thêm.</> },
-        { lead: 'Kiểu sticker', text: 'Chọn ngay trên khung xem trước. Kiểu giá to và Kiểu phiếu giảm giá chỉ dùng chữ và đường viền nên in trắng đen ít tốn mực. Trang in có đường cắt nét đứt giữa các tem.' },
-        { lead: 'Sửa nhanh', text: 'Sửa tên, mã QR, giá cũ, giá mới, khuyến mãi ở các ô dưới tem. Tem luôn in mã QR khi có mã.' },
-        { lead: 'Thêm', text: 'Nút Thêm nằm ngay trên các ô. Thêm xong các ô để trống để soạn sticker tiếp theo.' },
+        { lead: 'Khi bấm in', text: <>Chọn <strong>kiểu</strong> và <strong>bố cục</strong> (1 đến 24 tem mỗi trang A4 hoặc máy in bill 80mm), xem trước rồi bấm <strong>In ngay</strong>. Danh sách <strong>tự lưu vào Lịch sử</strong>.</> },
+        { lead: 'Nhập file giá', text: <><strong>Nhập file mẫu</strong> nhận cả bảng giá ERP mẫu 81 của tab Event (nhiều file một lần): <strong>mọi sản phẩm</strong> thành sticker, mã đã có thì cập nhật giá.</> },
+        { lead: 'Tìm sticker', text: 'Gõ tên hoặc mã ở ô cạnh Kiểu sticker để lọc ảnh bên trái; Enter mở sticker đầu tiên.' },
+        { lead: 'Kiểu sticker', text: 'Chọn ngay trên khung xem trước. Kiểu giá to và Kiểu phiếu giảm giá in trắng đen ít tốn mực.' },
+        { lead: 'Sửa và thêm', text: 'Sửa ở các ô dưới tem, có mã thì tem in QR. Bấm Thêm để đưa vào danh sách, các ô để trống cho sticker sau.' },
     ] : stickerType === 'draw' ? [
         { lead: 'Khi bấm in', text: <>App tự đặt khổ <strong>A4</strong>, <strong>không lề</strong>, <strong>có in nền</strong>. Xem trước rồi bấm <strong>In ngay</strong>.</> },
         { lead: 'Sửa nhanh', text: 'Sửa chữ ở phiếu số 1, các phiếu còn lại đổi theo.' },
@@ -318,13 +320,13 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
                                 <div className="space-y-1.5">
                                     <p className="text-[12px] font-medium text-slate-500 flex items-center gap-1.5 px-0.5">
                                         <AppIcon name="spreadsheet" size="sm" />
-                                        Nhập từ file mẫu
+                                        {choosesLayoutOnPrint ? 'Nhập từ file mẫu hoặc file giá ERP' : 'Nhập từ file mẫu'}
                                     </p>
                                     <div className="grid grid-cols-3 gap-2">
                                         <label className="inline-flex items-center justify-center gap-1.5 h-9 max-sm:min-h-11 pointer-coarse:min-h-11 px-2 bg-sky-600 hover:bg-sky-700 text-white rounded-control font-semibold text-xs cursor-pointer transition-colors">
                                             <AppIcon name="upload" size="md" />
                                             Nhập file mẫu
-                                            <input type="file" accept=".xlsx, .xls, .csv" onChange={handleTemplateUpload} className="hidden" />
+                                            <input type="file" accept=".xlsx, .xls, .csv" multiple onChange={handleTemplateUpload} className="hidden" />
                                         </label>
                                         <Button variant="secondary" size="md" icon="download" onClick={downloadTemplate} className="text-xs px-2">
                                             Tải file mẫu

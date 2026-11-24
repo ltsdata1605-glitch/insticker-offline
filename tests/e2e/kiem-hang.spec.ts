@@ -69,9 +69,19 @@ test('Kiểm hàng: nhập nhiều file, quét mã, IMEI, mã lạ, thừa, hoà
   // Thẻ kết quả ghi mã trước tên; dòng của mã vừa quét lên đầu danh sách
   await expect(result(win)).toContainText('0160010000745');
   await expect(rows(win).first()).toContainText('0160010000745');
+  // Dòng vừa quét tô màu theo kết quả (đang thiếu: cam), có nhãn Vừa quét; các dòng khác không tô
+  await expect(rows(win).first()).toHaveAttribute('data-highlighted', 'true');
+  await expect(rows(win).first()).toHaveClass(/bg-amber-100/);
+  await expect(rows(win).first()).toContainText('Vừa quét');
+  await expect(win.locator('tbody tr[data-highlighted]')).toHaveCount(1);
+  // Số đã nhận / theo file to gần bằng khung kết quả
+  expect(await win.getByTestId('kiem-hang-dem').locator('p').first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(60);
+  // Nút lọc Chưa đủ luôn có nền màu
+  await expect(win.getByRole('group', { name: 'Lọc theo kết quả' }).getByRole('button', { name: /^Chưa đủ/ })).toHaveClass(/bg-orange-100/);
   await scan(win, '0160010000745');
   await scan(win, '0160010000745');
   await expect(result(win)).toContainText('3/3');
+  await expect(rows(win).first()).toHaveClass(/bg-emerald-100/);
   await expect(kpi(win, 'da-kiem')).toHaveText('3');
 
   // Quét thêm: thừa, có tiếng và màu vàng

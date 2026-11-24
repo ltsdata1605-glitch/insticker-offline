@@ -7,6 +7,7 @@ import { resolveEffectiveBgImage } from './stickerBackgroundHelpers';
 import { stickerPageToTagProduct } from './tagProducts';
 import { TagRender } from './TagRender';
 import { QuantityStepper } from './QuantityStepper';
+import { matchesSticker } from './listSearch';
 import type { PrintSettings } from '../services/printService';
 
 /** Mỗi ảnh là một tem đầy đủ. Danh sách dài hơn thì xem ở tab D.Sách để không làm nặng màn hình. */
@@ -24,9 +25,11 @@ interface StickerQueueStripProps extends QueuePageContext {
   onQuantity: (id: string, quantity: number) => void;
   /** Tab Sticker: ảnh là tem giá theo kiểu đang chọn thay cho sticker Giá Sốc. */
   tagView?: { settings: PrintSettings; employeeName: string };
+  /** Ô tìm sticker: chỉ hiện sticker khớp tên hoặc mã, số thứ tự vẫn theo danh sách. */
+  query?: string;
 }
 
-interface ThumbnailProps extends Omit<StickerQueueStripProps, 'pages' | 'activeId' | 'onSelect' | 'onRemove' | 'onQuantity'> {
+interface ThumbnailProps extends Omit<StickerQueueStripProps, 'pages' | 'activeId' | 'onSelect' | 'onRemove' | 'onQuantity' | 'query'> {
   page: StickerPage;
   index: number;
   active: boolean;
@@ -102,7 +105,11 @@ const Thumbnail: React.FC<ThumbnailProps> = React.memo(({
 });
 
 /** Dải ảnh thu nhỏ bên trái bản xem trước: thấy đủ mọi sticker trong danh sách, bấm vào ảnh để mở và sửa, bấm x để xoá. */
-export const StickerQueueStrip: React.FC<StickerQueueStripProps> = ({ pages, activeId, onSelect, onRemove, onQuantity, ...rest }) => {
+export const StickerQueueStrip: React.FC<StickerQueueStripProps> = ({ pages, activeId, onSelect, onRemove, onQuantity, query = '', ...rest }) => {
+  const shown = useMemo(() => {
+    const indexed = pages.map((page, index) => ({ page, index }));
+    return query.trim() ? indexed.filter(({ page }) => matchesSticker(page, query)) : indexed;
+  }, [pages, query]);
   if (pages.length === 0) return null;
   return (
     <div
@@ -110,7 +117,10 @@ export const StickerQueueStrip: React.FC<StickerQueueStripProps> = ({ pages, act
       aria-label="Các sticker trong danh sách"
       className="no-print hidden lg:flex flex-col gap-2.5 shrink-0 w-[112px] lg:h-[max(556px,82%)] overflow-y-auto p-1 scrollbar-thin"
     >
-      {pages.slice(0, MAX_THUMBNAILS).map((page, index) => (
+      {shown.length === 0 && (
+        <p className="pt-2 text-[11px] leading-snug text-slate-500 text-center">Không có sticker nào khớp ô tìm</p>
+      )}
+      {shown.slice(0, MAX_THUMBNAILS).map(({ page, index }) => (
         <Thumbnail
           key={page.id}
           page={page}
@@ -122,8 +132,8 @@ export const StickerQueueStrip: React.FC<StickerQueueStripProps> = ({ pages, act
           {...rest}
         />
       ))}
-      {pages.length > MAX_THUMBNAILS && (
-        <p className="text-[11px] text-slate-500 text-center">Còn {pages.length - MAX_THUMBNAILS} sticker, xem ở tab D.Sách</p>
+      {shown.length > MAX_THUMBNAILS && (
+        <p className="text-[11px] text-slate-500 text-center">Còn {shown.length - MAX_THUMBNAILS} sticker, gõ tên hoặc mã ở ô tìm, hoặc xem ở tab D.Sách</p>
       )}
     </div>
   );

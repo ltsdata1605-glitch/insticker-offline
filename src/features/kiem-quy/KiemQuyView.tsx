@@ -111,6 +111,11 @@ const HistoryDialog: React.FC<{ count: CashCount; onClose: () => void; onEdit: (
     );
 };
 
+/** Mỗi hàng mệnh giá cao theo --row của bảng (xem bảng mệnh giá) */
+const ROW_HEIGHT: React.CSSProperties = { height: 'var(--row)' };
+/** Nút − + co theo hàng, không quá 40px */
+const STEP_BUTTON = '!h-[min(40px,calc(var(--row)_-_8px))] !w-[min(40px,calc(var(--row)_-_8px))]';
+
 /** Kiểm quỹ: đếm số tờ theo mệnh giá, đối chiếu số theo sổ, đặt tên và lưu lịch sử. Lần đang đếm tự giữ khi tắt app. */
 export default function KiemQuyView({ active }: { active: boolean }): React.JSX.Element {
     const [loaded, setLoaded] = useState(false);
@@ -200,8 +205,10 @@ export default function KiemQuyView({ active }: { active: boolean }): React.JSX.
                             </span>
                         </div>
 
-                        <div className="min-h-0 flex-1 overflow-y-auto rounded-card border border-slate-200 bg-white scrollbar-thin">
-                            <table className="w-full border-collapse">
+                        {/* Bảng luôn vừa khung, không thanh cuộn: hàng cao theo chỗ trống (--row tính từ chiều cao khung), chữ, nút và ô nhập
+                            co giãn theo hàng. Cửa sổ nhỏ nhất của app (680px) vẫn đủ 10 mệnh giá, tiền khác và dòng tổng. */}
+                        <div data-testid="bang-menh-gia" className="min-h-0 flex-1 overflow-hidden rounded-card border border-slate-200 bg-white [container-type:size]">
+                            <table className="h-full w-full border-collapse [--row:clamp(26px,calc((100cqh_-_92px)/11),64px)]">
                                 <thead className="sticky top-0 z-10 bg-slate-50">
                                     <tr className="text-left text-[12px] font-bold text-slate-500">
                                         <th className="px-4 py-2">Mệnh giá</th>
@@ -213,13 +220,13 @@ export default function KiemQuyView({ active }: { active: boolean }): React.JSX.
                                     {DENOMINATIONS.map((d, index) => {
                                         const sheets = sheetsOf(current, d);
                                         return (
-                                            <tr key={d} data-testid="dong-menh-gia" className="border-t border-slate-100">
-                                                <td className="px-4 py-1">
-                                                    <span className={`inline-block min-w-[108px] rounded-[8px] px-3 py-1 text-center text-[17px] font-black tabular-nums ${NOTE_TONE[d]}`}>{formatMoney(d)}</span>
+                                            <tr key={d} data-testid="dong-menh-gia" className="border-t border-slate-100" style={ROW_HEIGHT}>
+                                                <td className="px-4 py-0">
+                                                    <span className={`inline-block min-w-[6.4em] rounded-[8px] px-3 py-[calc(var(--row)*0.06)] text-center text-[clamp(14px,calc(var(--row)*0.42),22px)] font-black tabular-nums ${NOTE_TONE[d]}`}>{formatMoney(d)}</span>
                                                 </td>
-                                                <td className="px-2 py-1">
+                                                <td className="px-2 py-0">
                                                     <div className="flex items-center justify-center gap-1.5">
-                                                        <Button size="icon" variant="secondary" icon="minus" aria-label={`Bớt một tờ ${formatMoney(d)}`} disabled={sheets === 0} onClick={() => setSheets(d, sheets - 1)} />
+                                                        <Button size="icon" variant="secondary" icon="minus" aria-label={`Bớt một tờ ${formatMoney(d)}`} disabled={sheets === 0} onClick={() => setSheets(d, sheets - 1)} className={STEP_BUTTON} />
                                                         <input ref={element => { sheetRefs.current[index] = element; }} type="text" inputMode="numeric" aria-label={`Số tờ ${formatMoney(d)}`} placeholder="0"
                                                             value={sheets ? String(sheets) : ''} onFocus={e => e.target.select()}
                                                             onChange={e => setSheets(d, parseMoney(e.target.value))}
@@ -228,20 +235,20 @@ export default function KiemQuyView({ active }: { active: boolean }): React.JSX.
                                                                 e.preventDefault();
                                                                 (sheetRefs.current[index + 1] ?? otherRef.current)?.focus();
                                                             }}
-                                                            className="h-9 w-24 rounded-control border border-slate-200 bg-white px-2 text-center text-[18px] font-bold tabular-nums text-slate-900 focus:outline-none focus:border-sky-400" />
-                                                        <Button size="icon" variant="secondary" icon="add" aria-label={`Thêm một tờ ${formatMoney(d)}`} onClick={() => setSheets(d, sheets + 1)} />
+                                                            className="h-[min(44px,calc(var(--row)_-_8px))] w-24 rounded-control border border-slate-200 bg-white px-2 text-center text-[clamp(15px,calc(var(--row)*0.45),22px)] font-bold tabular-nums text-slate-900 focus:outline-none focus:border-sky-400" />
+                                                        <Button size="icon" variant="secondary" icon="add" aria-label={`Thêm một tờ ${formatMoney(d)}`} onClick={() => setSheets(d, sheets + 1)} className={STEP_BUTTON} />
                                                     </div>
                                                 </td>
-                                                <td className={`px-4 py-1 text-right text-[17px] font-bold tabular-nums ${sheets ? 'text-slate-900' : 'text-slate-300'}`}>{formatMoney(d * sheets)}</td>
+                                                <td className={`px-4 py-0 text-right text-[clamp(15px,calc(var(--row)*0.42),22px)] font-bold tabular-nums ${sheets ? 'text-slate-900' : 'text-slate-300'}`}>{formatMoney(d * sheets)}</td>
                                             </tr>
                                         );
                                     })}
-                                    <tr className="border-t border-slate-100">
-                                        <td className="px-4 py-2 text-[14px] font-bold text-slate-700" colSpan={2}>
+                                    <tr className="border-t border-slate-100" style={ROW_HEIGHT}>
+                                        <td className="px-4 py-0 text-[14px] font-bold text-slate-700" colSpan={2}>
                                             Tiền khác <span className="font-medium text-slate-500">(xu, tiền lẻ ngoài bảng)</span>
                                         </td>
-                                        <td className="px-4 py-2 text-right">
-                                            <MoneyInput inputRef={otherRef} label="Tiền khác" value={current.other} onChange={value => update({ other: value ?? 0 })} className="w-40" />
+                                        <td className="px-4 py-0 text-right">
+                                            <MoneyInput inputRef={otherRef} label="Tiền khác" value={current.other} onChange={value => update({ other: value ?? 0 })} className="w-40 !h-[min(40px,calc(var(--row)_-_8px))]" />
                                         </td>
                                     </tr>
                                 </tbody>
@@ -284,7 +291,7 @@ export default function KiemQuyView({ active }: { active: boolean }): React.JSX.
                         <section className="flex min-h-0 flex-1 flex-col gap-2 rounded-card border border-slate-200 bg-white p-3">
                             <p className="flex items-center gap-1.5 text-[13px] font-bold text-slate-700"><AppIcon name="history" size="sm" /> Lịch sử kiểm quỹ ({history.length})</p>
                             <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto scrollbar-thin pr-1">
-                                {history.length === 0 && <li className="py-6 text-center text-[13px] text-slate-500">Chưa có lần kiểm nào được lưu.</li>}
+                                {history.length === 0 && <li className="py-2 text-center text-[13px] text-slate-500">Chưa có lần kiểm nào được lưu.</li>}
                                 {history.map(item => {
                                     const itemDiff = diffOf(item);
                                     return (

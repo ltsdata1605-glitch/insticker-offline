@@ -89,22 +89,14 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npx playwright test
+      # Từ 1.7.3 chỉ còn bản zip Tools, không còn bản zip tên cũ chứa In Sticker.app (máy Mac In Sticker 1.5.x cài tay bản Tools)
       - run: npx electron-builder --mac zip --arm64 --x64 --publish never
-      # Máy Mac còn In Sticker 1.5.x chỉ nhận bản zip có thư mục "In Sticker.app": thêm bản zip tên cũ lên đầu latest-mac.yml
-      - run: node scripts/zip-ten-cu.mjs release
       - name: Cất bộ cài vào bản phát hành nháp
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/cat-ban-nhap.mjs release/*.zip release/*.zip.blockmap release/latest-mac.yml
-      # Máy Mac đang chạy In Sticker 1.5.0 (bản cuối trước khi đổi tên thành Tools) phải tự cập nhật được lên bản này
-      - id: doi_ten
-        name: Thử cập nhật từ In Sticker 1.5.0 đã phát hành
-        continue-on-error: true
-        env:
-          BAN_CU: 1.5.0
-        run: node scripts/thu-cap-nhat.mjs
-      # Tools 1.6.0 cũng lấy bản zip tên cũ (tệp zip đầu tiên): app phải giữ tên Tools.app, không đổi ngược thành In Sticker.app
+      # Bộ cập nhật của Tools 1.6.0 tới 1.7.0 lấy tệp zip đầu tiên đúng chip: nay là bản zip Tools
       - id: tu_160
         name: Thử cập nhật từ Tools 1.6.0 đã phát hành
         continue-on-error: true
@@ -122,12 +114,12 @@ jobs:
             release/*.blockmap
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
-        if: failure() || steps.doi_ten.outcome == 'failure' || steps.tu_160.outcome == 'failure'
+        if: failure() || steps.tu_160.outcome == 'failure'
         continue-on-error: true
         with:
           name: ket-qua-test-mac
           retention-days: 7
           path: tests/output/
       - name: Báo đỏ nếu thử cập nhật lỗi
-        if: steps.doi_ten.outcome == 'failure' || steps.tu_160.outcome == 'failure'
+        if: steps.tu_160.outcome == 'failure'
         run: exit 1

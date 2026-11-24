@@ -10,6 +10,8 @@ import { getHiddenTabs, resolveVisibleSub } from '../tabAccess';
 import type { Product } from '../types';
 import { resolvePagePrices, resolveQueuePage, tagQueueContext, generatePageHtml, isHistoryDuplicate, generateDrawPagesHtml, autoListName } from '../stickerprinter/pageHtmlUtils';
 import { parsePercentValue, downloadStickerTemplate, parseTemplateExcelData } from '../stickerprinter/excelParsers';
+import { looksLikeErpPriceSheet, parseErpPriceRows } from '../services/erpPriceRows';
+import { mergeErpProductsIntoPages } from '../stickerprinter/erpStickerImport';
 import { getStickerPreviewStyles } from '../stickerprinter/stickerPreviewStyles';
 import { PRINT_SKIP_ATTR } from '../stickerprinter/BarcodeField';
 import { buildStickerSheets, normalizeStickersPerPage, STICKERS_PER_PAGE_KEY } from '../stickerprinter/stickerSheets';
@@ -900,43 +902,79 @@ export function useStickerPrinterData() {
         setBatchItems([]);
     };
 
-    const handleTemplateUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = async (evt) => {
+    /**
+     * Nhập file mẫu (chọn được nhiều file). Ở tab Sticker còn nhận file bảng giá ERP của tab Event: mỗi sản phẩm trong file
+     * thành một sticker, không phải tìm từng mã như tab Event.
+     */
+    const importTemplateFiles = async (files: File[]) => {
+        const XLSX = await import('xlsx');
+        const templatePages: StickerPage[] = [];
+        const erpProducts: Product[] = [];
+        let header = headerTextContent;
+        let subHeader = subHeaderTextContent;
+        let footer = footerTextContent;
+        for (const file of files) {
             try {
-                const bstr = evt.target?.result;
-                const XLSX = await import('xlsx');
-                const wb = XLSX.read(bstr, { type: 'binary' });
+                const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
                 const ws = wb.Sheets[wb.SheetNames[0]];
                 const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
 
+                if (looksLikeErpPriceSheet(data)) {
+                    if (stickerMode !== 'tag') {
+                        toast.error(`${file.name} là file bảng giá ERP. Nhập ở tab Sticker để tạo sticker cho mọi sản phẩm.`);
+                        continue;
+                    }
+                    const { products } = parseErpPriceRows(data);
+                    if (products.length === 0) toast.error(`Không thấy sản phẩm nào trong ${file.name}`);
+                    erpProducts.push(...products);
+                    continue;
+                }
+
                 const parsed = parseTemplateExcelData(data, {
-                    stickerType, bgImage, headerTextContent, subHeaderTextContent, footerTextContent, discountThreshold,
+                    stickerType, bgImage, headerTextContent: header, subHeaderTextContent: subHeader, footerTextContent: footer, discountThreshold,
                 });
                 if (parsed.error) {
-                    toast.error(parsed.error);
-                    return;
+                    toast.error(files.length > 1 ? `${file.name}: ${parsed.error}` : parsed.error);
+                    continue;
                 }
-                const { pages: newPages, headerTextContent: thoiGian, subHeaderTextContent: soLuong, footerTextContent: khuyenMai } = parsed;
-                if (thoiGian !== headerTextContent) setHeaderTextContent(thoiGian);
-                if (soLuong !== subHeaderTextContent) setSubHeaderTextContent(soLuong);
-                if (khuyenMai !== footerTextContent) setFooterTextContent(khuyenMai);
-
-                setManualPages(prev => [...prev, ...newPages]);
-                setActiveSubTab('queue');
-                if (newPages.length > 0) {
-                    selectQueuePage(newPages[0]);
-                }
-                toast.success(`Đã thêm ${newPages.length} sticker vào hàng đợi in`);
+                header = parsed.headerTextContent;
+                subHeader = parsed.subHeaderTextContent;
+                footer = parsed.footerTextContent;
+                templatePages.push(...parsed.pages);
             } catch (err) {
-                toast.error('Lỗi đọc file Excel');
+                toast.error(files.length > 1 ? `Lỗi đọc file ${file.name}` : 'Lỗi đọc file Excel');
             }
-        };
-        reader.readAsBinaryString(file);
+        }
+
+        if (header !== headerTextContent) setHeaderTextContent(header);
+        if (subHeader !== subHeaderTextContent) setSubHeaderTextContent(subHeader);
+        if (footer !== footerTextContent) setFooterTextContent(footer);
+
+        const merged = erpProducts.length > 0
+            ? mergeErpProductsIntoPages(manualPages, erpProducts, { header, subHeader, discountThreshold })
+            : null;
+        const firstNew = merged?.added[0] ?? templatePages[0];
+        if (!merged && templatePages.length === 0) return;
+        setManualPages([...(merged ? merged.pages : manualPages), ...templatePages]);
+        setActiveSubTab('queue');
+        // Không có sticker mới mà sticker đang mở vừa được cập nhật giá: mở lại để các ô sửa hiện giá mới
+        const reopened = firstNew ?? merged?.pages.find(page => page.id === activeQueuePageId);
+        if (reopened) selectQueuePage(reopened);
+
+        if (templatePages.length > 0) toast.success(`Đã thêm ${templatePages.length} sticker vào hàng đợi in`);
+        if (merged) {
+            const parts = [
+                merged.added.length > 0 ? `tạo ${merged.added.length} sticker` : '',
+                merged.updated > 0 ? `cập nhật giá ${merged.updated} sticker đã có` : '',
+            ].filter(Boolean);
+            toast.success(`Bảng giá: ${parts.join(', ')}`);
+        }
+    };
+
+    const handleTemplateUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files ?? []);
         e.target.value = '';
+        if (files.length > 0) void importTemplateFiles(files);
     };
 
     const toggleItemSelection = (id: string) => {

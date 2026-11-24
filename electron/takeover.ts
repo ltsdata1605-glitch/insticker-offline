@@ -38,16 +38,27 @@ const waitForExit = async (pid: number, ms: number): Promise<boolean> => {
   return !alive(pid);
 };
 
+/** Đường dẫn tệp chạy của một tiến trình */
+const executableOfPid = async (pid: number): Promise<string> => (await run('/bin/ps', ['-o', 'comm=', '-p', String(pid)])).stdout.trim();
+
 /**
  * Bản app khác đang giữ thư mục dữ liệu mà cũ hơn bản này thì tắt nó và chờ thoát hẳn. Trả về true khi đã tắt. Không chắc
  * chắn (không đọc được khoá hay phiên bản, không phải app này, bằng hoặc mới hơn) thì không làm gì.
+ *
+ * `executableOf` chỉ để bài kiểm thử thay: chạy một app giả nằm trong thư mục .app thì macOS chấm nó như app thật, chữ ký
+ * không khớp nên hiện hộp "… is damaged" giữa lúc chạy test.
  */
-export const stopOlderInstance = async (userData: string, currentVersion: string, log: (message: string) => void): Promise<boolean> => {
+export const stopOlderInstance = async (
+  userData: string,
+  currentVersion: string,
+  log: (message: string) => void,
+  executableOf: (pid: number) => Promise<string> = executableOfPid,
+): Promise<boolean> => {
   if (process.platform !== 'darwin') return false;
   try {
     const pid = lockOwnerPid(await fs.readlink(path.join(userData, 'SingletonLock')), os.hostname());
     if (!pid || pid === process.pid || !alive(pid)) return false;
-    const bundle = bundleOfExecutable((await run('/bin/ps', ['-o', 'comm=', '-p', String(pid)])).stdout.trim());
+    const bundle = bundleOfExecutable(await executableOf(pid));
     if (!bundle) return false;
     const plist = path.join(bundle, 'Contents', 'Info.plist');
     const read = async (key: string) => (await run('/usr/libexec/PlistBuddy', ['-c', `Print :${key}`, plist])).stdout.trim();

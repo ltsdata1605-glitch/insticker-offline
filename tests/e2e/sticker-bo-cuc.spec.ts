@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { chooseMode, chooseStickersPerPage, chooseSubTab, closePreview, evalInPrintDoc, newDirs, openApp, printSummary, writeWorkbook } from './helpers';
+import { chooseMode, chooseStickersPerPage, chooseSubTab, closePreview, evalInPrintDoc, newDirs, openApp, printSummary, rowWith, writeWorkbook } from './helpers';
 
 /**
  * Tab Sticker: danh sách và cách nhập như Giá Sốc, nhưng khung xem trước là tem giá (kiểu có sẵn hoặc hiện đại, không có nền
@@ -144,6 +144,89 @@ test('Tab Sticker: nhập file mẫu thành tem từng sản phẩm, in kiểu h
   await expect(layoutDialog(win).getByRole('button', { name: 'Kiểu hiện đại' })).toHaveAttribute('aria-pressed', 'true');
   await win.keyboard.press('Escape');
   await expect(layoutDialog(win)).toHaveCount(0);
+  await s.close();
+});
+
+test('Tab Sticker: nhập file bảng giá ERP của tab Event thì mọi sản phẩm thành sticker; nhập lại thì cập nhật giá; ô tìm lọc sticker đã thêm', async () => {
+  const dirs = newDirs();
+  const s = await openApp(dirs);
+  const { win } = s;
+  await chooseMode(win, 'Sticker');
+  // Chưa có sticker thì chưa có ô tìm
+  await expect(win.getByLabel('Tìm sticker trong danh sách')).toHaveCount(0);
+
+  const erpRow = (msp: string, name: string, goc: string, giam: string, km = '') =>
+    rowWith({ 0: name, 1: '', 4: goc, 5: giam, 7: km, 30: 'Ngày in: 04/11/2026', 31: '40A', 32: msp });
+  const input = win.locator('label:has-text("Nhập file mẫu") input[type="file"]');
+  await input.setInputFiles(writeWorkbook(dirs, 'gia-dsd.xlsx', [
+    ['BẢNG GIÁ SẢN PHẨM'],
+    erpRow('1751099000213', 'Máy giặt Aqua AW11-BP4657M B', '9490000', '3000000', 'DUY NHẤT CHỈ CÓ 1 SUẤT'),
+    erpRow('3001002', 'Nồi chiên không dầu Sunhouse', '2900000', '2390000'),
+    erpRow('3001003', 'Ấm siêu tốc Philips', '690000', '690000'),
+  ]));
+  await expect(win.getByTestId('sticker-thumbnail')).toHaveCount(3);
+  await expect(win.getByText('Bảng giá: tạo 3 sticker')).toBeVisible();
+  // Sticker đầu mở lên để sửa: tên, giá, khuyến mãi, mã lấy từ bảng giá
+  await expect(win.getByLabel('Tên sản phẩm')).toHaveValue('Máy giặt Aqua AW11-BP4657M B');
+  await expect(win.getByLabel('Giá cũ')).toHaveValue('9.490.000');
+  await expect(win.getByLabel('Giá mới (nghìn đồng)')).toHaveValue('3.000');
+  await expect(win.getByLabel('Khuyến mãi')).toHaveValue('DUY NHẤT CHỈ CÓ 1 SUẤT');
+  await expect(win.getByLabel('Mã QR')).toHaveValue('1751099000213');
+  await expect(previewTags(win).locator('.final-price')).toHaveText('3.000');
+
+  // In đủ ba tem; sản phẩm không giảm thì không gạch giá cũ
+  await pressPrint(win);
+  await layoutDialog(win).getByRole('button', { name: /^4 Sticker/ }).click();
+  expect(await evalInPrintDoc<number>(s, `document.querySelectorAll('.price-tag').length`)).toBe(3);
+  expect(await evalInPrintDoc<string>(s, `document.body.textContent`)).toContain('Ấm siêu tốc Philips');
+  await closePreview(win);
+
+  // Ô tìm: không dấu, theo tên hoặc mã; ảnh bên trái chỉ còn sticker khớp, số thứ tự vẫn theo danh sách
+  const search = win.getByLabel('Tìm sticker trong danh sách');
+  await search.fill('noi chien');
+  await expect(win.getByTestId('sticker-thumbnail')).toHaveCount(1);
+  await expect(win.getByTestId('sticker-thumbnail')).toHaveAttribute('aria-label', 'Mở sticker 2: Nồi chiên không dầu Sunhouse');
+  await expect(win.getByTestId('sticker-search-count')).toHaveText('1/3');
+  await search.press('Enter');
+  await expect(win.getByLabel('Tên sản phẩm')).toHaveValue('Nồi chiên không dầu Sunhouse');
+  await expect(win.getByTestId('sticker-editing-note')).toContainText('Đang sửa sticker 2/3');
+  await search.fill('000213');
+  await expect(win.getByTestId('sticker-thumbnail')).toHaveCount(1);
+  await search.fill('tu lanh');
+  await expect(win.getByTestId('sticker-thumbnail')).toHaveCount(0);
+  await expect(win.getByText('Không có sticker nào khớp ô tìm')).toBeVisible();
+  await search.press('Escape');
+  await expect(search).toHaveValue('');
+  await expect(win.getByTestId('sticker-thumbnail')).toHaveCount(3);
+
+  // Nhập file giá mới: mã đã có thì cập nhật giá, giữ số bản in; mã mới thì thêm
+  await win.getByRole('button', { name: 'Mở sticker 2: Nồi chiên không dầu Sunhouse' }).click();
+  await win.getByTestId('tag-editor').getByRole('button', { name: 'Thêm một bản' }).click();
+  await expect(win.getByRole('button', { name: /Bấm để in \(4\)/ })).toBeVisible();
+  // Nhập xong thì khung phải sang tab D.Sách; nút nhập ở tab Dữ liệu
+  await chooseSubTab(win, /Dữ liệu/);
+  await input.setInputFiles(writeWorkbook(dirs, 'gia-moi.xlsx', [
+    erpRow('3001002', 'Nồi chiên không dầu Sunhouse', '2900000', '1990000'),
+    erpRow('3001004', 'Máy xay sinh tố Sunhouse', '890000', '690000'),
+  ]));
+  await expect(win.getByText('Bảng giá: tạo 1 sticker, cập nhật giá 1 sticker đã có')).toBeVisible();
+  await expect(win.getByTestId('sticker-thumbnail')).toHaveCount(4);
+  await expect(win.getByRole('button', { name: /Bấm để in \(5\)/ })).toBeVisible();
+  await win.getByRole('button', { name: 'Mở sticker 2: Nồi chiên không dầu Sunhouse' }).click();
+  await expect(win.getByLabel('Giá mới (nghìn đồng)')).toHaveValue('1.990');
+  // Nhập lại chỉ đổi giá sticker đang mở: các ô sửa hiện ngay giá mới
+  await chooseSubTab(win, /Dữ liệu/);
+  await input.setInputFiles(writeWorkbook(dirs, 'gia-moi-2.xlsx', [erpRow('3001002', 'Nồi chiên không dầu Sunhouse', '2900000', '1790000')]));
+  await expect(win.getByText('Bảng giá: cập nhật giá 1 sticker đã có')).toBeVisible();
+  await expect(win.getByLabel('Giá mới (nghìn đồng)')).toHaveValue('1.790');
+  await expect(win.getByTestId('sticker-thumbnail')).toHaveCount(4);
+
+  // Tab Giá Sốc không nhận file bảng giá: báo nhập ở tab Sticker, không thêm sticker lạ
+  await chooseMode(win, 'Giá Sốc');
+  await chooseSubTab(win, /Dữ liệu/);
+  await input.setInputFiles(writeWorkbook(dirs, 'gia-gs.xlsx', [erpRow('9', 'Quạt', '100000', '90000')]));
+  await expect(win.getByText('gia-gs.xlsx là file bảng giá ERP. Nhập ở tab Sticker để tạo sticker cho mọi sản phẩm.')).toBeVisible();
+  await expect(win.getByTestId('sticker-thumbnail')).toHaveCount(4);
   await s.close();
 });
 

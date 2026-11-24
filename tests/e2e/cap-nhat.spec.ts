@@ -20,7 +20,7 @@ interface Feed {
 const startFeed = async (version: string): Promise<Feed> => {
   const payload = Buffer.alloc(3 * 1024 * 1024, 7);
   const sha512 = createHash('sha512').update(payload).digest('base64');
-  const fileName = process.platform === 'darwin' ? `InSticker-${version}-mac-${process.arch}.zip` : `InSticker-${version}-win-x64.exe`;
+  const fileName = process.platform === 'darwin' ? `Tools-${version}-mac-${process.arch}.zip` : `Tools-${version}-win-x64.exe`;
   let corrupted = false;
   let downloads = 0;
   const server = http.createServer((request, response) => {

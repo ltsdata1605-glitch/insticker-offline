@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from '../../components/shared/ui/toast';
 import { napPhongGoogle, PHONG_GOOGLE } from '../../components/shared/ui/googleFonts';
 
@@ -11,6 +11,7 @@ import { StickerModeToolbar } from './stickerprinter/StickerModeToolbar';
 import { TagPrintDialog } from './stickerprinter/TagPrintDialog';
 import { StickerPerPageDialog } from './stickerprinter/StickerPerPageDialog';
 import { TagPreviewPanel } from './stickerprinter/TagPreviewPanel';
+import { matchesSticker } from './stickerprinter/listSearch';
 import { useTagPrintSettings } from './stickerprinter/useTagPrintSettings';
 import { Button } from '../../components/shared/ui/Button';
 import { useStickerPrinterData } from './hooks/useStickerPrinterData';
@@ -113,6 +114,13 @@ export default function StickerPrinterView() {
     // Đang mở Kiểm hàng thì màn này vẫn giữ trạng thái nhưng không được đặt nút lên thanh trên
     const moduleActive = useActiveTab().activeTab === 'tools-print-sticker';
     const tag = useTagPrintSettings(isTagMode);
+    // Ô tìm sticker đã thêm (tab Sticker): lọc dải ảnh bên trái theo tên hoặc mã
+    const [stripQuery, setStripQuery] = useState('');
+    const stripMatches = useMemo(
+        () => (stripQuery.trim() ? manualPages.filter((page) => matchesSticker(page, stripQuery)) : manualPages),
+        [manualPages, stripQuery],
+    );
+    const stripSearchActive = isTagMode && batchItems.length === 0;
 
     // Tab đang mở vừa bị tắt trong bảng bật tắt tab: chuyển sang tab còn bật
     const hiddenTabs = useHiddenTabs();
@@ -131,7 +139,7 @@ export default function StickerPrinterView() {
     );
 
     return (
-        <div className="print-wrapper w-full h-[calc(100dvh-64px)] bg-slate-100 dark:bg-slate-900 relative overflow-hidden flex flex-col">
+        <div className="print-wrapper w-full h-full bg-slate-100 dark:bg-slate-900 relative overflow-hidden flex flex-col">
             <StickerModeToolbar
                 stickerMode={stickerMode}
                 stickerType={stickerType}
@@ -170,7 +178,7 @@ export default function StickerPrinterView() {
             )}
 
             {/* Xem trước và khung điều khiển cùng chiều cao, chừa lại một phần cửa sổ cho thoáng. Cửa sổ nhỏ thì giữ cỡ tối thiểu và cuộn. */}
-            <div className={`w-full h-full overflow-y-auto p-3 sm:p-4 lg:p-5 flex flex-col lg:flex-row gap-4 lg:gap-5 justify-start lg:justify-center items-center lg:items-start ${stickerMode === 'sticker' || stickerMode === 'tag' ? 'visible' : 'invisible'}`}>
+            <div className={`w-full h-full overflow-y-auto p-3 sm:p-4 lg:p-5 lg:[@media(max-height:700px)]:py-2 flex flex-col lg:flex-row gap-4 lg:gap-5 justify-start lg:justify-center items-center lg:items-start ${stickerMode === 'sticker' || stickerMode === 'tag' ? 'visible' : 'invisible'}`}>
                 {stickerType !== 'draw' && (
                     <StickerQueueStrip
                         pages={manualPages}
@@ -186,6 +194,7 @@ export default function StickerPrinterView() {
                         subHeaderTextContent={subHeaderTextContent}
                         footerTextContent={footerTextContent}
                         tagView={isTagMode ? { settings: tag.settings, employeeName: tag.employeeName } : undefined}
+                        query={stripSearchActive ? stripQuery : ''}
                     />
                 )}
                 {/* Tab Sticker: tem giá theo kiểu đang chọn và các ô sửa, không dùng sticker nền Giá Sốc */}
@@ -198,6 +207,15 @@ export default function StickerPrinterView() {
                             employeeName={tag.employeeName}
                             onEmployeeNameChange={tag.setEmployeeName}
                             onStickerStyleChange={tag.setStickerStyle}
+                            listSearch={stripSearchActive && manualPages.length > 0 ? {
+                                value: stripQuery,
+                                onChange: setStripQuery,
+                                onSubmit: () => {
+                                    if (stripMatches[0]) selectQueuePage(stripMatches[0]);
+                                },
+                                matches: stripMatches.length,
+                                total: manualPages.length,
+                            } : undefined}
                             editor={batchItems.length > 0 ? undefined : {
                                 name: previewName,
                                 oldPrice: previewOldPrice,

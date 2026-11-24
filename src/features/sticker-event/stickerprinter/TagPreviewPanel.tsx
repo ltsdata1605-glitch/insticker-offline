@@ -1,5 +1,6 @@
 import React, { useId, useMemo, useRef } from 'react';
 import { Button, Input, SectionCard } from '../../../components/shared/ui';
+import { AppIcon } from '../../../components/shared/ui/icon/AppIcon';
 import { StickerStylePicker } from './StickerStylePicker';
 import { QuantityStepper } from './QuantityStepper';
 import type { PrintSettings } from '../services/printService';
@@ -26,6 +27,16 @@ export interface TagEditorFields {
     onQuantity: (quantity: number) => void;
 }
 
+/** Ô tìm sticker đã thêm: lọc dải ảnh bên trái theo tên hoặc mã. */
+export interface TagListSearch {
+    value: string;
+    onChange: (value: string) => void;
+    /** Enter: mở sticker khớp đầu tiên */
+    onSubmit: () => void;
+    matches: number;
+    total: number;
+}
+
 interface TagPreviewPanelProps {
     /** Tem cần hiện: sticker đang soạn, hoặc các dòng đang chọn của file giá. Truyền mảng đã ghi nhớ để không dựng lại mỗi lần vẽ. */
     products: Product[];
@@ -38,6 +49,8 @@ interface TagPreviewPanelProps {
     ghostAlternative?: Product[];
     /** Không có khi đang xem các dòng của file giá: các dòng này sửa ở file, không sửa từng tem. */
     editor?: TagEditorFields;
+    /** Có khi danh sách đã có sticker */
+    listSearch?: TagListSearch;
     footer?: React.ReactNode;
 }
 
@@ -58,7 +71,7 @@ const layoutCaption = (tagsPerPage: PrintSettings['tagsPerPage']) =>
 
 /** Khung xem trước của tab Sticker: tem giá theo kiểu đang chọn, không dùng nền Giá Sốc, kèm các ô sửa nội dung. */
 export const TagPreviewPanel: React.FC<TagPreviewPanelProps> = ({
-    products, settings, employeeName, onEmployeeNameChange, onStickerStyleChange, ghostAlternative, editor, footer,
+    products, settings, employeeName, onEmployeeNameChange, onStickerStyleChange, ghostAlternative, editor, listSearch, footer,
 }) => {
     const id = useId();
     // Tem tab Sticker không in thưởng
@@ -74,7 +87,38 @@ export const TagPreviewPanel: React.FC<TagPreviewPanelProps> = ({
             {/* Tám kiểu cần cả bề ngang, nên ô Người in nằm trên cùng hàng với nhãn Kiểu sticker */}
             <div className="shrink-0 flex flex-col gap-1.5">
                 <div className="flex items-center justify-between gap-3">
-                    <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Kiểu sticker</span>
+                    <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider whitespace-nowrap">Kiểu sticker</span>
+                    {listSearch && (
+                        <div className="relative flex-1 min-w-0 max-w-[260px]">
+                            <AppIcon name="search" size="sm" className="pointer-events-none absolute z-10 left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <Input
+                                type="search"
+                                value={listSearch.value}
+                                onChange={(e) => listSearch.onChange(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        listSearch.onSubmit();
+                                    } else if (e.key === 'Escape') {
+                                        e.preventDefault();
+                                        listSearch.onChange('');
+                                    }
+                                }}
+                                aria-label="Tìm sticker trong danh sách"
+                                placeholder="Tìm tên, mã sticker đã thêm"
+                                title="Lọc ảnh bên trái theo tên hoặc mã. Enter mở sticker đầu tiên, Esc xoá."
+                                className={`!h-8 w-full pl-7 text-xs [&::-webkit-search-cancel-button]:hidden ${listSearch.value ? 'pr-14 !border-sky-400 !bg-sky-50' : ''}`}
+                            />
+                            {listSearch.value && (
+                                <span
+                                    data-testid="sticker-search-count"
+                                    className={`pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold tabular-nums ${listSearch.matches ? 'text-sky-700' : 'text-rose-600'}`}
+                                >
+                                    {listSearch.matches}/{listSearch.total}
+                                </span>
+                            )}
+                        </div>
+                    )}
                     <label className="flex items-center gap-2" htmlFor={`${id}-employee`}>
                         <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider whitespace-nowrap">Người in</span>
                         <Input

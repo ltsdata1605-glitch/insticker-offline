@@ -1,7 +1,8 @@
 // Cập nhật thật, không gắn Playwright: đóng gói bản cũ và bản mới, chạy bản cũ từ thư mục tạm rồi chờ app tự tải,
 // tự thay sang bản mới từ máy chủ cục bộ và tự mở lại. Cần build trước. Chạy: npm run test:cap-nhat
 // Lỗi chỉ thỉnh thoảng mới xuất hiện thì lặp nhiều vòng và giảm thời gian chờ: LAP=12 CHO_GIAY=150 npm run test:cap-nhat
-// Cập nhật từ một bản đã phát hành (tải bộ cài thật về làm bản cũ), ví dụ từ In Sticker 1.5.0 lên Tools: BAN_CU=1.5.0 npm run test:cap-nhat
+// Cập nhật từ một bản đã phát hành (tải bộ cài thật về làm bản cũ), ví dụ từ Tools 1.6.0: BAN_CU=1.6.0 npm run test:cap-nhat
+// (Windows còn thử được từ In Sticker 1.5.0. Mac thì không: từ 1.7.3 không còn bản zip tên cũ, máy Mac In Sticker 1.5.x cài tay.)
 // Mac: bản cũ nằm trong thư mục "In Sticker.app" (máy đã cập nhật từ 1.5.x lên) thì lần cập nhật này đổi thành Tools.app: TEN_CU=1 npm run test:cap-nhat
 import { execFile, execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createReadStream } from 'node:fs';
@@ -10,7 +11,6 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { addLegacyMacZips } from './zip-ten-cu.mjs';
 
 const ROUNDS = Number(process.env.LAP ?? 1);
 const TIMEOUT_MS = Number(process.env.CHO_GIAY ?? 480) * 1000;
@@ -30,8 +30,11 @@ const RELEASES = 'https://github.com/ltsdata1605-glitch/insticker-offline-releas
 const fromRelease = process.env.BAN_CU ?? '';
 // App tên In Sticker tới 1.5.x, đổi thành Tools từ 1.6.0; tên tệp cài đổi theo
 const nameOf = (version) => (newer('1.6.0', version) ? { app: 'In Sticker', prefix: 'InSticker' } : { app: pkg.productName, prefix: 'Tools' });
-/** Mac: cài bản cũ từ bản zip tên cũ (thư mục In Sticker.app chứa app Tools), như máy đã cập nhật từ In Sticker 1.5.x */
+/** Mac: bản cũ nằm trong thư mục In Sticker.app (chứa app Tools), như máy đã cập nhật từ In Sticker 1.5.x */
 const legacyFolder = isMac && !fromRelease && process.env.TEN_CU === '1';
+if (isMac && fromRelease && newer('1.6.0', fromRelease)) {
+  throw new Error(`Bộ cập nhật Mac của In Sticker ${fromRelease} chỉ nhận bản zip tên cũ, mà từ 1.7.3 không còn bản này: máy đó cài tay bản Tools`);
+}
 const oldVersion = fromRelease || pkg.version;
 const newVersion = fromRelease && newer(pkg.version, fromRelease) ? pkg.version : bump(pkg.version);
 const oldName = fromRelease ? nameOf(fromRelease) : legacyFolder ? { app: 'In Sticker', prefix: 'InSticker' } : { app: pkg.productName, prefix: 'Tools' };
@@ -58,7 +61,8 @@ const pack = (output, extra = []) => {
   });
 };
 
-const oldFile = isMac ? `${oldName.prefix}-${oldVersion}-mac-${process.arch}.zip` : `${oldName.prefix}-${oldVersion}-win-x64.exe`;
+// Thư mục In Sticker.app của TEN_CU dựng từ bản zip Tools (đổi tên thư mục lúc cài)
+const oldFile = isMac ? `${legacyFolder ? newName.prefix : oldName.prefix}-${oldVersion}-mac-${process.arch}.zip` : `${oldName.prefix}-${oldVersion}-win-x64.exe`;
 if (fromRelease) {
   log(`Tải bản đã phát hành ${oldVersion} (${oldName.app}), đóng gói bản mới ${newVersion} (${newName.app})`);
   const response = await fetch(`${RELEASES}/v${oldVersion}/${encodeURIComponent(oldFile)}`);
@@ -67,11 +71,8 @@ if (fromRelease) {
 } else {
   log(`Đóng gói bản cũ ${oldVersion} và bản mới ${newVersion}`);
   pack(dirs.old);
-  if (legacyFolder) addLegacyMacZips(dirs.old);
 }
 pack(dirs.new, [`-c.extraMetadata.version=${newVersion}`]);
-// Như lúc phát hành: thêm bản zip tên cũ lên đầu latest-mac.yml cho máy còn In Sticker 1.5.x
-if (isMac) log(`Thêm ${addLegacyMacZips(dirs.new).join(', ')}`);
 
 // Máy chủ giả chỉ phục vụ tệp của bản mới
 let requests = [];
@@ -117,8 +118,8 @@ const winPaths = (name = newName.app) => ({
 const installOld = () => {
   if (isMac) {
     execFileSync('/usr/bin/ditto', ['-x', '-k', path.join(dirs.old, oldFile), dirs.app]);
-    // Bản zip tên cũ chứa cả Tools.app: máy đã cập nhật từ In Sticker 1.5.x chỉ có In Sticker.app
-    if (legacyFolder) fs.rmSync(path.join(dirs.app, `${newName.app}.app`), { recursive: true, force: true });
+    // Máy đã cập nhật từ In Sticker 1.5.x: app Tools nằm trong thư mục In Sticker.app
+    if (legacyFolder) fs.renameSync(path.join(dirs.app, `${newName.app}.app`), path.join(dirs.app, `${oldName.app}.app`));
     return macPaths(oldName.app).exe();
   }
   const installer = path.join(dirs.old, oldFile);
@@ -264,10 +265,9 @@ const runRound = async (round) => {
     const names = requests.map((r) => r.name);
     check('Có tải tệp mô tả và tệp cài', names.some((name) => name.endsWith('.yml')) && names.some((name) => /\.(zip|exe)$/.test(name)), names.join(', '));
     if (isMac) {
-      // Bộ cập nhật trước 1.7.1 lấy tệp zip đầu tiên (bản zip tên cũ, chứa cả In Sticker.app và Tools.app), từ 1.7.1 lấy bản zip tên Tools
-      const takesFirstZip = Boolean(fromRelease) && newer('1.7.1', fromRelease);
+      // Chỉ còn bản zip Tools: bộ cập nhật trước 1.7.1 (lấy tệp zip đầu tiên) và từ 1.7.1 đều tải bản này
       const zip = names.find((name) => name.endsWith('.zip')) ?? '';
-      check(`Tải bản zip ${takesFirstZip ? 'tên cũ' : 'tên Tools'}`, zip.startsWith(takesFirstZip ? 'InSticker-' : 'Tools-'), zip);
+      check('Tải bản zip tên Tools', zip.startsWith('Tools-'), zip);
     }
 
     if (isMac && reopened) {

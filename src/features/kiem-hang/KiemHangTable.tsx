@@ -11,6 +11,14 @@ const STATE_STYLE: Record<LineState, { label: (diff: number) => string; classNam
     over: { label: diff => `Thừa ${diff}`, className: 'bg-rose-100 text-rose-700' },
 };
 
+/** Dòng vừa quét: nền đậm theo kết quả, viền dày cùng màu và nhãn "Vừa quét" để thấy ngay giữa danh sách. */
+const HIGHLIGHT_STYLE: Record<LineState, { row: string; cell: string; edge: string; tag: string }> = {
+    pending: { row: 'bg-sky-100', cell: 'border-y-2 border-sky-400', edge: 'border-l-[6px] border-l-sky-600', tag: 'bg-sky-600' },
+    partial: { row: 'bg-amber-100', cell: 'border-y-2 border-amber-400', edge: 'border-l-[6px] border-l-amber-500', tag: 'bg-amber-500' },
+    ok: { row: 'bg-emerald-100', cell: 'border-y-2 border-emerald-400', edge: 'border-l-[6px] border-l-emerald-600', tag: 'bg-emerald-600' },
+    over: { row: 'bg-rose-100', cell: 'border-y-2 border-rose-400', edge: 'border-l-[6px] border-l-rose-600', tag: 'bg-rose-600' },
+};
+
 /** Ô sửa tay số thực nhận: − số + */
 const ReceivedStepper: React.FC<{ value: number; label: string; onChange: (value: number) => void }> = ({ value, label, onChange }) => (
     <div role="group" aria-label={label} className="inline-flex items-center rounded-control border border-slate-200 bg-white overflow-hidden">
@@ -74,20 +82,28 @@ export const KiemHangTable: React.FC<KiemHangTableProps> = ({ lines, received, i
                     const state = lineState(line.expected, got);
                     const style = STATE_STYLE[state];
                     const invoice = invoices.get(line.transferId);
-                    const highlighted = line.key === highlightKey;
+                    const highlight = line.key === highlightKey ? HIGHLIGHT_STYLE[state] : null;
+                    // Dòng vừa quét có viền màu thay cho đường kẻ mờ giữa các dòng
+                    const cell = `px-2 py-1.5 ${highlight ? highlight.cell : 'border-b border-slate-100'}`;
                     return (
                         <tr
                             key={line.key}
                             data-line-key={line.key}
                             data-state={state}
-                            className={`scroll-mt-9 transition-colors ${highlighted ? 'bg-sky-50' : index % 2 ? 'bg-slate-50/50' : 'bg-white'}`}
+                            data-highlighted={highlight ? 'true' : undefined}
+                            className={`scroll-mt-9 transition-colors ${highlight ? highlight.row : index % 2 ? 'bg-slate-50/50' : 'bg-white'}`}
                         >
-                            <td className={`px-2 py-1.5 border-b border-slate-100 text-slate-400 tabular-nums ${highlighted ? 'border-l-4 border-l-sky-500' : ''}`}>{index + 1}</td>
-                            <td className="px-2 py-1.5 border-b border-slate-100">
-                                <CodeText value={line.code} className="text-[15px] font-semibold text-slate-700" tailClassName="text-[18px] font-black text-rose-600" />
+                            <td className={`${cell} tabular-nums ${highlight ? `${highlight.edge} font-bold text-slate-700` : 'text-slate-400'}`}>{index + 1}</td>
+                            <td className={cell}>
+                                <CodeText value={line.code} className={`text-[15px] font-semibold ${highlight ? 'text-slate-900' : 'text-slate-700'}`} tailClassName="text-[18px] font-black text-rose-600" />
                             </td>
-                            <td className="px-2 py-1.5 border-b border-slate-100 min-w-0">
-                                <span className="block font-semibold text-slate-800 leading-snug">{line.name}</span>
+                            <td className={`${cell} min-w-0`}>
+                                <span className="block font-semibold text-slate-800 leading-snug">
+                                    {highlight && (
+                                        <span className={`mr-1.5 inline-block align-[1px] rounded-full px-1.5 py-px text-[10px] font-black uppercase text-white ${highlight.tag}`}>Vừa quét</span>
+                                    )}
+                                    {line.name}
+                                </span>
                                 <span className="block text-[11px] text-slate-500">
                                     {line.group}
                                     <span className="ml-2 font-semibold text-slate-600" title={line.transferId}>
@@ -101,7 +117,7 @@ export const KiemHangTable: React.FC<KiemHangTableProps> = ({ lines, received, i
                                     </span>
                                 )}
                             </td>
-                            <td className="px-2 py-1.5 border-b border-slate-100 text-center">
+                            <td className={`${cell} text-center`}>
                                 {line.imei ? (
                                     <span className="inline-flex items-center gap-1 tabular-nums font-bold text-slate-800">
                                         {got} / {line.expected}
@@ -120,7 +136,7 @@ export const KiemHangTable: React.FC<KiemHangTableProps> = ({ lines, received, i
                                     </span>
                                 )}
                             </td>
-                            <td className="px-2 py-1.5 border-b border-slate-100 text-right">
+                            <td className={`${cell} text-right ${highlight ? 'border-r-2' : ''}`}>
                                 <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold ${style.className}`}>{style.label(got - line.expected)}</span>
                             </td>
                         </tr>

@@ -98,8 +98,8 @@ export const retryWhileBusy = async <T>(
 
 /** Windows dùng bộ cài .exe. Mac dùng tệp zip đúng loại chip, vì tệp mô tả liệt kê cả hai. */
 /**
- * Bản zip Mac mang tên cũ, đứng đầu latest-mac.yml cho máy còn In Sticker 1.5.x: bộ cập nhật cũ lấy tệp zip đầu tiên đúng
- * chip và chỉ nhận thư mục "In Sticker.app" (xem scripts/zip-ten-cu.mjs). Bản này chọn bản zip tên Tools nếu có.
+ * Bản zip Mac mang tên cũ (InSticker-…, chứa In Sticker.app) có trong các bản phát hành 1.7.1 và 1.7.2, đứng đầu
+ * latest-mac.yml cho máy còn In Sticker 1.5.x. Từ 1.7.3 không còn bản này; vẫn bỏ qua nếu gặp và chọn bản zip tên Tools.
  */
 export const LEGACY_MAC_ZIP_PREFIX = 'InSticker-';
 

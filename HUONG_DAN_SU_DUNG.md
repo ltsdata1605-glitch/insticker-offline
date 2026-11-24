@@ -6,7 +6,7 @@ Dùng và in không cần mạng, không cần đăng nhập. App chỉ vào m�
 
 ## Cài đặt
 
-**Mac (macOS Ventura trở lên):** giải nén rồi kéo `Tools.app` vào thư mục Applications (máy còn `In Sticker.app` từ bản cũ thì xoá bản cũ đi, dữ liệu không mất). Tệp `InSticker-…-mac-….zip` trong bản phát hành chỉ dành cho bản cũ tự cập nhật, không cần tải. In Sticker cũ còn chạy nền mà mở Tools thì Tools tự tắt bản cũ rồi mở lên. Chọn bản đúng chip: `arm64` cho Mac M1 trở lên, `x64` cho Mac Intel. Lần đầu máy sẽ chặn vì app chưa ký số: vào System Settings > Privacy & Security, kéo xuống và bấm **Open Anyway**.
+**Mac (macOS Ventura trở lên):** giải nén rồi kéo `Tools.app` vào thư mục Applications (máy còn `In Sticker.app` từ bản cũ thì xoá bản cũ đi, dữ liệu không mất). Từ bản 1.7.3 chỉ còn tệp `Tools-…-mac-….zip`: Mac còn In Sticker 1.5 không tự cập nhật được nữa, cài tay bản Tools như trên. In Sticker cũ còn chạy nền mà mở Tools thì Tools tự tắt bản cũ rồi mở lên. Chọn bản đúng chip: `arm64` cho Mac M1 trở lên, `x64` cho Mac Intel. Lần đầu máy sẽ chặn vì app chưa ký số: vào System Settings > Privacy & Security, kéo xuống và bấm **Open Anyway**. Không mở app ngay trong thư mục Google Drive (hay OneDrive, iCloud): ổ đồng bộ gắn thêm dữ liệu vào bên trong app làm hỏng chữ ký, máy báo app "is damaged and can't be opened". Lưu và chia sẻ bằng tệp zip, giải nén ra máy rồi mới mở.
 
 **Windows 10/11 64-bit:** giải nén tệp zip vào một thư mục cố định rồi chạy `Tools.exe`. Nếu hiện cảnh báo SmartScreen: bấm **More info**, rồi **Run anyway**. Cập nhật bản mới bằng cách giải nén đè; dữ liệu không mất vì được lưu riêng trong hồ sơ người dùng.
 
@@ -36,7 +36,11 @@ Lô lớn như 4.000 phiếu cần vài chục giây để dựng. Khung xem tr�
 
 ## Tab Sticker: tem giá, chọn kiểu và bố cục
 
-Tab Sticker nằm giữa Giờ Vàng và Phiếu. Cách nhập giống tab Giá Sốc: bấm **Thêm**, hoặc nhập file mẫu. Ở tab này nút **Thêm** nằm ngay trên các ô sửa, dưới tem xem trước. Thêm xong thì các ô (tên, mã QR, giá cũ, giá mới, khuyến mãi) để trống và con trỏ về ô tên để soạn sticker tiếp theo; các ô đều trống thì không thêm. Danh sách dùng chung với Giá Sốc, nên sticker thêm ở tab này cũng thấy ở tab Giá Sốc và ngược lại.
+Tab Sticker nằm giữa Giờ Vàng và Phiếu. Cách nhập giống tab Giá Sốc: bấm **Thêm**, hoặc nhập file mẫu, hoặc nhập file bảng giá ERP (xem dưới). Ở tab này nút **Thêm** nằm ngay trên các ô sửa, dưới tem xem trước. Thêm xong thì các ô (tên, mã QR, giá cũ, giá mới, khuyến mãi) để trống và con trỏ về ô tên để soạn sticker tiếp theo; các ô đều trống thì không thêm. Danh sách dùng chung với Giá Sốc, nên sticker thêm ở tab này cũng thấy ở tab Giá Sốc và ngược lại.
+
+**Nhập file bảng giá ERP:** nút **Nhập file mẫu** ở tab Sticker nhận cả file bảng giá ERP mẫu 81 dùng cho tab Event (cách xuất xem mục Nạp dữ liệu cho tab Event), chọn được nhiều file một lần. Khác tab Event phải tìm từng sản phẩm, ở đây **mọi sản phẩm trong file thành sticker** ngay: tên, mã (in QR), giá gốc là giá cũ (chỉ khi cao hơn giá bán), giá bán là giá mới, khuyến mãi. Mã đã có sticker trong danh sách thì sticker đó được cập nhật tên, giá, khuyến mãi, giữ số bản in; mã trùng trong file lấy dòng sau cùng. Tab Giá Sốc và Giờ Vàng không nhận file bảng giá.
+
+**Tìm sticker đã thêm:** khi danh sách có sticker, ô tìm hiện cạnh chữ Kiểu sticker. Gõ tên (không cần dấu) hoặc mã, kể cả vài số cuối: ảnh bên trái chỉ còn các sticker khớp, số thứ tự vẫn theo danh sách, góc ô ghi số khớp trên tổng. **Enter** mở sticker khớp đầu tiên để sửa, **Esc** xoá ô tìm.
 
 Khác Giá Sốc ở khung xem trước và lúc in:
 
@@ -44,7 +48,7 @@ Khác Giá Sốc ở khung xem trước và lúc in:
 
 | Kiểu | Trông thế nào |
 |---|---|
-| **Kiểu có sẵn**, **Kiểu hiện đại** | Hai kiểu cũ |
+| **Kiểu có sẵn**, **Kiểu hiện đại** | Hai kiểu cũ. Giá bán to hết chỗ trống của bố cục mà không tràn ngang. Kiểu có sẵn để dòng khuyến mãi sát cạnh dưới; Kiểu hiện đại có chân tem (khuyến mãi, QR) gọn |
 | **Kiểu giá to** | Giá mới chiếm gần hết tem; tên, giá gốc và % giảm gọn ở hàng trên |
 | **Kiểu phiếu giảm giá** | Viền nét đứt có hình kéo cắt, cuống phiếu ghi % giảm và giá gốc, thân phiếu ghi giá ưu đãi |
 
@@ -151,7 +155,7 @@ Khi có mạng, app tự kiểm tra bản mới lúc mở và 4 giờ một lầ
 - **Không có mạng:** app vẫn dùng bình thường.
 - **Tải hoặc cài bị lỗi:** có nút **Thử lại** và **Dùng tiếp lần này**, để sự cố cập nhật không chặn việc in. Lần mở sau app nhắc lại.
 - **Xem phiên bản và kiểm tra thủ công:** số phiên bản đang dùng (ví dụ **v1.1.2**) hiện ở góc phải thanh trên cùng. Bấm vào đó rồi bấm **Kiểm tra bản mới**; bảng này cũng cho biết lần kiểm tra gần nhất và cho bật tắt **Tự động tải và cài**. Tắt thì app báo có bản mới và chờ bạn bấm **Cập nhật ngay**.
-- **Trên Mac:** cần để app trong thư mục Applications, nếu không app sẽ báo cần chuyển vào đó. Sau khi cập nhật, macOS có thể hỏi lại quyền camera. Máy cập nhật từ In Sticker 1.5 lên thì app vẫn nằm trong `In Sticker.app` (đã là Tools bên trong); lần cập nhật kế tiếp tự đổi tên thành `Tools.app`.
+- **Trên Mac:** cần để app trong thư mục Applications, nếu không app sẽ báo cần chuyển vào đó. Sau khi cập nhật, macOS có thể hỏi lại quyền camera. Máy đã cập nhật từ In Sticker 1.5 lên (trước bản 1.7.3) thì app vẫn nằm trong `In Sticker.app` (đã là Tools bên trong); lần cập nhật kế tiếp tự đổi tên thành `Tools.app`. Mac còn In Sticker 1.5 thì từ 1.7.3 phải cài tay bản Tools.
 - **Trên Windows:** chỉ bản cài bằng file `.exe` mới tự cập nhật. Bản giải nén từ file zip phải tải bộ cài về.
 
 ## Chuyển dữ liệu sang máy khác
@@ -171,13 +175,13 @@ Dùng khi nhận kiện hàng kèm file Excel phiếu chuyển kho: đối chi�
 1. **Nhập file:** bấm **Chọn file Excel** hoặc kéo thả file vào màn. Chọn được nhiều file cùng lúc, gồm cả file chi tiết sản phẩm lẫn file phiếu (file có Số hóa đơn). App tự nhận loại file và ghép theo mã phiếu chuyển, không cần đặt tên file đúng. Chỉ có file chi tiết thì hoá đơn hiện bằng mã phiếu chuyển; nhập thêm file phiếu sẽ có số hoá đơn. File đã nhập rồi thì bỏ qua, không nhân đôi.
 2. **Người kiểm:** gõ tên vào ô **Người kiểm** ở cột phải (viền vàng là chưa nhập). Tên này có trong báo cáo. Phiên mới tự lấy tên của lần kiểm trước, sửa được bất cứ lúc nào.
 3. **Quét:** bắn mã bằng súng quét, gõ mã rồi bấm Enter, hoặc bấm **Camera**. Súng quét dùng được ngay cả khi con trỏ đang ở chỗ khác trên màn. Viền ô quét màu xanh lá là đang sẵn sàng.
-   - **Mã có trong file:** cộng 1, báo xanh kèm tiếng bíp. Thẻ kết quả ghi mã to hơn tên, 6 số cuối màu đỏ để dò nhanh với tem trên hộp. Các dòng của mã vừa quét lên đầu danh sách, dòng vừa cộng được tô sáng. Mã có ở nhiều hoá đơn thì cộng đủ hoá đơn đầu rồi mới sang hoá đơn sau.
+   - **Mã có trong file:** cộng 1, báo xanh kèm tiếng bíp. Thẻ kết quả ghi mã to hơn tên, 6 số cuối màu đỏ để dò nhanh với tem trên hộp; số đã nhận / theo file ở bên phải to gần bằng cả thẻ để nhìn từ xa. Các dòng của mã vừa quét lên đầu danh sách. Dòng vừa cộng có nhãn **Vừa quét**, nền và viền tô màu theo kết quả: vàng cam là còn thiếu, xanh lá là đủ, hồng là thừa. Mã có ở nhiều hoá đơn thì cộng đủ hoá đơn đầu rồi mới sang hoá đơn sau.
    - **Hàng nhiều cái:** gõ số vào ô **SL** trước khi quét. Ô SL tự về 1 sau mỗi lần.
    - **Sản phẩm có IMEI trong file:** quét mã thì app chờ quét IMEI. Quét thẳng IMEI cũng được. IMEI không có trong hoá đơn thì báo đỏ; IMEI quét rồi thì báo trùng. Bấm Esc để thôi chờ IMEI.
    - **Mã không có trong file (mã lạ) hoặc IMEI lạ:** hiện bảng báo đỏ che màn, mã đó được ghi vào **Mã lạ**. Để riêng sản phẩm đó ra rồi **tự nhấn Enter** (hoặc bấm **Đã để riêng, quét tiếp**) mới quét tiếp được. Bắn tiếp mã khác khi chưa xác nhận thì mã đó không được tính, bảng báo nhắc xác nhận rồi quét lại. Bắn nhầm mã vạch khác trên hộp thì bấm **Quét nhầm, bỏ mã này**.
    - **Quét quá số lượng:** báo vàng, tính là thừa.
    - **Hoàn tác** (hoặc Ctrl+Z) huỷ lần quét vừa rồi. Có thể sửa tay số thực nhận bằng nút − và + trên từng dòng.
-4. **Theo dõi:** các ô Theo file, Đã kiểm, Còn thiếu, Thừa, Mã lạ cập nhật ngay; Còn thiếu, Thừa, Mã lạ có số thì cả ô tô màu. **Bấm một ô để lọc danh sách** theo ô đó (bấm lại để bỏ lọc); ô Mã lạ đổi bảng thành danh sách mã lạ (mã, số lần quét, lúc quét). Các nút lọc Đã kiểm, Chưa đủ, Đủ, Thừa, Có IMEI, Mã lạ làm việc giống vậy. Lọc thêm theo **nhóm hàng**, hoặc bấm một hoá đơn ở cột phải để chỉ xem hoá đơn đó. Thẻ hoá đơn ghi đủ MYC, ngày tạo, kho chuyển và người chuyển.
+4. **Theo dõi:** các ô Theo file, Đã kiểm, Còn thiếu, Thừa, Mã lạ cập nhật ngay; Còn thiếu, Thừa, Mã lạ có số thì cả ô tô màu. **Bấm một ô để lọc danh sách** theo ô đó (bấm lại để bỏ lọc); ô Mã lạ đổi bảng thành danh sách mã lạ (mã, số lần quét, lúc quét). Các nút lọc Đã kiểm, Chưa đủ, Đủ, Thừa, Có IMEI, Mã lạ làm việc giống vậy; Chưa đủ (cam), Thừa (hồng), Mã lạ (đỏ) luôn có nền màu, có số thì nền đậm hơn. Lọc thêm theo **nhóm hàng**, hoặc bấm một hoá đơn ở cột phải để chỉ xem hoá đơn đó. Thẻ hoá đơn ghi đủ MYC, ngày tạo, kho chuyển và người chuyển.
 5. **Báo cáo:** bấm **Báo cáo** ở góc ô Đang kiểm. Báo cáo cho biết từng MYC đã đủ hay chưa, thiếu bao nhiêu sản phẩm thuộc bao nhiêu nhóm hàng, danh sách cụ thể theo nhóm, kho chuyển, kho nhận, người chuyển và người kiểm (sửa tên ngay trong báo cáo được).
    - **Sao chép để gửi:** chép báo cáo thành tin nhắn, dán vào Zalo gửi người chuyển. Tiêu đề cách phần nội dung một dòng trống. Tin nhắn luôn ghi đủ các MYC: mặc định các MYC đủ hàng gộp vào một dòng `[ĐỦ] 3 MYC: …`, MYC chưa đủ có danh sách chi tiết; bỏ chọn **Gộp MYC đủ hàng vào một dòng** để mỗi MYC đủ một dòng kèm số lượng.
    - **Xuất Excel:** file có trang **Báo cáo** ở đầu, sau đó là Tổng hợp (theo hoá đơn), Chi tiết (đủ các cột của file kèm số thực nhận, chênh lệch, kết quả), Thiếu thừa, Mã lạ và Nhật ký quét.
@@ -187,7 +191,7 @@ Kết quả tự lưu sau mỗi lần quét: lỡ đóng app thì mở lại ki�
 
 ## Kiểm quỹ
 
-Đếm tiền trong két theo mệnh giá, đối chiếu với số theo sổ và lưu lại từng lần kiểm.
+Đếm tiền trong két theo mệnh giá, đối chiếu với số theo sổ và lưu lại từng lần kiểm. Bảng mệnh giá luôn vừa màn hình, không có thanh cuộn: màn càng cao thì hàng, chữ và nút càng to.
 
 1. Ghi **Tên lần kiểm** (ví dụ "Ca sáng: 62864 - Phùng Minh Lâm": ca, mã và tên người kiểm). Phải có tên mới lưu được.
 2. Gõ **số tờ** từng mệnh giá (500.000 đến 500 đồng), bấm Enter là sang mệnh giá kế tiếp; hoặc bấm **+**, **−** để cộng trừ từng tờ. Thành tiền từng dòng và **Tổng tiền thực tế** (kèm số tờ và số tiền bằng chữ) tự tính. Tiền xu, tiền lẻ ngoài bảng ghi ở **Tiền khác**.

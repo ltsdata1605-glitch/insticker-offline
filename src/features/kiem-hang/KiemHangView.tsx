@@ -31,6 +31,25 @@ const FILTERS: { id: StatusFilter; label: string; test: (line: KiemHangLine, got
     { id: 'unknown', label: 'Mã lạ', test: () => false },
 ];
 
+/** Nút lọc cần chú ý mang màu của ô số liệu cùng tên: Chưa đủ cam, Thừa hồng, Mã lạ đỏ. */
+const FILTER_TONE: Partial<Record<StatusFilter, { idle: string; active: string; selected: string }>> = {
+    notdone: {
+        idle: 'bg-orange-50 border-orange-200 text-orange-700 hover:border-orange-400',
+        active: 'bg-orange-100 border-orange-400 text-orange-800 hover:bg-orange-200',
+        selected: 'bg-orange-600 border-orange-600 text-white',
+    },
+    over: {
+        idle: 'bg-rose-50 border-rose-200 text-rose-700 hover:border-rose-400',
+        active: 'bg-rose-100 border-rose-400 text-rose-800 hover:bg-rose-200',
+        selected: 'bg-rose-600 border-rose-600 text-white',
+    },
+    unknown: {
+        idle: 'bg-red-50 border-red-200 text-red-700 hover:border-red-400',
+        active: 'bg-red-100 border-red-400 text-red-800 hover:bg-red-200',
+        selected: 'bg-red-600 border-red-600 text-white',
+    },
+};
+
 const ACCEPT = '.xlsx,.xls,.xlsm,.csv';
 
 interface Feedback {
@@ -118,9 +137,10 @@ const ResultBanner: React.FC<{ feedback: Feedback | null; invoiceCount: number; 
                 {detail && <p className="text-[12px] opacity-80 truncate">{detail}</p>}
             </div>
             {count && outcome.kind !== 'unknown' && (
-                <div className="shrink-0 text-right">
-                    <p className="text-[28px] font-black tabular-nums leading-none">{count}</p>
-                    <p className="text-[11px] font-semibold opacity-75">{outcome.codeReceived === outcome.codeExpected ? 'Đủ' : 'đã nhận / file'}</p>
+                // Số đã nhận / theo file cao gần bằng cả khung để nhìn từ xa vẫn thấy
+                <div className="shrink-0 self-stretch flex flex-col items-end justify-center pl-3 border-l-2 border-current/15" data-testid="kiem-hang-dem">
+                    <p className="text-[68px] font-black tabular-nums leading-[0.9] tracking-tight">{count}</p>
+                    <p className="mt-1 text-[13px] font-bold uppercase opacity-80">{outcome.codeReceived === outcome.codeExpected ? 'Đủ' : (outcome.codeReceived ?? 0) > (outcome.codeExpected ?? 0) ? 'Thừa' : 'đã nhận / file'}</p>
                 </div>
             )}
         </div>
@@ -661,13 +681,18 @@ export default function KiemHangView({ active }: { active: boolean }): React.JSX
                                         const count = filter.id === 'unknown' ? session!.unknown.length : scopeLines.filter(line => filter.test(line, received[line.key] ?? 0)).length;
                                         const selected = statusFilter === filter.id;
                                         if ((filter.id === 'imei' || filter.id === 'unknown') && count === 0 && !selected) return null;
+                                        const tone = FILTER_TONE[filter.id];
+                                        // Nút có màu riêng (Chưa đủ, Thừa, Mã lạ) luôn có nền màu, có số thì nền đậm hơn
+                                        const look = selected
+                                            ? tone?.selected ?? 'bg-sky-600 border-sky-600 text-white'
+                                            : tone ? (count > 0 ? tone.active : tone.idle) : 'bg-white border-slate-200 text-slate-600 hover:border-sky-300';
                                         return (
                                             <button
                                                 key={filter.id}
                                                 type="button"
                                                 aria-pressed={selected}
                                                 onClick={() => setStatusFilter(filter.id)}
-                                                className={`rounded-full px-2.5 py-1 text-[12px] font-semibold border transition-colors ${selected ? 'bg-sky-600 border-sky-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:border-sky-300'}`}
+                                                className={`rounded-full px-2.5 py-1 text-[12px] border transition-colors ${tone ? 'font-bold' : 'font-semibold'} ${look}`}
                                             >
                                                 {filter.label} {count}
                                             </button>

@@ -259,14 +259,15 @@ const generateModernPriceTagHTML = (product: Product, employeeName: string, sett
                         </section>
                         
                         <!-- Main Promotional Price -->
-                        <section class="flex items-baseline justify-center">
-                            <span class="text-[13rem] font-black leading-none tracking-tighter modern-primary-font">${bigPart}</span>
+                        <section class="modern-price flex items-baseline justify-center">
+                            <span class="modern-big-price font-black leading-none tracking-tighter modern-primary-font" style="--em:${priceTextEm(bigPart)}">${bigPart}</span>
                             <span class="text-6xl font-black ml-1 modern-primary-font">${smallPart}</span>
                         </section>
                     </div>
                     
                     <!-- FooterSection -->
-                    <footer class="w-full border-t-2 border-black flex h-28 bg-white shrink-0 box-border">
+                    <!-- Chân tem gọn (khuyến mãi và QR) để giá bán to hơn -->
+                    <footer class="w-full border-t-2 border-black flex h-modern-footer bg-white shrink-0 box-border">
                         <!-- Promotion Footer Text -->
                         <div class="flex-grow flex flex-col items-center justify-center px-6 h-full overflow-hidden gap-0 relative">
                             ${(() => {
@@ -292,11 +293,11 @@ const generateModernPriceTagHTML = (product: Product, employeeName: string, sett
                                 const lineCount = promoLines.length;
                                 
                                 let fontSizeClass = 'text-5xl';
-                                if (totalLength > 80 || lineCount > 3) fontSizeClass = 'text-xl';
+                                if (totalLength > 80 || lineCount > 3) fontSizeClass = 'text-lg';
                                 else if (totalLength > 50 || lineCount > 2) fontSizeClass = 'text-2xl';
                                 else if (totalLength > 35 || lineCount > 1) fontSizeClass = 'text-3xl';
                                 else if (totalLength > 20) fontSizeClass = 'text-4xl';
-                                else if (totalLength < 12) fontSizeClass = 'text-7xl';
+                                else if (totalLength < 12) fontSizeClass = 'text-6xl';
                                 else fontSizeClass = 'text-5xl';
                                 
                                 return promoLines.map(line => `
@@ -308,9 +309,9 @@ const generateModernPriceTagHTML = (product: Product, employeeName: string, sett
                         </div>
                         
                         <!-- QR Code and Metadata Area -->
-                        <div class="w-32 border-l-2 border-black flex flex-col items-center justify-center shrink-0 p-1 bg-white h-full box-border overflow-hidden">
+                        <div class="w-24 border-l-2 border-black flex flex-col items-center justify-center shrink-0 p-1 bg-white h-full box-border overflow-hidden">
                             ${settings.showQrCode && qrCodeUrl ? `
-                            <div class="w-16 h-16 mb-1 shrink-0 flex items-center justify-center">
+                            <div class="w-14 h-14 mb-1 shrink-0 flex items-center justify-center">
                                 <img alt="QR" class="max-w-full max-h-full object-contain block" src="${qrCodeUrl}"/>
                             </div>
                             ` : ''}
@@ -377,6 +378,16 @@ const generateCanvasStyleTagHTML = (style: CanvasTagStyle, product: Product, emp
     scale,
     isBill: settings.tagsPerPage === 80,
   });
+};
+
+/**
+ * Bề ngang dòng giá tính theo cỡ chữ (1 = bằng cỡ chữ), để giá bán to hết cỡ mà không tràn ngang tem. Đo với phông Oswald đậm:
+ * chữ số khoảng 0,54, dấu chấm 0,25; cộng thêm 6% cho phông tự chọn rộng hơn.
+ */
+export const priceTextEm = (text: string): number => {
+  let em = 0;
+  for (const char of text) em += /\d/.test(char) ? 0.55 : /[.,\s]/.test(char) ? 0.26 : 0.62;
+  return Math.round(Math.max(em, 1) * 1.06 * 1000) / 1000;
 };
 
 export const generatePriceTagHTML = (product: Product, employeeName: string, settings: PrintSettings, qrCodeUrl: string): string => {
@@ -492,7 +503,7 @@ export const generatePriceTagHTML = (product: Product, employeeName: string, set
                 </div>
                 <div class="section price-section">
                     ${originalPriceHTML}
-                    <div class="final-price ${finalPriceClass}">${finalPriceText}</div>
+                    <div class="final-price ${finalPriceClass}" style="--em:${priceTextEm(finalPriceText)}">${finalPriceText}</div>
                 </div>
                 <div class="section promotion-section">
                     ${promotionHTML}
@@ -607,6 +618,14 @@ const getPrintStyles = (settings: PrintSettings): string => {
       .modern-primary-font {
         font-family: ${primaryFontFamily};
       }
+      /* Kiểu hiện đại: chân tem 88px (trước 112px), cột QR 96px, QR 56px; giá bán to tới 15rem mà không tràn ngang
+         (trừ chỗ cho phần ".000đ" bên phải). */
+      .h-modern-footer { height: 5.5rem; }
+      .w-14 { width: 3.5rem; }
+      .h-14 { height: 3.5rem; }
+      .text-lg { font-size: 1.125rem; line-height: 1.75rem; }
+      .modern-price { container-type: inline-size; }
+      .modern-big-price { font-size: min(15rem, calc((100cqw - 9.5rem) / var(--em, 3))); }
       
       .price-tag.modern {
         padding: 0;
@@ -929,9 +948,10 @@ const getPrintStyles = (settings: PrintSettings): string => {
         flex: 7 1 auto;
         overflow: hidden;
       }
+      /* Khuyến mãi nằm sát cạnh dưới tem; giá bán lấy hết phần còn lại */
       .promotion-section {
-        flex: 2 1 auto;
-        justify-content: flex-start;
+        flex: 0 0 auto;
+        justify-content: flex-end;
       }
 
       .original-price {
@@ -958,7 +978,11 @@ const getPrintStyles = (settings: PrintSettings): string => {
         background-color: black;
       }
 
+      /* Giá bán to theo chỗ trống: cỡ gốc của bố cục (--fp) nhân hệ số phóng (--fp-grow, theo chiều cao còn trống của bố cục),
+         nhưng không rộng quá bề ngang tem (--em: bề ngang dòng giá tính theo cỡ chữ, ước lượng lúc dựng tem). */
+      .price-section { container-type: inline-size; }
       .final-price {
+        font-size: min(calc(var(--fp, 100pt) * var(--fp-grow, 1)), calc(100cqw / var(--em, 3)));
         font-family: ${primaryFontFamily};
         font-weight: 700;
         line-height: 1;
@@ -1010,6 +1034,7 @@ const getPrintStyles = (settings: PrintSettings): string => {
       /* --- DYNAMIC FONT SIZES & LAYOUT SPECS --- */
       
       /* Layout: 1 per page (Single) */
+      .size-single .price-tag { --fp-grow: 1.3; }
       .size-single .original-price::after { height: 6px; }
       .size-single .ghost-bar, .size-single .vertical-info-container { width: 40px; }
       .size-single .price-tag { padding: 20px; }
@@ -1032,21 +1057,21 @@ const getPrintStyles = (settings: PrintSettings): string => {
       .size-single .original-price.price-md { font-size: 54pt; }
       .size-single .original-price.price-lg { font-size: 50pt; }
       .size-single .original-price.price-xl { font-size: 46pt; }
-      .size-single .final-price.price-xs { font-size: 150pt; }
-      .size-single .final-price.price-sm { font-size: 138pt; }
-      .size-single .final-price.price-md { font-size: 125pt; }
-      .size-single .final-price.price-lg { font-size: 112pt; }
-      .size-single .final-price.price-xl { font-size: 100pt; }
+      .size-single .final-price.price-xs { --fp: 150pt; }
+      .size-single .final-price.price-sm { --fp: 138pt; }
+      .size-single .final-price.price-md { --fp: 125pt; }
+      .size-single .final-price.price-lg { --fp: 112pt; }
+      .size-single .final-price.price-xl { --fp: 100pt; }
       .size-single .original-price.price-short-xs { font-size: 100pt; }
       .size-single .original-price.price-short-sm { font-size: 92pt; }
       .size-single .original-price.price-short-md { font-size: 84pt; }
       .size-single .original-price.price-short-lg { font-size: 76pt; }
       .size-single .original-price.price-short-xl { font-size: 68pt; }
-      .size-single .final-price.price-short-xs { font-size: 220pt; }
-      .size-single .final-price.price-short-sm { font-size: 200pt; }
-      .size-single .final-price.price-short-md { font-size: 185pt; }
-      .size-single .final-price.price-short-lg { font-size: 170pt; }
-      .size-single .final-price.price-short-xl { font-size: 155pt; }
+      .size-single .final-price.price-short-xs { --fp: 220pt; }
+      .size-single .final-price.price-short-sm { --fp: 200pt; }
+      .size-single .final-price.price-short-md { --fp: 185pt; }
+      .size-single .final-price.price-short-lg { --fp: 170pt; }
+      .size-single .final-price.price-short-xl { --fp: 155pt; }
       
       .size-single .product-name.name-lg { font-size: 38pt; }
       .size-single .product-name.name-md { font-size: 32pt; }
@@ -1057,6 +1082,7 @@ const getPrintStyles = (settings: PrintSettings): string => {
       .size-single .promotion-info.promo-sm { font-size: 20pt; }
 
       /* Layout: 2 per page (Double) */
+      .size-double .price-tag { --fp-grow: 1.3; }
       .size-double .original-price::after { height: 5px; }
       .size-double .ghost-bar, .size-double .vertical-info-container { width: 30px; }
       .size-double .price-tag { padding: 10px; }
@@ -1079,21 +1105,21 @@ const getPrintStyles = (settings: PrintSettings): string => {
       .size-double .original-price.price-md { font-size: 40pt; }
       .size-double .original-price.price-lg { font-size: 36pt; }
       .size-double .original-price.price-xl { font-size: 32pt; }
-      .size-double .final-price.price-xs { font-size: 115pt; }
-      .size-double .final-price.price-sm { font-size: 108pt; }
-      .size-double .final-price.price-md { font-size: 100pt; }
-      .size-double .final-price.price-lg { font-size: 92pt; }
-      .size-double .final-price.price-xl { font-size: 84pt; }
+      .size-double .final-price.price-xs { --fp: 115pt; }
+      .size-double .final-price.price-sm { --fp: 108pt; }
+      .size-double .final-price.price-md { --fp: 100pt; }
+      .size-double .final-price.price-lg { --fp: 92pt; }
+      .size-double .final-price.price-xl { --fp: 84pt; }
       .size-double .original-price.price-short-xs { font-size: 74pt; }
       .size-double .original-price.price-short-sm { font-size: 68pt; }
       .size-double .original-price.price-short-md { font-size: 64pt; }
       .size-double .original-price.price-short-lg { font-size: 58pt; }
       .size-double .original-price.price-short-xl { font-size: 54pt; }
-      .size-double .final-price.price-short-xs { font-size: 160pt; }
-      .size-double .final-price.price-short-sm { font-size: 150pt; }
-      .size-double .final-price.price-short-md { font-size: 142pt; }
-      .size-double .final-price.price-short-lg { font-size: 134pt; }
-      .size-double .final-price.price-short-xl { font-size: 126pt; }
+      .size-double .final-price.price-short-xs { --fp: 160pt; }
+      .size-double .final-price.price-short-sm { --fp: 150pt; }
+      .size-double .final-price.price-short-md { --fp: 142pt; }
+      .size-double .final-price.price-short-lg { --fp: 134pt; }
+      .size-double .final-price.price-short-xl { --fp: 126pt; }
       
       .size-double .product-name.name-lg { font-size: 22pt; }
       .size-double .product-name.name-md { font-size: 19pt; }
@@ -1103,6 +1129,7 @@ const getPrintStyles = (settings: PrintSettings): string => {
       .size-double .promotion-info.promo-sm { font-size: 16pt; }
 
       /* Layout: 4 per page (Large) */
+      .size-large .price-tag { --fp-grow: 1.15; }
       .size-large .original-price::after { height: 4px; }
       .size-large .ghost-bar, .size-large .vertical-info-container { width: 25px; }
       .size-large .qr-code { width: 18mm; height: 18mm; }
@@ -1114,20 +1141,20 @@ const getPrintStyles = (settings: PrintSettings): string => {
       .size-large .original-price.price-md { font-size: 30pt; }
       .size-large .original-price.price-lg { font-size: 27pt; }
       .size-large .original-price.price-xl { font-size: 24pt; }
-      .size-large .final-price.price-xs { font-size: 88pt; }
-      .size-large .final-price.price-sm { font-size: 80pt; }
-      .size-large .final-price.price-md { font-size: 72pt; }
-      .size-large .final-price.price-lg { font-size: 65pt; }
-      .size-large .final-price.price-xl { font-size: 58pt; }
+      .size-large .final-price.price-xs { --fp: 88pt; }
+      .size-large .final-price.price-sm { --fp: 80pt; }
+      .size-large .final-price.price-md { --fp: 72pt; }
+      .size-large .final-price.price-lg { --fp: 65pt; }
+      .size-large .final-price.price-xl { --fp: 58pt; }
       .size-large .original-price.price-short-xs { font-size: 56pt; }
       .size-large .original-price.price-short-sm { font-size: 52pt; }
       .size-large .original-price.price-short-md { font-size: 46pt; }
       .size-large .original-price.price-short-lg { font-size: 42pt; }
       .size-large .original-price.price-short-xl { font-size: 38pt; }
-      .size-large .final-price.price-short-xs { font-size: 125pt; }
-      .size-large .final-price.price-short-md { font-size: 108pt; }
-      .size-large .final-price.price-short-lg { font-size: 100pt; }
-      .size-large .final-price.price-short-xl { font-size: 92pt; }
+      .size-large .final-price.price-short-xs { --fp: 125pt; }
+      .size-large .final-price.price-short-md { --fp: 108pt; }
+      .size-large .final-price.price-short-lg { --fp: 100pt; }
+      .size-large .final-price.price-short-xl { --fp: 92pt; }
       .size-large .product-name.name-lg { font-size: 14pt; }
       .size-large .product-name.name-md { font-size: 12pt; }
       .size-large .product-name.name-sm { font-size: 11pt; }
@@ -1136,6 +1163,7 @@ const getPrintStyles = (settings: PrintSettings): string => {
       .size-large .promotion-info.promo-sm { font-size: 11pt; }
 
       /* Layout: 8 per page (Medium) */
+      .size-medium .price-tag { --fp-grow: 1.3; }
       .size-medium .original-price::after { height: 3px; }
       .size-medium .ghost-bar, .size-medium .vertical-info-container { width: 18px; }
       .size-medium .price-tag { padding: 4px; }
@@ -1149,21 +1177,21 @@ const getPrintStyles = (settings: PrintSettings): string => {
       .size-medium .original-price.price-md { font-size: 23pt; }
       .size-medium .original-price.price-lg { font-size: 21pt; }
       .size-medium .original-price.price-xl { font-size: 19pt; }
-      .size-medium .final-price.price-xs { font-size: 70pt; }
-      .size-medium .final-price.price-sm { font-size: 62pt; }
-      .size-medium .final-price.price-md { font-size: 55pt; }
-      .size-medium .final-price.price-lg { font-size: 50pt; }
-      .size-medium .final-price.price-xl { font-size: 45pt; }
+      .size-medium .final-price.price-xs { --fp: 70pt; }
+      .size-medium .final-price.price-sm { --fp: 62pt; }
+      .size-medium .final-price.price-md { --fp: 55pt; }
+      .size-medium .final-price.price-lg { --fp: 50pt; }
+      .size-medium .final-price.price-xl { --fp: 45pt; }
       .size-medium .original-price.price-short-xs { font-size: 40pt; }
       .size-medium .original-price.price-short-sm { font-size: 37pt; }
       .size-medium .original-price.price-short-md { font-size: 34pt; }
       .size-medium .original-price.price-short-lg { font-size: 30pt; }
       .size-medium .original-price.price-short-xl { font-size: 28pt; }
-      .size-medium .final-price.price-short-xs { font-size: 74pt; }
-      .size-medium .final-price.price-short-sm { font-size: 70pt; }
-      .size-medium .final-price.price-short-md { font-size: 74pt; }
-      .size-medium .final-price.price-short-lg { font-size: 68pt; }
-      .size-medium .final-price.price-short-xl { font-size: 62pt; }
+      .size-medium .final-price.price-short-xs { --fp: 74pt; }
+      .size-medium .final-price.price-short-sm { --fp: 70pt; }
+      .size-medium .final-price.price-short-md { --fp: 74pt; }
+      .size-medium .final-price.price-short-lg { --fp: 68pt; }
+      .size-medium .final-price.price-short-xl { --fp: 62pt; }
       
       .size-medium .product-name.name-lg { font-size: 7.5pt; }
       .size-medium .product-name.name-md { font-size: 7pt; }
@@ -1173,6 +1201,7 @@ const getPrintStyles = (settings: PrintSettings): string => {
       .size-medium .promotion-info.promo-sm { font-size: 7pt; }
 
       /* Layout: 16 per page (Small) */
+      .size-small .price-tag { --fp-grow: 1; }
       .size-small .original-price::after { height: 2px; }
       .size-small .ghost-bar, .size-small .vertical-info-container { width: 14px; }
       .size-small .price-tag { padding: 3px; }
@@ -1186,21 +1215,21 @@ const getPrintStyles = (settings: PrintSettings): string => {
       .size-small .original-price.price-md { font-size: 18pt; }
       .size-small .original-price.price-lg { font-size: 16pt; }
       .size-small .original-price.price-xl { font-size: 14pt; }
-      .size-small .final-price.price-xs { font-size: 55pt; }
-      .size-small .final-price.price-sm { font-size: 50pt; }
-      .size-small .final-price.price-md { font-size: 44pt; }
-      .size-small .final-price.price-lg { font-size: 40pt; }
-      .size-small .final-price.price-xl { font-size: 36pt; }
+      .size-small .final-price.price-xs { --fp: 55pt; }
+      .size-small .final-price.price-sm { --fp: 50pt; }
+      .size-small .final-price.price-md { --fp: 44pt; }
+      .size-small .final-price.price-lg { --fp: 40pt; }
+      .size-small .final-price.price-xl { --fp: 36pt; }
       .size-small .original-price.price-short-xs { font-size: 36pt; }
       .size-small .original-price.price-short-sm { font-size: 35pt; }
       .size-small .original-price.price-short-md { font-size: 32pt; }
       .size-small .original-price.price-short-lg { font-size: 29pt; }
       .size-small .original-price.price-short-xl { font-size: 27pt; }
-      .size-small .final-price.price-short-xs { font-size: 65pt; }
-      .size-small .final-price.price-short-sm { font-size: 68pt; }
-      .size-small .final-price.price-short-md { font-size: 65pt; }
-      .size-small .final-price.price-short-lg { font-size: 60pt; }
-      .size-small .final-price.price-short-xl { font-size: 55pt; }
+      .size-small .final-price.price-short-xs { --fp: 65pt; }
+      .size-small .final-price.price-short-sm { --fp: 68pt; }
+      .size-small .final-price.price-short-md { --fp: 65pt; }
+      .size-small .final-price.price-short-lg { --fp: 60pt; }
+      .size-small .final-price.price-short-xl { --fp: 55pt; }
       
       .size-small .product-name.name-lg { font-size: 6pt; }
       .size-small .product-name.name-md { font-size: 5.5pt; }
@@ -1213,12 +1242,13 @@ const getPrintStyles = (settings: PrintSettings): string => {
       .size-small .price-tag.compact-layout-small .product-name.name-md { font-size: 5.5pt; }
       .size-small .price-tag.compact-layout-small .product-name.name-sm { font-size: 5pt; }
       .size-small .price-tag.compact-layout-small .original-price { font-size: 32pt; }
-      .size-small .price-tag.compact-layout-small .final-price.price-short-xs { font-size: 60pt; }
+      .size-small .price-tag.compact-layout-small .final-price.price-short-xs { --fp: 60pt; }
       .size-small .price-tag.compact-layout-small .promotion-info.promo-lg { font-size: 5pt; }
       .size-small .price-tag.compact-layout-small .promotion-info.promo-md { font-size: 4.5pt; }
       .size-small .price-tag.compact-layout-small .promotion-info.promo-sm { font-size: 4pt; }
       
       /* Layout: 24 per page (Tiny) */
+      .size-tiny .price-tag { --fp-grow: 1.18; }
       .size-tiny .original-price::after { height: 1px; }
       .size-tiny .ghost-bar, .size-tiny .vertical-info-container { width: 12px; }
       .size-tiny .price-tag { padding: 2px; }
@@ -1232,21 +1262,21 @@ const getPrintStyles = (settings: PrintSettings): string => {
       .size-tiny .original-price.price-md { font-size: 9.5pt; }
       .size-tiny .original-price.price-lg { font-size: 9pt; }
       .size-tiny .original-price.price-xl { font-size: 8pt; }
-      .size-tiny .final-price.price-xs { font-size: 35pt; }
-      .size-tiny .final-price.price-sm { font-size: 31pt; }
-      .size-tiny .final-price.price-md { font-size: 28pt; }
-      .size-tiny .final-price.price-lg { font-size: 25pt; }
-      .size-tiny .final-price.price-xl { font-size: 23pt; }
+      .size-tiny .final-price.price-xs { --fp: 35pt; }
+      .size-tiny .final-price.price-sm { --fp: 31pt; }
+      .size-tiny .final-price.price-md { --fp: 28pt; }
+      .size-tiny .final-price.price-lg { --fp: 25pt; }
+      .size-tiny .final-price.price-xl { --fp: 23pt; }
       .size-tiny .original-price.price-short-xs { font-size: 19pt; }
       .size-tiny .original-price.price-short-sm { font-size: 17pt; }
       .size-tiny .original-price.price-short-md { font-size: 16pt; }
       .size-tiny .original-price.price-short-lg { font-size: 14pt; }
       .size-tiny .original-price.price-short-xl { font-size: 13pt; }
-      .size-tiny .final-price.price-short-xs { font-size: 41pt; }
-      .size-tiny .final-price.price-short-sm { font-size: 41pt; }
-      .size-tiny .final-price.price-short-md { font-size: 41pt; }
-      .size-tiny .final-price.price-short-lg { font-size: 38pt; }
-      .size-tiny .final-price.price-short-xl { font-size: 34pt; }
+      .size-tiny .final-price.price-short-xs { --fp: 41pt; }
+      .size-tiny .final-price.price-short-sm { --fp: 41pt; }
+      .size-tiny .final-price.price-short-md { --fp: 41pt; }
+      .size-tiny .final-price.price-short-lg { --fp: 38pt; }
+      .size-tiny .final-price.price-short-xl { --fp: 34pt; }
       
       .size-tiny .product-name.name-lg { font-size: 4.5pt; }
       .size-tiny .product-name.name-md { font-size: 4pt; }
@@ -1258,6 +1288,7 @@ const getPrintStyles = (settings: PrintSettings): string => {
       .size-tiny .price-section { flex: 6 1 auto; }
 
       /* Layout: Bill Printer */
+      .size-bill .price-tag { --fp-grow: 1.15; }
       .size-bill .original-price::after { height: 2px; }
       .size-bill .ghost-bar, .size-bill .vertical-info-container { width: 16px; }
       .size-bill .price-tag { display: block; padding: 2mm; }
@@ -1289,21 +1320,21 @@ const getPrintStyles = (settings: PrintSettings): string => {
       .size-bill .original-price.price-md { font-size: 22pt; }
       .size-bill .original-price.price-lg { font-size: 20pt; }
       .size-bill .original-price.price-xl { font-size: 17pt; }
-      .size-bill .final-price.price-xs { font-size: 58pt; }
-      .size-bill .final-price.price-sm { font-size: 52pt; }
-      .size-bill .final-price.price-md { font-size: 47pt; }
-      .size-bill .final-price.price-lg { font-size: 43pt; }
-      .size-bill .final-price.price-xl { font-size: 40pt; }
+      .size-bill .final-price.price-xs { --fp: 58pt; }
+      .size-bill .final-price.price-sm { --fp: 52pt; }
+      .size-bill .final-price.price-md { --fp: 47pt; }
+      .size-bill .final-price.price-lg { --fp: 43pt; }
+      .size-bill .final-price.price-xl { --fp: 40pt; }
       .size-bill .original-price.price-short-xs { font-size: 38pt; }
       .size-bill .original-price.price-short-sm { font-size: 34pt; }
       .size-bill .original-price.price-short-md { font-size: 31pt; }
       .size-bill .original-price.price-short-lg { font-size: 30pt; }
       .size-bill .original-price.price-short-xl { font-size: 26pt; }
-      .size-bill .final-price.price-short-xs { font-size: 75pt; }
-      .size-bill .final-price.price-short-sm { font-size: 69pt; }
-      .size-bill .final-price.price-short-md { font-size: 65pt; }
-      .size-bill .final-price.price-short-lg { font-size: 60pt; }
-      .size-bill .final-price.price-short-xl { font-size: 55pt; }
+      .size-bill .final-price.price-short-xs { --fp: 75pt; }
+      .size-bill .final-price.price-short-sm { --fp: 69pt; }
+      .size-bill .final-price.price-short-md { --fp: 65pt; }
+      .size-bill .final-price.price-short-lg { --fp: 60pt; }
+      .size-bill .final-price.price-short-xl { --fp: 55pt; }
 
       /* Reduced Name Font Size by ~30% for Bill Printer (from 16pt) */
       .size-bill .product-name.name-lg { font-size: 11pt; }

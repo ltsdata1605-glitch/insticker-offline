@@ -18,9 +18,13 @@ describe('Mở bản mới khi bản cũ đang chạy nền', () => {
     expect(bundleOfExecutable('/usr/bin/sleep')).toBeNull();
   });
 
-  // App giả: tệp chạy là bản sao của /bin/sleep trong một thư mục .app có Info.plist
+  // App giả: tiến trình là /bin/sleep chạy ngoài mọi thư mục .app, còn thư mục .app (có Info.plist, không bao giờ chạy) được
+  // báo là nơi chứa tệp chạy qua executableOf. Không chạy tệp nào nằm trong .app: macOS sẽ chấm gói app giả đó như app thật,
+  // chữ ký không khớp (của /bin/sleep) nên hiện hộp "… is damaged and can't be opened" mỗi lần chạy test.
   const children: number[] = [];
   const roots: string[] = [];
+  const bundles = new Map<number, string>();
+  const executableOf = async (pid: number) => `${bundles.get(pid) ?? '/bin'}/Contents/MacOS/Ban cu`;
   afterEach(() => {
     for (const pid of children.splice(0)) {
       try {
@@ -30,20 +34,19 @@ describe('Mở bản mới khi bản cũ đang chạy nền', () => {
       }
     }
     for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
+    bundles.clear();
   });
   const runningApp = (version: string, bundleId = 'vn.insticker.offline') => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mo-ban-moi-'));
     roots.push(root);
-    const macos = path.join(root, 'In Sticker.app', 'Contents', 'MacOS');
-    fs.mkdirSync(macos, { recursive: true });
-    const exe = path.join(macos, 'In Sticker');
-    fs.copyFileSync('/bin/sleep', exe);
-    fs.chmodSync(exe, 0o755);
-    fs.writeFileSync(path.join(root, 'In Sticker.app', 'Contents', 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>
+    const bundle = path.join(root, 'Ban cu.app');
+    fs.mkdirSync(path.join(bundle, 'Contents'), { recursive: true });
+    fs.writeFileSync(path.join(bundle, 'Contents', 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict><key>CFBundleIdentifier</key><string>${bundleId}</string><key>CFBundleShortVersionString</key><string>${version}</string></dict></plist>`);
-    const child = spawn(exe, ['60'], { stdio: 'ignore' });
+    const child = spawn('/bin/sleep', ['60'], { stdio: 'ignore' });
     children.push(child.pid as number);
+    bundles.set(child.pid as number, bundle);
     const userData = path.join(root, 'du-lieu');
     fs.mkdirSync(userData);
     fs.symlinkSync(`${os.hostname()}-${child.pid}`, path.join(userData, 'SingletonLock'));
@@ -63,18 +66,18 @@ describe('Mở bản mới khi bản cũ đang chạy nền', () => {
     const logs: string[] = [];
     const older = runningApp('1.5.0');
     await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(await stopOlderInstance(older.userData, '1.7.1', (message) => logs.push(message))).toBe(true);
+    expect(await stopOlderInstance(older.userData, '1.7.1', (message) => logs.push(message), executableOf)).toBe(true);
     await older.exited;
     expect(logs[0]).toContain('Bản 1.5.0 đang chạy');
 
     for (const other of [runningApp('1.7.1'), runningApp('1.8.0'), runningApp('1.5.0', 'com.khac.app')]) {
       await new Promise((resolve) => setTimeout(resolve, 200));
-      expect(await stopOlderInstance(other.userData, '1.7.1', () => undefined)).toBe(false);
+      expect(await stopOlderInstance(other.userData, '1.7.1', () => undefined, executableOf)).toBe(false);
       expect(isAlive(other.pid)).toBe(true);
     }
     // Không có khoá: không bản nào đang chạy
     const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'mo-ban-moi-trong-'));
     roots.push(empty);
-    expect(await stopOlderInstance(empty, '1.7.1', () => undefined)).toBe(false);
+    expect(await stopOlderInstance(empty, '1.7.1', () => undefined, executableOf)).toBe(false);
   });
 });
