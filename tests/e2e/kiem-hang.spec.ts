@@ -189,8 +189,8 @@ test('Kiểm hàng: nhập nhiều file, quét mã, IMEI, mã lạ, thừa, hoà
   await report.getByRole('button', { name: 'Sao chép để gửi' }).click();
   await expect(win.getByText('Đã sao chép báo cáo', { exact: false })).toBeVisible();
   const copied = await s.app.evaluate(({ clipboard }) => clipboard.readText());
-  // Tiêu đề, dòng trống, rồi mới tới nội dung
-  expect(copied).toMatch(/^BÁO CÁO KIỂM HÀNG NHẬN - .+\n\nKho chuyển: /);
+  // Tiêu đề, dòng trống, rồi mới tới nội dung (bộ nhớ tạm Windows đổi xuống dòng thành \r\n)
+  expect(copied).toMatch(/^BÁO CÁO KIỂM HÀNG NHẬN - .+\r?\n\r?\nKho chuyển: /);
   expect(copied).toContain('Người kiểm: Trần Thị Kiểm');
   expect(copied).toContain('[CHƯA ĐỦ] MYC CO0000000001 (HĐ 2000001, phiếu SC0000000001)');
   expect(copied).toContain('0160014000813 Adapter sạc Thử 20W: thiếu 2 (nhận 1/3)');
