@@ -85,8 +85,14 @@ test('Nhắc việc: tạo, nhân bản, nhắc trước hạn bằng cửa sổ
   await expect(copied).toContainText('Quan trọng');
   await expect(copied).toContainText('Bíp dồn dập');
   await expect(win.getByTestId('nhac-viec-dong')).toHaveCount(2);
-  await copied.getByRole('button', { name: 'Sửa Gửi báo cáo kiểm hàng ca chiều' }).click();
-  await win.getByRole('button', { name: 'Xoá' }).click();
+  // Nút xoá ngay trên dòng: hỏi lại trước khi xoá
+  await copied.getByRole('button', { name: 'Xoá Gửi báo cáo kiểm hàng ca chiều' }).click();
+  const deleteAsk = win.getByRole('dialog', { name: 'Xoá nhắc việc?' });
+  await expect(deleteAsk).toContainText('Việc "Gửi báo cáo kiểm hàng ca chiều" sẽ bị xoá, không lấy lại được.');
+  await deleteAsk.getByRole('button', { name: 'Không xoá' }).click();
+  await expect(win.getByTestId('nhac-viec-dong')).toHaveCount(2);
+  await copied.getByRole('button', { name: 'Xoá Gửi báo cáo kiểm hàng ca chiều' }).click();
+  await win.getByRole('dialog', { name: 'Xoá nhắc việc?' }).getByRole('button', { name: 'Xoá', exact: true }).click();
   await expect(win.getByTestId('nhac-viec-dong')).toHaveCount(1);
 
   // Trước hạn 15 phút: cửa sổ nhắc bật lên, nằm trên mọi ứng dụng
@@ -100,6 +106,8 @@ test('Nhắc việc: tạo, nhân bản, nhắc trước hạn bằng cửa sổ
   popup = await nextPopup(app, () => jumpTo(win, deadline - 10 * 60_000 + 10_000));
   await expect(popup.getByRole('heading', { name: 'Gửi báo cáo kiểm hàng' })).toBeVisible();
   await clickInPopup(popup, 'Đã xong');
+  // Bảng nhắc nổi trên app toàn màn hình nhờ tạm ẩn icon Dock (Mac); đóng bảng thì icon Dock phải hiện lại
+  if (process.platform === 'darwin') await expect.poll(() => app.evaluate(({ app: electronApp }) => electronApp.dock!.isVisible())).toBe(true);
   await win.getByRole('group', { name: 'Lọc nhắc việc' }).getByRole('button', { name: /^Đã xong/ }).click();
   await expect(row).toContainText('Đã xong');
   // Đã xong thì đến hạn không nhắc nữa

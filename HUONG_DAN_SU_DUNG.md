@@ -218,6 +218,8 @@ Bấm **Tạo nhắc việc**, điền:
 
 **Nhân bản:** việc nào hay lặp lại mà khác chút ít (khác giờ, khác người, khác nội dung), bấm nút **Nhân bản** (hai tờ giấy chồng nhau) trên dòng việc đó. Form mở ra điền sẵn mọi ô; việc đã qua hạn thì hạn tự dời sang cùng giờ hôm nay hoặc ngày mai. Sửa chỗ cần đổi rồi bấm **Tạo nhắc việc**. Việc gốc giữ nguyên.
 
+**Xoá:** bấm nút **thùng rác** cuối dòng việc, app hỏi lại rồi mới xoá (việc lặp lại thì xoá luôn các lần sau). Việc đã đồng bộ với Google Sheet thì trong file ghi Huỷ. Việc nhận từ file Google Sheet chỉ đọc không có nút xoá: xoá hoặc huỷ trong file.
+
 ### Khi đến giờ
 
 - **Bảng nhắc** bật lên ở góc phải màn hình, luôn nằm trên mọi ứng dụng, kèm chuông kêu lặp lại đến khi bấm (tối đa 5 phút, sau đó tắt tiếng nhưng bảng vẫn còn).
@@ -297,7 +299,7 @@ Tạo mã QR, mã vạch từ nội dung bất kỳ (mã sản phẩm, đường
 2. **Nhập nhiều dòng:** dán nhiều mã một lần, mỗi dòng một mã. Có tiêu đề thì ghi `Tiêu đề | Nội dung`, hoặc chép hai cột từ Excel (cột A tiêu đề, cột B nội dung). Chọn **Thêm** vào danh sách hoặc **Thay cả danh sách**.
 3. **Loại mã:** **Mã QR** (nhận cả tiếng Việt có dấu, đường link dài), **Mã vạch** (Code 128, chỉ nhận chữ không dấu, số và ký hiệu) hoặc **QR + mã vạch**. Dòng không tạo được mã có viền đỏ và lý do, không in, không xuất. Mã vạch dài in trong ô nhỏ thì vạch quá mảnh, máy quét khó đọc: app báo màu vàng, nên chọn ít mã mỗi trang hơn hoặc dùng mã QR.
 4. **Số mã mỗi trang:** chọn từ 1 đến 70 mã trên một trang A4; app tự chia cột, hàng (ghi trong ngoặc) và cỡ chữ theo cỡ ô. Chọn khổ **Dọc** hoặc **Ngang**, bật tắt **Ghi nội dung dưới mã** và **Viền nét đứt để cắt**.
-5. **Xem trước** bên phải đúng như bản in; nhiều trang thì bấm mũi tên để xem từng trang.
+5. **Xem trước** bên phải đúng như bản in; nhiều trang thì bấm mũi tên để xem từng trang. **Quét thử trên màn hình:** rê chuột vào mã nào thì chỉ mã đó hiện ra (các mã khác ẩn đi để máy quét không đọc nhầm). Bấm vào mã để **chọn**: chuột đi chỗ khác vẫn chỉ hiện mã đó; bấm phím **↓** (hoặc →) sang mã sau, **↑** (hoặc ←) về mã trước, hết trang thì tự sang trang kế. Bấm lại vào mã, bấm **Esc** hoặc **Bỏ chọn** để hiện lại tất cả.
 6. **In N mã:** mở màn xem trước bản in như các chức năng khác (chọn máy in, số bản, lưu PDF).
 7. **Ảnh từng mã:** mỗi mã một ảnh PNG (tiêu đề, mã, nội dung), tên file theo số dòng và tiêu đề. **Ảnh theo trang:** mỗi trang A4 một ảnh, giống bản in. Ảnh lưu vào thư mục Tải về.
 

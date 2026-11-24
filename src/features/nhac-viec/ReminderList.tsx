@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { Button } from '../../components/shared/ui/Button';
+import { ConfirmDialog } from '../../components/shared/ui/ConfirmDialog';
 import { AppIcon } from '../../components/shared/ui/icon/AppIcon';
+import { toast } from '../../components/shared/ui/toast';
 import type { Reminder, ReminderState, ReminderView } from './nhacViecModel';
 import { PRIORITY_TEXT, dateTimeText, relativeText, reminderView, repeatText } from './nhacViecModel';
 import { PRESETS } from './sounds';
@@ -23,9 +25,10 @@ export const soundLabel = (reminder: Reminder): string => {
     return sound.name;
 };
 
-/** Một nhắc việc trong danh sách: mức độ, hạn, còn bao lâu, lặp lại, âm thanh, nút Xong, Nhân bản và Sửa. */
+/** Một nhắc việc trong danh sách: mức độ, hạn, còn bao lâu, lặp lại, âm thanh, nút Xong, Nhân bản, Sửa và Xoá. */
 export const ReminderRow: React.FC<{ view: ReminderView; now: number; onEdit: (reminder: Reminder) => void; onCopy: (reminder: Reminder) => void; highlight?: boolean }> = ({ view, now, onEdit, onCopy, highlight }) => {
-    const { completeReminder, saveReminder, sheet, bridge } = useNhacViec();
+    const { completeReminder, saveReminder, deleteReminder, sheet, bridge } = useNhacViec();
+    const [deleteAsk, setDeleteAsk] = useState(false);
     const fromSheet = view.reminder.source?.kind === 'sheet';
     // Chỉ đọc file (link chia sẻ): sửa trong Google Sheet. Đồng bộ hai chiều: sửa ngay trong app.
     const editInSheet = fromSheet && !bridge;
@@ -77,9 +80,29 @@ export const ReminderRow: React.FC<{ view: ReminderView; now: number; onEdit: (r
                     <Button size="sm" variant="secondary" icon="externalLink" aria-label={`Mở Google Sheet của ${reminder.title}`} title="Sửa việc này trong Google Sheet"
                         onClick={() => fileUrl && void window.stickerDesktop.reminders.openSheet(fileUrl)} />
                 ) : (
-                    <Button size="sm" variant="secondary" icon="edit" aria-label={`Sửa ${reminder.title}`} onClick={() => onEdit(reminder)} />
+                    <>
+                        <Button size="sm" variant="secondary" icon="edit" aria-label={`Sửa ${reminder.title}`} onClick={() => onEdit(reminder)} />
+                        {/* Việc từ Google Sheet chỉ đọc thì không có nút xoá: xoá trong app thì lần đồng bộ sau việc lại về */}
+                        <Button size="sm" variant="secondary" icon="delete" aria-label={`Xoá ${reminder.title}`} title="Xoá nhắc việc này"
+                            className="text-slate-500 hover:!text-rose-600 hover:!border-rose-300" onClick={() => setDeleteAsk(true)} />
+                    </>
                 )}
             </div>
+            <ConfirmDialog
+                isOpen={deleteAsk}
+                onClose={() => setDeleteAsk(false)}
+                onConfirm={() => {
+                    deleteReminder(reminder.id);
+                    setDeleteAsk(false);
+                    toast.success('Đã xoá nhắc việc');
+                }}
+                title="Xoá nhắc việc?"
+                variant="danger"
+                zIndex="z-[200]"
+                confirmText="Xoá"
+                cancelText="Không xoá"
+                message={`Việc "${reminder.title}"${reminder.repeat !== 'none' ? ' cùng mọi lần lặp lại sau' : ''} sẽ bị xoá, không lấy lại được.${fromSheet ? ' Trong Google Sheet, việc này được ghi Huỷ.' : ''}`}
+            />
         </li>
     );
 };

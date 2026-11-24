@@ -109,8 +109,25 @@ const BulkDialog: React.FC<{ onClose: () => void; onAdd: (lines: { title: string
     );
 };
 
-/** Xem trước một trang A4 đúng như bản in, thu nhỏ theo khung */
-const PagePreview: React.FC<{ page: CodeItem[]; settings: PageSettings }> = ({ page, settings }) => {
+/** Thứ tự (tính từ 0) của ô mã chứa phần tử, trong trang xem trước */
+const cellIndexOf = (target: EventTarget | null): number | null => {
+    const cell = target instanceof Element ? target.closest('.tm-o') : null;
+    return cell?.parentElement ? Array.prototype.indexOf.call(cell.parentElement.children, cell) as number : null;
+};
+
+/**
+ * Xem trước một trang A4 đúng như bản in, thu nhỏ theo khung. `focus` là ô đang rê chuột hoặc đang chọn: chỉ ô đó còn hiện mã, các
+ * ô khác ẩn hết (còn viền) để máy quét không đọc nhầm mã bên cạnh khi quét thử trên màn hình.
+ */
+const PagePreview: React.FC<{
+    page: CodeItem[];
+    settings: PageSettings;
+    focus: number | null;
+    /** Ô `focus` đang được chọn (bấm chuột), không chỉ rê chuột */
+    locked: boolean;
+    onHover: (index: number | null) => void;
+    onPick: (index: number) => void;
+}> = ({ page, settings, focus, locked, onHover, onPick }) => {
     const box = useRef<HTMLDivElement>(null);
     const [width, setWidth] = useState(360);
     useEffect(() => {
@@ -128,11 +145,32 @@ const PagePreview: React.FC<{ page: CodeItem[]; settings: PageSettings }> = ({ p
     const key = JSON.stringify([page.map(item => [item.title, item.content]), settings]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const html = useMemo(() => `<style>${pageCss(settings, grid)}</style>${pageHtml(page, settings)}`, [key]);
+    // Đi bằng phím mũi tên: kéo ô đang chọn vào tầm nhìn (trang xem trước dài hơn khung bên phải)
+    useEffect(() => {
+        if (!locked || focus === null) return;
+        box.current?.querySelector('.tm-trang')?.children[focus]?.scrollIntoView({ block: 'nearest' });
+    }, [locked, focus, html]);
+    const nth = focus === null ? 0 : focus + 1;
     return (
         <div ref={box} className="w-full">
+            {/* Ẩn mã ở các ô khác bằng CSS theo thứ tự ô, vì trang dựng bằng HTML của bản in (dựng lại thì không mất) */}
+            <style>{`[data-tm-xem] .tm-o { cursor: pointer; }${focus === null ? '' : `
+[data-tm-xem] .tm-o:not(:nth-child(${nth})) > * { visibility: hidden; }
+[data-tm-xem] .tm-o:nth-child(${nth}) { box-shadow: 0 0 0 1.2mm ${locked ? '#0284c7' : '#7dd3fc'}; }`}`}</style>
             <div className="mx-auto overflow-hidden rounded-[6px] bg-white shadow-[0_1px_4px_rgba(15,23,42,0.18)] ring-1 ring-slate-200"
-                style={{ width: pageWidth * scale, height: grid.pageH * MM * scale }}>
-                <div data-testid="trang-xem-truoc" style={{ width: pageWidth, transform: `scale(${scale})`, transformOrigin: 'top left' }} dangerouslySetInnerHTML={{ __html: html }} />
+                style={{ width: pageWidth * scale, height: grid.pageH * MM * scale }}
+                // Chuột ở khe giữa hai ô thì giữ ô vừa rê, kẻo các mã hiện lại rồi ẩn đi liên tục
+                onMouseMove={event => {
+                    const index = cellIndexOf(event.target);
+                    if (index !== null) onHover(index);
+                }}
+                onMouseLeave={() => onHover(null)}
+                onClick={event => {
+                    const index = cellIndexOf(event.target);
+                    if (index !== null) onPick(index);
+                }}>
+                <div data-testid="trang-xem-truoc" data-tm-xem="" data-chon={focus === null ? undefined : focus + 1} data-khoa={locked ? '' : undefined}
+                    style={{ width: pageWidth, transform: `scale(${scale})`, transformOrigin: 'top left' }} dangerouslySetInnerHTML={{ __html: html }} />
             </div>
         </div>
     );
@@ -148,6 +186,10 @@ export default function TaoMaView({ active }: { active: boolean }): React.JSX.El
     const [bulk, setBulk] = useState(false);
     const [clearAsk, setClearAsk] = useState(false);
     const [pageIndex, setPageIndex] = useState(0);
+    /** Ô xem trước đang rê chuột (thứ tự trong trang) */
+    const [hovered, setHovered] = useState<number | null>(null);
+    /** Mã đang chọn để quét thử (thứ tự trong cả bản in, tính cả số bản), đi tiếp bằng phím mũi tên */
+    const [picked, setPicked] = useState<number | null>(null);
     const [busy, setBusy] = useState<'' | 'codes' | 'pages'>('');
     const inputs = useRef(new Map<string, HTMLInputElement>());
     const focusNext = useRef<string | null>(null);
@@ -191,7 +233,41 @@ export default function TaoMaView({ active }: { active: boolean }): React.JSX.El
     const grid = gridFor(settings.perPage, settings.landscape, settings.kind);
     const pages = useMemo(() => pagesOf(valid, settings.perPage), [valid, settings.perPage]);
     const copies = pages.reduce((sum, page) => sum + page.length, 0);
-    const shownPage = Math.min(pageIndex, Math.max(0, pages.length - 1));
+    const pick = picked !== null && picked < copies ? picked : null;
+    // Đang chọn mã thì xem trước luôn ở trang có mã đó
+    const shownPage = pick !== null ? Math.floor(pick / settings.perPage) : Math.min(pageIndex, Math.max(0, pages.length - 1));
+    const focus = pick !== null ? pick % settings.perPage : hovered !== null && hovered < (pages[shownPage]?.length ?? 0) ? hovered : null;
+    /** Chọn mã thứ `index` trong bản in (null là bỏ chọn, xem trước đứng lại ở trang đang xem) */
+    const pickAt = (index: number | null) => {
+        if (index === null) {
+            setPageIndex(shownPage);
+            setPicked(null);
+            return;
+        }
+        const next = Math.max(0, Math.min(copies - 1, index));
+        setPicked(next);
+        setPageIndex(Math.floor(next / settings.perPage));
+    };
+    const turnPage = (page: number) => {
+        setPicked(null);
+        setPageIndex(page);
+    };
+    // Đang chọn mã: mũi tên xuống (phải) sang mã sau, lên (trái) về mã trước, sang cả trang khác; Esc bỏ chọn. Đang gõ trong ô thì
+    // phím mũi tên để cho ô đó.
+    useEffect(() => {
+        if (!active || pick === null || bulk || clearAsk) return;
+        const onKey = (event: KeyboardEvent) => {
+            if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || document.querySelector('[role="dialog"]')) return;
+            if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+            const step = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 0;
+            if (step) pickAt(pick + step);
+            else if (event.key === 'Escape') pickAt(null);
+            else return;
+            event.preventDefault();
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    });
     const change = (next: Partial<PageSettings>) => setSettings(current => ({ ...current, ...next }));
 
     const updateItem = (next: CodeItem) => setItems(list => list.map(item => (item.id === next.id ? next : item)));
@@ -243,7 +319,9 @@ export default function TaoMaView({ active }: { active: boolean }): React.JSX.El
     return (
         <div className="relative h-full bg-slate-100">
             {active && <TopBarActions>{null}</TopBarActions>}
-            <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_400px] gap-4 p-4 lg:p-5 xl:grid-cols-[minmax(0,1fr)_460px]">
+            {/* Khung bên phải (cài đặt, xem trước) rộng gần bằng danh sách: trang xem trước to, quét thử trên màn hình dễ */}
+            <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_minmax(400px,0.9fr)] gap-4 p-4 lg:p-5">
+
                 <section className="flex min-h-0 flex-col gap-3">
                     <div className="flex flex-wrap items-center gap-2">
                         <p className="mr-auto text-[14px] font-bold text-slate-700">
@@ -333,12 +411,30 @@ export default function TaoMaView({ active }: { active: boolean }): React.JSX.El
                             </p>
                             {pages.length > 1 && (
                                 <>
-                                    <Button size="icon-xs" variant="ghost" icon="chevronLeft" aria-label="Trang trước" disabled={shownPage === 0} onClick={() => setPageIndex(shownPage - 1)} />
-                                    <Button size="icon-xs" variant="ghost" icon="chevronRight" aria-label="Trang sau" disabled={shownPage >= pages.length - 1} onClick={() => setPageIndex(shownPage + 1)} />
+                                    <Button size="icon-xs" variant="ghost" icon="chevronLeft" aria-label="Trang trước" disabled={shownPage === 0} onClick={() => turnPage(shownPage - 1)} />
+                                    <Button size="icon-xs" variant="ghost" icon="chevronRight" aria-label="Trang sau" disabled={shownPage >= pages.length - 1} onClick={() => turnPage(shownPage + 1)} />
                                 </>
                             )}
                         </div>
-                        {pages.length > 0 ? <PagePreview page={pages[shownPage]} settings={settings} /> : (
+                        {pages.length > 0 && (
+                            pick !== null ? (
+                                <div data-testid="ma-dang-chon" className="flex items-center gap-2 rounded-control bg-sky-50 px-2.5 py-1.5 text-[12px] text-sky-900 ring-1 ring-sky-200">
+                                    <span className="mr-auto">
+                                        Đang chọn mã <strong>{pick + 1}/{copies}</strong>. Bấm <kbd className="font-sans font-bold">↑</kbd> <kbd className="font-sans font-bold">↓</kbd> để chuyển mã, Esc để bỏ chọn.
+                                    </span>
+                                    <Button size="xs" variant="ghost" onClick={() => pickAt(null)}>Bỏ chọn</Button>
+                                </div>
+                            ) : (
+                                <p className="text-[12px] text-slate-500">Rê chuột vào mã nào thì chỉ hiện mã đó để quét thử. Bấm vào mã để chọn, rồi bấm ↑ ↓ để chuyển sang mã khác.</p>
+                            )
+                        )}
+                        {pages.length > 0 ? (
+                            <PagePreview page={pages[shownPage]} settings={settings} focus={focus} locked={pick !== null} onHover={setHovered}
+                                onPick={index => {
+                                    const global = shownPage * settings.perPage + index;
+                                    pickAt(global === pick ? null : global);
+                                }} />
+                        ) : (
                             <div className="flex aspect-[210/297] w-full flex-col items-center justify-center gap-2 rounded-[6px] border border-dashed border-slate-300 text-center text-[13px] text-slate-500">
                                 <AppIcon name="qrCode" size="lg" />
                                 Gõ nội dung ở bên trái để tạo mã
@@ -353,7 +449,7 @@ export default function TaoMaView({ active }: { active: boolean }): React.JSX.El
             <ConfirmDialog
                 isOpen={clearAsk}
                 onClose={() => setClearAsk(false)}
-                onConfirm={() => { setItems([newItem()]); setClearAsk(false); setPageIndex(0); }}
+                onConfirm={() => { setItems([newItem()]); setClearAsk(false); setPageIndex(0); setPicked(null); }}
                 title="Xoá hết danh sách mã?"
                 variant="danger"
                 zIndex="z-[200]"

@@ -106,3 +106,63 @@ test('Tạo mã: nhập mã có tiêu đề, dán nhiều dòng, QR và mã vạ
   await expect(win.getByLabel('Nội dung mã 1')).toHaveValue('');
   await s.close();
 });
+
+test('Tạo mã: rê chuột vào mã nào chỉ hiện mã đó, bấm chọn mã rồi bấm mũi tên lên xuống để chuyển mã, sang cả trang sau', async () => {
+  const s = await openApp();
+  const { win } = s;
+  await rail(win).getByRole('button', { name: 'Tạo mã' }).click();
+  await win.getByRole('button', { name: 'Nhập nhiều dòng' }).click();
+  await win.getByRole('dialog', { name: 'Nhập nhiều mã' }).getByLabel('Các dòng mã').fill('MA-1\nMA-2\nMA-3\nMA-4\nMA-5');
+  await win.getByRole('button', { name: 'Thêm 5 mã' }).click();
+  await win.getByLabel('Số mã mỗi trang').selectOption('4');
+  const cells = win.getByTestId('trang-xem-truoc').locator('.tm-o');
+  await expect(cells).toHaveCount(4);
+  /** Ô nào còn hiện mã (ô khác ẩn mã để máy quét không đọc nhầm) */
+  const shown = () => cells.evaluateAll(list => list.map(cell => getComputedStyle(cell.querySelector('.tm-ma')!).visibility === 'visible'));
+  const away = () => win.getByRole('button', { name: 'Nhập nhiều dòng' }).hover();
+  await expect.poll(shown).toEqual([true, true, true, true]);
+
+  // Rê chuột: chỉ hiện mã đang rê; chuột ra ngoài thì hiện lại tất cả
+  await cells.nth(2).hover();
+  await expect.poll(shown).toEqual([false, false, true, false]);
+  await away();
+  await expect.poll(shown).toEqual([true, true, true, true]);
+
+  // Bấm chọn: chuột đi chỗ khác vẫn chỉ hiện mã đã chọn
+  await cells.nth(1).click();
+  await expect(win.getByTestId('ma-dang-chon')).toContainText('Đang chọn mã 2/5');
+  await away();
+  await expect.poll(shown).toEqual([false, true, false, false]);
+
+  // Mũi tên xuống sang mã sau, hết trang thì sang trang sau; ở mã cuối thì đứng yên
+  await win.keyboard.press('ArrowDown');
+  await win.keyboard.press('ArrowDown');
+  await expect.poll(shown).toEqual([false, false, false, true]);
+  await win.keyboard.press('ArrowDown');
+  await expect(win.getByText(/trang 2\/2/)).toBeVisible();
+  await expect(cells).toHaveCount(1);
+  await expect(win.getByTestId('ma-dang-chon')).toContainText('Đang chọn mã 5/5');
+  await win.keyboard.press('ArrowDown');
+  await expect(win.getByTestId('ma-dang-chon')).toContainText('Đang chọn mã 5/5');
+  // Mũi tên lên về mã trước, về cả trang trước
+  await win.keyboard.press('ArrowUp');
+  await expect(win.getByText(/trang 1\/2/)).toBeVisible();
+  await expect(win.getByTestId('ma-dang-chon')).toContainText('Đang chọn mã 4/5');
+  await expect.poll(shown).toEqual([false, false, false, true]);
+
+  // Đang gõ trong ô thì phím mũi tên để cho ô, không chuyển mã
+  await win.getByLabel('Nội dung mã 1').click();
+  await win.keyboard.press('ArrowUp');
+  await expect(win.getByTestId('ma-dang-chon')).toContainText('Đang chọn mã 4/5');
+
+  // Bấm lại mã đang chọn thì bỏ chọn; Esc cũng bỏ chọn
+  await cells.nth(3).click();
+  await expect(win.getByTestId('ma-dang-chon')).toHaveCount(0);
+  await cells.nth(0).click();
+  await expect(win.getByTestId('ma-dang-chon')).toContainText('Đang chọn mã 1/5');
+  await win.keyboard.press('Escape');
+  await expect(win.getByTestId('ma-dang-chon')).toHaveCount(0);
+  await away();
+  await expect.poll(shown).toEqual([true, true, true, true]);
+  await s.close();
+});

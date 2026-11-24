@@ -358,6 +358,9 @@ export class ReminderHost {
         this.items = [];
       }
       this.volume.restore();
+      // Hiện lại icon trên Dock: setVisibleOnAllWorkspaces(visibleOnFullScreen) ở trên tự ẩn icon Dock (Electron chuyển app sang
+      // dạng UIElement để bảng nổi được trên app toàn màn hình) và không tự hiện lại, nên app mất icon Dock tới khi tắt mở lại.
+      if (process.platform === 'darwin' && !this.quitting && !this.popup) void app.dock?.show();
     });
     void popup.loadURL(`${this.options.origin}/?popup=nhac-viec`);
   }
