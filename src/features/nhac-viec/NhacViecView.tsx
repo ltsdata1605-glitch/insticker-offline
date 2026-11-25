@@ -8,11 +8,19 @@ import { Tabs } from '../../components/shared/ui/Tabs';
 import { AppIcon } from '../../components/shared/ui/icon/AppIcon';
 import { TopBarActions } from '../../components/shared/ui/TopBarActions';
 import { toast } from '../../components/shared/ui/toast';
+import { ghiClipboard } from '../../components/shared/ui/saoChep';
 import type { BackgroundChange, BackgroundSettings } from '../../../electron/contract';
 import type { ChecklistRun, ChecklistTemplate, Reminder } from './nhacViecModel';
-import { DAY, atTime, dateKey, dateTimeText as dateTimeTextOf, relativeText, runOfDay, runOnTime, runProgress, scheduledOn, splitRuns, startOfDay, statsBetween, timeOfDay, weekdayName } from './nhacViecModel';
+import {
+    DAY, atTime, dateKey, dateTimeText as dateTimeTextOf, isManagerDept, personStats, relativeText, runOfDay, runOnTime, runProgress, sameName, scheduledOn, splitRuns, startOfDay,
+    statsBetween, timeOfDay, weekdayName,
+} from './nhacViecModel';
 import { clockNow, useNhacViec } from './NhacViecProvider';
 import { TEMPLATE_COPY_URL } from './sheetTasks';
+import { BRIDGE_V2 } from './sheetBridge';
+import { OccDialog } from './ReminderDialogs';
+import { checkTabPassword } from '../sticker-event/tabAccess';
+import bridgeScript from '../../../scripts/google-sheet/cau-noi-nhac-viec.gs?raw';
 import { ReminderForm } from './ReminderForm';
 import { ReminderList, ReminderRow, sortedViews } from './ReminderList';
 import { TemplateForm } from './TemplateForm';
@@ -92,7 +100,7 @@ const RunRow: React.FC<{ run: ChecklistRun; now: number; onOpen: () => void; onD
 
 /** Tab Checklist: các mẫu (bắt đầu lượt, sửa), lượt đang làm, lượt gần đây. */
 const ChecklistPanel: React.FC<{ onOpenRun: (run: ChecklistRun) => void; onEditTemplate: (template: ChecklistTemplate | null) => void; onCopyTemplate: (template: ChecklistTemplate) => void }> = ({ onOpenRun, onEditTemplate, onCopyTemplate }) => {
-    const { templates, runs, now, openRunFor, sheet, deleteRun } = useNhacViec();
+    const { visibleTemplates: templates, runs, now, openRunFor, sheet, deleteRun, bridgeV2 } = useNhacViec();
     const today = dateKey(now);
     const { active, stale, finished } = splitRuns(runs, today);
     const recent = finished.slice(0, 30);
@@ -126,6 +134,7 @@ const ChecklistPanel: React.FC<{ onOpenRun: (run: ChecklistRun) => void; onEditT
                                 <div className="min-w-0 flex-1">
                                     <p className="text-[15px] font-bold text-slate-900 break-words">
                                         {template.name}
+                                        {template.department && <span className="ml-2 rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-bold text-violet-700 ring-1 ring-violet-200">{template.department}</span>}
                                         {template.source?.kind === 'sheet' && <span className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200">Google Sheet</span>}
                                     </p>
                                     <p className="text-[12px] text-slate-500">
@@ -142,7 +151,8 @@ const ChecklistPanel: React.FC<{ onOpenRun: (run: ChecklistRun) => void; onEditT
                                     onClick={event => { event.stopPropagation(); open(); }}>{run?.finishedAt ? 'Xem' : run ? 'Làm tiếp' : 'Bắt đầu'}</Button>
                                 <Button size="sm" variant="secondary" icon="copy" aria-label={`Nhân bản ${template.name}`} title="Nhân bản: tạo mẫu mới giống mẫu này"
                                     onClick={event => { event.stopPropagation(); onCopyTemplate(template); }} />
-                                {template.source?.kind === 'sheet' ? (
+                                {/* Checklist từ file: đồng bộ hai chiều (script mới) thì sửa ngay trong app, chỉ đọc thì sửa trong file */}
+                                {template.source?.kind === 'sheet' && !bridgeV2 ? (
                                     <Button size="sm" variant="secondary" icon="externalLink" aria-label={`Mở Google Sheet của ${template.name}`} title="Sửa checklist này trong Google Sheet"
                                         onClick={event => { event.stopPropagation(); const url = sheet?.mode === 'bridge' ? sheet.sheetUrl : sheet?.url; if (url) void window.stickerDesktop.reminders.openSheet(url); }} />
                                 ) : (
@@ -198,7 +208,7 @@ const ChecklistPanel: React.FC<{ onOpenRun: (run: ChecklistRun) => void; onEditT
 
 /** Tab Hôm nay: nhắc việc quá hạn và trong ngày, checklist theo lịch hôm nay. */
 const TodayPanel: React.FC<{ onEdit: (reminder: Reminder) => void; onCopy: (reminder: Reminder) => void; onCreate: () => void; onOpenRun: (run: ChecklistRun) => void }> = ({ onEdit, onCopy, onCreate, onOpenRun }) => {
-    const { reminders, templates, runs, now, openRunFor } = useNhacViec();
+    const { visibleReminders: reminders, visibleTemplates: templates, runs, now, openRunFor } = useNhacViec();
     const views = useMemo(() => sortedViews(reminders, now).filter(view => view.state === 'overdue' || view.state === 'today'), [reminders, now]);
     const today = dateKey(now);
     const scheduled = templates.filter(template => scheduledOn(template, now));
@@ -254,11 +264,12 @@ const TodayPanel: React.FC<{ onEdit: (reminder: Reminder) => void; onCopy: (remi
 
 /** Tab Thống kê: tỉ lệ hoàn tất đúng hạn, việc hay có vấn đề, nhắc việc đã xong và bị lỡ. */
 const StatsPanel: React.FC<{ onOpenRun: (run: ChecklistRun) => void }> = ({ onOpenRun }) => {
-    const { reminders, runs, now } = useNhacViec();
+    const { visibleReminders: reminders, runs, now, bridgeV2 } = useNhacViec();
     const [days, setDays] = useState(7);
     const from = startOfDay(now) - (days - 1) * DAY;
     // Tính đến đúng lúc này: `now` trên màn chỉ cập nhật 30 giây một lần, lượt vừa bắt đầu vẫn phải được đếm
     const stats = statsBetween(reminders, runs, from, Math.max(now, clockNow()));
+    const people = personStats(reminders, from, Math.max(now, clockNow()));
     const inRange = runs.filter(run => run.startedAt >= from);
     const rate = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : '–');
     const Card: React.FC<{ label: string; value: string | number; tone?: string }> = ({ label, value, tone = 'text-slate-900' }) => (
@@ -285,6 +296,39 @@ const StatsPanel: React.FC<{ onOpenRun: (run: ChecklistRun) => void }> = ({ onOp
                 <Card label="Nhắc việc đã xong" value={stats.remindersDone} tone="text-emerald-700" />
                 <Card label="Nhắc việc bị lỡ" value={stats.remindersMissed} tone={stats.remindersMissed ? 'text-rose-600' : 'text-slate-900'} />
             </div>
+            <section aria-label="Theo người" className="rounded-card border border-slate-200 bg-white p-3">
+                <p className="text-[13px] font-bold text-slate-700">Theo người · {days} ngày qua</p>
+                {people.length === 0 ? <p className="mt-1 text-[13px] text-slate-500">Chưa có lần hạn nào trong khoảng này.</p> : (
+                    <div className="mt-2 max-h-56 overflow-y-auto scrollbar-thin">
+                        <table className="w-full text-[13px] tabular-nums">
+                            <thead className="sticky top-0 bg-white text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                <tr>
+                                    <th className="py-1 pr-2 text-left">Người</th>
+                                    <th className="px-2 text-right">Lần hạn</th>
+                                    {bridgeV2 && <th className="px-2 text-right">Đã nhận</th>}
+                                    <th className="px-2 text-right">Đúng hạn</th>
+                                    <th className="px-2 text-right">Trễ</th>
+                                    <th className="px-2 text-right">Chưa xong</th>
+                                    {bridgeV2 && <th className="pl-2 text-right">Cần hỗ trợ</th>}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {people.map(person => (
+                                    <tr key={person.name} data-testid="thong-ke-nguoi">
+                                        <td className="py-1.5 pr-2 font-semibold text-slate-800">{person.name}</td>
+                                        <td className="px-2 text-right">{person.total}</td>
+                                        {bridgeV2 && <td className="px-2 text-right">{person.acked}</td>}
+                                        <td className="px-2 text-right font-bold text-emerald-700">{person.onTime}</td>
+                                        <td className={`px-2 text-right font-bold ${person.late ? 'text-amber-700' : 'text-slate-400'}`}>{person.late}</td>
+                                        <td className={`px-2 text-right font-bold ${person.open ? 'text-rose-600' : 'text-slate-400'}`}>{person.open}</td>
+                                        {bridgeV2 && <td className={`pl-2 text-right font-bold ${person.help ? 'text-amber-700' : 'text-slate-400'}`}>{person.help}</td>}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </section>
             <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
                 <section className="rounded-card border border-slate-200 bg-white p-3">
                     <p className="text-[13px] font-bold text-slate-700">Việc hay có vấn đề</p>
@@ -315,11 +359,101 @@ const SheetStep: React.FC<{ n: number; title: string; children: React.ReactNode 
 );
 
 /**
+ * Script cầu nối trong file là bản cũ: hướng dẫn quản lý dán script mới (sao chép sẵn từ app) để dùng Đã nhận, Cần hỗ trợ, ảnh khi
+ * xong, checklist từ app và trang Tổng quan.
+ */
+const ScriptUpdate: React.FC<{ sheetUrl?: string }> = ({ sheetUrl }) => {
+    const copy = async () => {
+        if (await ghiClipboard(bridgeScript)) toast.success('Đã sao chép script mới, dán vào Apps Script của file');
+        else toast.error('Không sao chép được, thử lại');
+    };
+    return (
+        <div data-testid="cap-nhat-script" className="space-y-2 rounded-control border border-amber-300 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-950">
+            <p className="text-[13px]">
+                <strong>Script trong file Google Sheet là bản cũ.</strong> Cập nhật để dùng Đã nhận, Cần hỗ trợ, ảnh khi xong, checklist tạo trong app lên file và trang
+                Tổng quan. Quản lý làm một lần, khoảng 3 phút:
+            </p>
+            <ol className="list-decimal space-y-0.5 pl-5">
+                <li>Bấm <strong>Sao chép script mới</strong> bên dưới.</li>
+                <li>Mở file Google Sheet → menu <strong>Tiện ích mở rộng → Apps Script</strong>, xoá hết nội dung Mã.gs, dán vào, bấm <strong>Lưu</strong>.</li>
+                <li>Tải lại trang file, menu <strong>Nhắc việc → Cập nhật file cho app mới</strong>, cho phép quyền (để lưu ảnh nhân viên gửi vào Drive).</li>
+                <li>Trong Apps Script: <strong>Triển khai → Quản lý bản triển khai</strong> → bút chì → Phiên bản: <strong>Phiên bản mới</strong> → <strong>Triển khai</strong>. Link kết nối giữ nguyên.</li>
+            </ol>
+            <div className="flex flex-wrap gap-2">
+                <Button size="sm" icon="copy" onClick={() => void copy()}>Sao chép script mới</Button>
+                {sheetUrl && <Button size="sm" variant="secondary" icon="externalLink" onClick={() => void window.stickerDesktop.reminders.openSheet(sheetUrl)}>Mở Google Sheet</Button>}
+            </div>
+        </div>
+    );
+};
+
+/**
+ * Bộ phận của máy: máy Kho chỉ nhắc việc Kho và việc chung; máy Quản lý thấy việc mọi bộ phận, được báo việc quá hạn và nhân viên cần
+ * hỗ trợ. Đổi bộ phận cần mật khẩu quản lý để nhân viên không tự đổi.
+ */
+const DepartmentSection: React.FC = () => {
+    const { role, departments, setDepartment } = useNhacViec();
+    const [pending, setPending] = useState<string | null>(null);
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const current = role.department;
+    const choose = (value: string) => {
+        if (sameName(value, current) || (!value && !current)) return;
+        setPending(value);
+        setPassword('');
+        setError('');
+    };
+    const confirm = async (event: React.FormEvent) => {
+        event.preventDefault();
+        if (pending === null) return;
+        if (!(await checkTabPassword(password))) {
+            setError('Mật khẩu không đúng.');
+            return;
+        }
+        setDepartment(pending);
+        toast.success(pending ? `Máy này thuộc bộ phận ${pending}` : 'Máy này nhận mọi việc');
+        setPending(null);
+    };
+    return (
+        <section aria-label="Bộ phận của máy này" className="space-y-2 rounded-card border border-slate-200 bg-white px-4 py-3">
+            <div>
+                <p className="text-[15px] font-bold text-slate-900">Bộ phận của máy này</p>
+                <p className="text-[12px] text-slate-500">
+                    Máy Kho chỉ nhắc việc của Kho và việc chung, không làm phiền bởi việc của bộ phận khác. Máy Quản lý thấy việc mọi bộ phận và được báo khi việc
+                    quá hạn 15 phút chưa xong hay nhân viên bấm Cần hỗ trợ. Đổi bộ phận cần mật khẩu quản lý.
+                </p>
+            </div>
+            <div role="group" aria-label="Bộ phận của máy" className="flex flex-wrap gap-1.5">
+                {['', ...departments].map(name => {
+                    const on = name ? sameName(name, current) : !current;
+                    return (
+                        <button key={name || '-'} type="button" aria-pressed={on} onClick={() => choose(name)}
+                            className={`rounded-full border px-3 py-1 text-[13px] font-semibold ${on ? 'border-violet-600 bg-violet-600 text-white' : pending === name ? 'border-violet-400 bg-violet-50 text-violet-800' : 'border-slate-200 bg-white text-slate-700 hover:border-violet-300'}`}>
+                            {name || 'Mọi việc'}
+                        </button>
+                    );
+                })}
+            </div>
+            {pending !== null && (
+                <form onSubmit={event => void confirm(event)} className="flex flex-wrap items-center gap-2 rounded-control bg-violet-50 px-3 py-2">
+                    <span className="text-[13px] text-violet-900">Đổi sang <strong>{pending || 'Mọi việc'}</strong>:</span>
+                    <Input type="password" value={password} onChange={e => { setPassword(e.target.value); setError(''); }} placeholder="Mật khẩu quản lý" aria-label="Mật khẩu quản lý" autoFocus className="w-44" />
+                    <Button type="submit" size="sm">Đổi bộ phận</Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setPending(null)}>Huỷ</Button>
+                    {error && <p role="alert" className="w-full text-[12px] font-semibold text-rose-600">{error}</p>}
+                </form>
+            )}
+            {isManagerDept(current) && <p className="text-[12px] font-semibold text-violet-800">Máy quản lý: lọc việc theo bộ phận ở tab Nhắc việc.</p>}
+        </section>
+    );
+};
+
+/**
  * Đồng bộ với Google Sheet: tạo file từ mẫu, bật đồng bộ hai chiều trong file, dán Link kết nối. Đã kết nối thì xem tình trạng,
- * đặt tên của mình, đưa việc trên máy lên file, đồng bộ ngay, ngắt kết nối. Link chia sẻ file thường vẫn dùng được (chỉ đọc).
+ * đặt tên của mình, đồng bộ ngay, ngắt kết nối. Việc tạo trên máy tự lên file. Link chia sẻ file thường vẫn dùng được (chỉ đọc).
  */
 const SheetSection: React.FC = () => {
-    const { sheet, bridge, syncing, pendingCount, localCount, performer, setPerformer, pushLocalReminders, connectSheet, disconnectSheet, syncSheet } = useNhacViec();
+    const { sheet, bridge, syncing, pendingCount, performer, setPerformer, connectSheet, disconnectSheet, syncSheet } = useNhacViec();
     const [link, setLink] = useState('');
     const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
     const [busy, setBusy] = useState(false);
@@ -357,7 +491,7 @@ const SheetSection: React.FC = () => {
                 <p className="text-[15px] font-bold text-slate-900">Đồng bộ với Google Sheet</p>
                 <p className="text-[12px] text-slate-500">
                     Việc và checklist trên máy và trên Google Sheet là một: quản lý giao việc trong file hoặc ngay trong app, các máy nhận trong khoảng 1 phút;
-                    bấm Đã xong ở máy nào thì file ghi người xong và giờ xong.
+                    việc tạo, sửa, xoá trong app tự ghi lên file; bấm Đã xong ở máy nào thì file ghi người xong và giờ xong.
                 </p>
             </div>
             {sheet ? (
@@ -367,6 +501,7 @@ const SheetSection: React.FC = () => {
                         <span className="font-semibold break-all">{bridge ? sheet.title || 'File nhắc việc' : sheet.url}</span>
                     </p>
                     {status}
+                    {bridge && sheet.lastOk !== false && (sheet.scriptVersion ?? 1) < BRIDGE_V2 && <ScriptUpdate sheetUrl={sheet.sheetUrl} />}
                     {bridge && (
                         <div className="space-y-1">
                             <div className="flex gap-2">
@@ -375,15 +510,6 @@ const SheetSection: React.FC = () => {
                                 <Button variant="secondary" disabled={name.trim() === performer} onClick={() => setPerformer(name.trim())}>Lưu tên</Button>
                             </div>
                             <p className="text-[11px] text-slate-500">Tên của bạn ghi vào cột Người xong khi bấm Đã xong, và cột Người giao khi bạn tạo việc.</p>
-                        </div>
-                    )}
-                    {bridge && localCount > 0 && (
-                        <div className="flex flex-wrap items-center gap-2 rounded-control border border-sky-200 bg-sky-50 px-3 py-2">
-                            <p className="min-w-0 flex-1 text-[13px] text-sky-900">Có {localCount} việc chỉ có trên máy này, máy khác và file chưa thấy.</p>
-                            <Button size="sm" icon="upload" onClick={() => {
-                                const count = pushLocalReminders();
-                                if (count) toast.success(`Đang đưa ${count} việc lên Google Sheet`);
-                            }}>Đưa {localCount} việc lên Google Sheet</Button>
                         </div>
                     )}
                     {sheet.skipped && sheet.skipped.length > 0 && (
@@ -469,6 +595,7 @@ const SettingsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     return (
         <Modal isOpen={true} onClose={onClose} title="Cài đặt nhắc việc" maxWidth="lg" zIndex="z-[200]">
             <div className="space-y-4">
+                <DepartmentSection />
                 <SheetSection />
                 <ul className="divide-y divide-slate-100 rounded-card border border-slate-200 bg-white">
                     <li className="flex items-center justify-between gap-3 px-4 py-3">
@@ -533,7 +660,9 @@ const SettingsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
 /** Chức năng Nhắc việc: Hôm nay, Nhắc việc, Checklist, Thống kê. */
 export default function NhacViecView({ active }: { active: boolean }): React.JSX.Element {
-    const { loaded, runs, openRequest, clearOpenRequest } = useNhacViec();
+    const { loaded, runs, reminders, role, openRequest, clearOpenRequest } = useNhacViec();
+    /** Mở từ cửa sổ nhắc: Đã xong cần kèm ghi chú, ảnh; Cần hỗ trợ */
+    const [occDialog, setOccDialog] = useState<{ mode: 'done' | 'help'; id: string; occ: number } | null>(null);
     const [tab, setTab] = useState<Tab>('today');
     const [editing, setEditing] = useState<Reminder | null | 'new'>(null);
     const [editingTemplate, setEditingTemplate] = useState<ChecklistTemplate | null | 'new'>(null);
@@ -548,6 +677,9 @@ export default function NhacViecView({ active }: { active: boolean }): React.JSX
         if (!openRequest || !loaded) return;
         if (openRequest.kind === 'run') {
             setRunId(openRequest.id);
+        } else if (openRequest.kind === 'done' || openRequest.kind === 'help') {
+            setRunId(null);
+            setOccDialog({ mode: openRequest.kind, id: openRequest.id, occ: openRequest.occ });
         } else if (openRequest.kind === 'reminder') {
             setRunId(null);
             setTab('reminders');
@@ -585,7 +717,13 @@ export default function NhacViecView({ active }: { active: boolean }): React.JSX
                                         { id: 'stats', label: 'Thống kê' },
                                     ]}
                                 />
-                                <Button variant="secondary" icon="settings" className="ml-auto" onClick={() => setSettingsOpen(true)}>Cài đặt</Button>
+                                {role.department && (
+                                    <span data-testid="bo-phan-may" title="Bộ phận của máy này (đổi trong Cài đặt)"
+                                        className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-3 py-1 text-[13px] font-bold text-violet-800 ring-1 ring-violet-200">
+                                        <AppIcon name="department" size="sm" />Máy: {role.department}
+                                    </span>
+                                )}
+                                <Button variant="secondary" icon="settings" className={role.department ? '' : 'ml-auto'} onClick={() => setSettingsOpen(true)}>Cài đặt</Button>
                             </div>
                             <div className="min-h-0 flex-1">
                                 {tab === 'today' && <TodayPanel onEdit={setEditing} onCopy={setCopying} onCreate={() => setEditing('new')} onOpenRun={openRun} />}
@@ -602,6 +740,10 @@ export default function NhacViecView({ active }: { active: boolean }): React.JSX
             {copying && <ReminderForm reminder={null} copyFrom={copying} onClose={() => setCopying(null)} />}
             {copyingTemplate && <TemplateForm template={null} copyFrom={copyingTemplate} onClose={() => setCopyingTemplate(null)} />}
             {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+            {occDialog && (() => {
+                const target = reminders.find(item => item.id === occDialog.id);
+                return target ? <OccDialog mode={occDialog.mode} reminder={target} occ={occDialog.occ} onClose={() => setOccDialog(null)} /> : null;
+            })()}
         </div>
     );
 }

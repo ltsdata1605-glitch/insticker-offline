@@ -4,8 +4,8 @@ import { Button } from '../../components/shared/ui/Button';
 import { Input } from '../../components/shared/ui/Input';
 import { AppIcon } from '../../components/shared/ui/icon/AppIcon';
 import { toast } from '../../components/shared/ui/toast';
-import type { Priority, Reminder, RepeatKind, SoundSpec } from './nhacViecModel';
-import { MINUTE, PRIORITY_TEXT, copyDeadline, dateKey, defaultSpeech, newId, timeOfDay, weekdayName } from './nhacViecModel';
+import type { Priority, Proof, Reminder, RepeatKind, SoundSpec } from './nhacViecModel';
+import { MINUTE, PRIORITY_TEXT, PROOF_TEXT, copyDeadline, dateKey, defaultSpeech, isManagerDept, newId, timeOfDay, weekdayName } from './nhacViecModel';
 import type { Playback } from './sounds';
 import { PRESETS, VOICE_HELP, playFile, playPreset, playSpeech, startRecording, vietnameseVoice } from './sounds';
 import { clockNow, useNhacViec } from './NhacViecProvider';
@@ -49,7 +49,7 @@ const readAsDataUrl = (file: Blob): Promise<string> => new Promise((resolve, rej
  * thành việc mới, không mang theo các lần đã xong.
  */
 export const ReminderForm: React.FC<{ reminder: Reminder | null; copyFrom?: Reminder | null; onClose: () => void }> = ({ reminder, copyFrom, onClose }) => {
-    const { saveReminder, deleteReminder, templates, addMedia, getMedia, bridge, staff, performer } = useNhacViec();
+    const { saveReminder, deleteReminder, templates, addMedia, getMedia, bridge, staff, performer, departments, role } = useNhacViec();
     const base = reminder ?? copyFrom ?? null;
     const start = reminder ? reminder.deadline : copyFrom ? copyDeadline(copyFrom, clockNow()) : Math.ceil((clockNow() + 60 * MINUTE) / (5 * MINUTE)) * 5 * MINUTE;
     const [title, setTitle] = useState(base?.title ?? '');
@@ -63,11 +63,12 @@ export const ReminderForm: React.FC<{ reminder: Reminder | null; copyFrom?: Remi
     const [sound, setSound] = useState<SoundSpec>(base?.sound ?? { kind: 'preset', preset: 'chuong' });
     const [ttsText, setTtsText] = useState(base?.sound.kind === 'tts' ? base.sound.text : '');
     const [checklistId, setChecklistId] = useState(base?.checklistTemplateId ?? '');
-    // Đồng bộ hai chiều: việc đã ở trên Google Sheet thì luôn ghi lên file; việc mới mặc định ghi lên để mọi máy cùng thấy
-    const onSheet = reminder?.source?.kind === 'sheet';
-    const [sync, setSync] = useState(!reminder || onSheet);
-    const syncing = bridge && (onSheet || sync);
+    // Đồng bộ hai chiều: việc nào lưu cũng ghi lên Google Sheet, mọi máy cùng thấy
+    const syncing = bridge;
     const [assignee, setAssignee] = useState(base?.assignee ?? '');
+    // Việc mới tạo ở máy bộ phận: mặc định giao cho bộ phận của máy; máy quản lý mặc định việc chung
+    const [department, setDepartment] = useState(base ? base.department ?? '' : isManagerDept(role.department) ? '' : role.department);
+    const [proof, setProof] = useState<Proof | ''>(base?.proof ?? '');
     const [error, setError] = useState('');
     const [voiceMissing, setVoiceMissing] = useState(false);
     const [recording, setRecording] = useState<{ stop: () => Promise<string>; cancel: () => void; since: number } | null>(null);
@@ -154,7 +155,12 @@ export const ReminderForm: React.FC<{ reminder: Reminder | null; copyFrom?: Remi
             source: reminder?.source,
             assignee: assignee.trim() || undefined,
             assigner: reminder?.assigner ?? (syncing ? performer.trim() || undefined : undefined),
-        }, { sync: syncing });
+            department: department.trim() || undefined,
+            proof: proof || undefined,
+            acks: reminder?.acks,
+            helps: reminder?.helps,
+            doneInfo: reminder?.doneInfo,
+        });
         toast.success(reminder ? 'Đã lưu nhắc việc' : copyFrom ? 'Đã tạo bản sao nhắc việc' : 'Đã tạo nhắc việc');
         onClose();
     };
@@ -248,23 +254,30 @@ export const ReminderForm: React.FC<{ reminder: Reminder | null; copyFrom?: Remi
                             ))}
                         </div>
                     </Field>
+                    <Field label="Bộ phận" hint="Chọn bộ phận thì chỉ máy của bộ phận đó nhắc việc này. Chung là máy nào cũng nhắc.">
+                        <div role="group" aria-label="Bộ phận" className="flex flex-wrap gap-1.5">
+                            {['', ...departments].map(name => (
+                                <button key={name || '-'} type="button" aria-pressed={department === name} className={chip(department === name)} onClick={() => setDepartment(name)}>
+                                    {name || 'Chung'}
+                                </button>
+                            ))}
+                        </div>
+                    </Field>
+                    <Field label="Khi xong cần" hint={proof ? 'Bấm Xong phải kèm thứ này mới xong được.' : undefined}>
+                        <div role="group" aria-label="Khi xong cần" className="flex flex-wrap gap-1.5">
+                            {(['', 'note', 'photo', 'both'] as const).map(value => (
+                                <button key={value || '-'} type="button" aria-pressed={proof === value} className={chip(proof === value)} onClick={() => setProof(value)}>
+                                    {value ? PROOF_TEXT[value] : 'Không cần gì'}
+                                </button>
+                            ))}
+                        </div>
+                    </Field>
                     {bridge && (
                         <div className="space-y-2 rounded-control border border-emerald-200 bg-emerald-50/60 px-3 py-2">
-                            {onSheet ? (
-                                <p className="text-[12px] font-semibold text-emerald-800">Việc trên Google Sheet: lưu thì file và các máy khác cập nhật theo.</p>
-                            ) : (
-                                <label className="flex items-center gap-2 text-[13px] font-semibold text-emerald-900">
-                                    <input type="checkbox" checked={sync} onChange={e => setSync(e.target.checked)} className="accent-emerald-600" />
-                                    Lưu lên Google Sheet (mọi máy cùng thấy)
-                                </label>
-                            )}
-                            {syncing && (
-                                <>
-                                    <Input value={assignee} onChange={e => setAssignee(e.target.value)} list="nhac-viec-nguoi-xu-ly" placeholder="Người xử lý (để trống là việc chung)" aria-label="Người xử lý" />
-                                    <datalist id="nhac-viec-nguoi-xu-ly">{staff.map(name => <option key={name} value={name} />)}</datalist>
-                                    {sound.kind === 'file' && <p className="text-[11px] text-emerald-800">Âm thanh tự ghi chỉ phát trên máy này, máy khác dùng Chuông reo.</p>}
-                                </>
-                            )}
+                            <p className="text-[12px] font-semibold text-emerald-800">Việc trên Google Sheet: lưu thì file và các máy khác cập nhật theo.</p>
+                            <Input value={assignee} onChange={e => setAssignee(e.target.value)} list="nhac-viec-nguoi-xu-ly" placeholder="Người xử lý (để trống là việc chung)" aria-label="Người xử lý" />
+                            <datalist id="nhac-viec-nguoi-xu-ly">{staff.map(name => <option key={name} value={name} />)}</datalist>
+                            {sound.kind === 'file' && <p className="text-[11px] text-emerald-800">Âm thanh tự ghi chỉ phát trên máy này, máy khác dùng Chuông reo.</p>}
                         </div>
                     )}
                     {templates.length > 0 && (

@@ -145,10 +145,20 @@ const PagePreview: React.FC<{
     const key = JSON.stringify([page.map(item => [item.title, item.content]), settings]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const html = useMemo(() => `<style>${pageCss(settings, grid)}</style>${pageHtml(page, settings)}`, [key]);
-    // Đi bằng phím mũi tên: kéo ô đang chọn vào tầm nhìn (trang xem trước dài hơn khung bên phải)
+    // Đi bằng phím mũi tên: kéo ô đang chọn vào tầm nhìn (trang xem trước dài hơn khung bên phải), không để lọt dưới phần đầu
+    // Xem trước đang dính ở trên
     useEffect(() => {
         if (!locked || focus === null) return;
-        box.current?.querySelector('.tm-trang')?.children[focus]?.scrollIntoView({ block: 'nearest' });
+        const cell = box.current?.querySelector('.tm-trang')?.children[focus];
+        const scroller = box.current?.closest<HTMLElement>('[data-tm-cuon]');
+        if (!cell || !scroller) return;
+        const head = scroller.querySelector('[data-tm-dau]')?.getBoundingClientRect().height ?? 0;
+        const view = scroller.getBoundingClientRect();
+        const rect = cell.getBoundingClientRect();
+        const top = view.top + head + 8;
+        const bottom = view.bottom - 8;
+        if (rect.top < top) scroller.scrollTop -= top - rect.top;
+        else if (rect.bottom > bottom) scroller.scrollTop += Math.min(rect.bottom - bottom, rect.top - top);
     }, [locked, focus, html]);
     const nth = focus === null ? 0 : focus + 1;
     return (
@@ -349,7 +359,7 @@ export default function TaoMaView({ active }: { active: boolean }): React.JSX.El
                     </ul>
                 </section>
 
-                <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto scrollbar-thin pr-1">
+                <aside data-tm-cuon="" data-testid="tao-ma-khung-phai" className="flex min-h-0 flex-col gap-3 overflow-y-auto scrollbar-thin pr-1">
                     <section className="space-y-3 rounded-card border border-slate-200 bg-white p-3">
                         <div className="space-y-1.5">
                             <p className="text-[12px] font-bold text-slate-600">Loại mã</p>
@@ -403,43 +413,48 @@ export default function TaoMaView({ active }: { active: boolean }): React.JSX.El
                             </Button>
                         </div>
                     </section>
-                    <section className="space-y-2 rounded-card border border-slate-200 bg-white p-3">
-                        <div className="flex items-center gap-2">
-                            <p className="mr-auto text-[12px] font-bold text-slate-600">
-                                Xem trước{pages.length > 0 ? ` · trang ${shownPage + 1}/${pages.length}` : ''}
-                                <span className="font-medium text-slate-500"> · {grid.cols} cột × {grid.rows} hàng</span>
-                            </p>
-                            {pages.length > 1 && (
-                                <>
-                                    <Button size="icon-xs" variant="ghost" icon="chevronLeft" aria-label="Trang trước" disabled={shownPage === 0} onClick={() => turnPage(shownPage - 1)} />
-                                    <Button size="icon-xs" variant="ghost" icon="chevronRight" aria-label="Trang sau" disabled={shownPage >= pages.length - 1} onClick={() => turnPage(shownPage + 1)} />
-                                </>
+                    {/* Cuộn khung bên phải: phần đầu Xem trước dính ở trên cùng, chỉ trang mã chạy bên dưới */}
+                    <section className="rounded-card border border-slate-200 bg-white px-3 pb-3">
+                        <div data-tm-dau="" data-testid="xem-truoc-dau" className="sticky top-0 z-10 -mx-3 space-y-2 rounded-t-card border-b border-slate-100 bg-white px-3 pb-2 pt-3">
+                            <div className="flex items-center gap-2">
+                                <p className="mr-auto text-[12px] font-bold text-slate-600">
+                                    Xem trước{pages.length > 0 ? ` · trang ${shownPage + 1}/${pages.length}` : ''}
+                                    <span className="font-medium text-slate-500"> · {grid.cols} cột × {grid.rows} hàng</span>
+                                </p>
+                                {pages.length > 1 && (
+                                    <>
+                                        <Button size="icon-xs" variant="ghost" icon="chevronLeft" aria-label="Trang trước" disabled={shownPage === 0} onClick={() => turnPage(shownPage - 1)} />
+                                        <Button size="icon-xs" variant="ghost" icon="chevronRight" aria-label="Trang sau" disabled={shownPage >= pages.length - 1} onClick={() => turnPage(shownPage + 1)} />
+                                    </>
+                                )}
+                            </div>
+                            {pages.length > 0 && (
+                                pick !== null ? (
+                                    <div data-testid="ma-dang-chon" className="flex items-center gap-2 rounded-control bg-sky-50 px-2.5 py-1.5 text-[12px] text-sky-900 ring-1 ring-sky-200">
+                                        <span className="mr-auto">
+                                            Đang chọn mã <strong>{pick + 1}/{copies}</strong>. Bấm <kbd className="font-sans font-bold">↑</kbd> <kbd className="font-sans font-bold">↓</kbd> để chuyển mã, Esc để bỏ chọn.
+                                        </span>
+                                        <Button size="xs" variant="ghost" onClick={() => pickAt(null)}>Bỏ chọn</Button>
+                                    </div>
+                                ) : (
+                                    <p className="text-[12px] text-slate-500">Rê chuột vào mã nào thì chỉ hiện mã đó để quét thử. Bấm vào mã để chọn, rồi bấm ↑ ↓ để chuyển sang mã khác.</p>
+                                )
                             )}
                         </div>
-                        {pages.length > 0 && (
-                            pick !== null ? (
-                                <div data-testid="ma-dang-chon" className="flex items-center gap-2 rounded-control bg-sky-50 px-2.5 py-1.5 text-[12px] text-sky-900 ring-1 ring-sky-200">
-                                    <span className="mr-auto">
-                                        Đang chọn mã <strong>{pick + 1}/{copies}</strong>. Bấm <kbd className="font-sans font-bold">↑</kbd> <kbd className="font-sans font-bold">↓</kbd> để chuyển mã, Esc để bỏ chọn.
-                                    </span>
-                                    <Button size="xs" variant="ghost" onClick={() => pickAt(null)}>Bỏ chọn</Button>
-                                </div>
+                        <div className="pt-2">
+                            {pages.length > 0 ? (
+                                <PagePreview page={pages[shownPage]} settings={settings} focus={focus} locked={pick !== null} onHover={setHovered}
+                                    onPick={index => {
+                                        const global = shownPage * settings.perPage + index;
+                                        pickAt(global === pick ? null : global);
+                                    }} />
                             ) : (
-                                <p className="text-[12px] text-slate-500">Rê chuột vào mã nào thì chỉ hiện mã đó để quét thử. Bấm vào mã để chọn, rồi bấm ↑ ↓ để chuyển sang mã khác.</p>
-                            )
-                        )}
-                        {pages.length > 0 ? (
-                            <PagePreview page={pages[shownPage]} settings={settings} focus={focus} locked={pick !== null} onHover={setHovered}
-                                onPick={index => {
-                                    const global = shownPage * settings.perPage + index;
-                                    pickAt(global === pick ? null : global);
-                                }} />
-                        ) : (
-                            <div className="flex aspect-[210/297] w-full flex-col items-center justify-center gap-2 rounded-[6px] border border-dashed border-slate-300 text-center text-[13px] text-slate-500">
-                                <AppIcon name="qrCode" size="lg" />
-                                Gõ nội dung ở bên trái để tạo mã
-                            </div>
-                        )}
+                                <div className="flex aspect-[210/297] w-full flex-col items-center justify-center gap-2 rounded-[6px] border border-dashed border-slate-300 text-center text-[13px] text-slate-500">
+                                    <AppIcon name="qrCode" size="lg" />
+                                    Gõ nội dung ở bên trái để tạo mã
+                                </div>
+                            )}
+                        </div>
                     </section>
 
                 </aside>

@@ -150,6 +150,32 @@ test('Tạo mã: rê chuột vào mã nào chỉ hiện mã đó, bấm chọn m
   await expect(win.getByTestId('ma-dang-chon')).toContainText('Đang chọn mã 4/5');
   await expect.poll(shown).toEqual([false, false, false, true]);
 
+  // Cuộn khung bên phải xuống hết: phần đầu Xem trước dính trên cùng, chỉ trang mã chạy bên dưới
+  const panel = win.getByTestId('tao-ma-khung-phai');
+  const layout = () => panel.evaluate(element => {
+    element.scrollTop = element.scrollHeight;
+    const box = element.getBoundingClientRect();
+    const head = element.querySelector('[data-testid="xem-truoc-dau"]')!.getBoundingClientRect();
+    const page = element.querySelector('[data-testid="trang-xem-truoc"]')!.getBoundingClientRect();
+    return { scrolls: element.scrollHeight > element.clientHeight + 50, headAtTop: Math.abs(head.top - box.top) < 2, pageUnderHead: page.top < head.top };
+  });
+  await expect.poll(layout).toEqual({ scrolls: true, headAtTop: true, pageUnderHead: true });
+  await expect(win.getByTestId('ma-dang-chon')).toBeVisible();
+  // Đi lên mã đầu trang: ô đó kéo xuống dưới phần đầu đang dính, không bị che
+  await win.keyboard.press('ArrowUp');
+  await win.keyboard.press('ArrowUp');
+  await win.keyboard.press('ArrowUp');
+  await expect(win.getByTestId('ma-dang-chon')).toContainText('Đang chọn mã 1/5');
+  await expect.poll(() => panel.evaluate(element => {
+    const head = element.querySelector('[data-testid="xem-truoc-dau"]')!.getBoundingClientRect();
+    const cell = element.querySelector('[data-testid="trang-xem-truoc"] .tm-o')!.getBoundingClientRect();
+    return cell.top >= head.bottom - 1;
+  })).toBe(true);
+  await win.keyboard.press('ArrowDown');
+  await win.keyboard.press('ArrowDown');
+  await win.keyboard.press('ArrowDown');
+  await expect(win.getByTestId('ma-dang-chon')).toContainText('Đang chọn mã 4/5');
+
   // Đang gõ trong ô thì phím mũi tên để cho ô, không chuyển mã
   await win.getByLabel('Nội dung mã 1').click();
   await win.keyboard.press('ArrowUp');

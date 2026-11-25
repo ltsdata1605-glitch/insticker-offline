@@ -24,7 +24,10 @@ type Act = (item: Item, action: ReminderAction['action'], minutes?: number) => v
 /** Nhắc phải làm (kêu đến khi bấm), khác báo lỡ và việc mới (chỉ để xem) */
 const ringing = (item: Item) => item.kind === 'reminder' || item.kind === 'checklist';
 
-const kindText = (item: Item) => (item.kind === 'missed' ? 'Nhắc việc bị lỡ' : item.kind === 'new' ? 'Việc mới từ Google Sheet' : item.kind === 'checklist' ? 'Checklist' : `Nhắc việc · ${PRIORITY_TEXT[item.priority]}`);
+const kindText = (item: Item) => (item.kind === 'missed' ? 'Nhắc việc bị lỡ' : item.kind === 'new' ? 'Việc mới từ Google Sheet' : item.kind === 'alert' ? 'Báo quản lý'
+    : item.kind === 'checklist' ? 'Checklist' : `Nhắc việc · ${PRIORITY_TEXT[item.priority]}`);
+
+const PROOF_HINT = { note: 'ghi chú', photo: 'ảnh', both: 'ảnh và ghi chú' } as const;
 
 /** Thứ tự trong bảng: việc phải làm trước (khẩn hơn, hạn sớm hơn), báo lỡ và việc mới xuống cuối */
 const ordered = (items: Item[]) => [...items].sort((a, b) => Number(ringing(b)) - Number(ringing(a))
@@ -50,11 +53,12 @@ const DeadlineBox: React.FC<{ item: Item; now: number }> = ({ item, now }) => (i
 const Details: React.FC<{ item: Item; compact: boolean }> = ({ item, compact }) => (
     <>
         {item.content && <p className={`mt-1.5 text-slate-700 whitespace-pre-wrap break-words ${compact ? 'text-[13px] leading-snug line-clamp-3' : 'text-[14px] leading-relaxed'}`}>{item.content}</p>}
-        {(item.assignee || item.assigner) && (
+        {(item.assignee || item.assigner || item.department) && (
             <p className={`mt-1.5 font-semibold text-slate-700 ${compact ? 'text-[12px]' : 'text-[13px]'}`}>
-                {[item.assignee && `Giao cho: ${item.assignee}`, item.assigner && `Người giao: ${item.assigner}`].filter(Boolean).join(' · ')}
+                {[item.department && `Bộ phận: ${item.department}`, item.assignee && `Giao cho: ${item.assignee}`, item.assigner && `Người giao: ${item.assigner}`].filter(Boolean).join(' · ')}
             </p>
         )}
+        {item.proof && ringing(item) && <p className={`mt-1 font-semibold text-violet-700 ${compact ? 'text-[12px]' : 'text-[13px]'}`}>Khi xong cần kèm {PROOF_HINT[item.proof]}</p>}
         {item.missed && (
             <ul className="mt-2 divide-y divide-slate-100 rounded-control border border-slate-200 text-[13px]">
                 {item.missed.map(line => (
@@ -74,6 +78,15 @@ const Details: React.FC<{ item: Item; compact: boolean }> = ({ item, compact }) 
 const Actions: React.FC<{ item: Item; compact: boolean; act: Act }> = ({ item, compact, act }) => {
     const height = compact ? 'h-9' : 'h-11';
     if (!ringing(item)) {
+        // Việc mới: nhân viên bấm Đã nhận, file ghi người nhận và giờ nhận
+        if (item.kind === 'new' && item.canAck) {
+            return (
+                <div className="grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => act(item, 'ack')} className={`${height} rounded-control bg-emerald-600 text-white font-bold hover:bg-emerald-700`}>Đã nhận</button>
+                    <button type="button" onClick={() => act(item, 'open')} className={`${height} rounded-control border border-slate-300 font-bold text-slate-700 hover:bg-slate-50`}>Xem danh sách</button>
+                </div>
+            );
+        }
         return (
             <div className="grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => act(item, 'open')} className={`${height} rounded-control bg-sky-600 text-white font-bold hover:bg-sky-700`}>Xem danh sách</button>
@@ -95,6 +108,22 @@ const Actions: React.FC<{ item: Item; compact: boolean; act: Act }> = ({ item, c
                 ))}
             </div>
             {!compact && <p className="col-span-2 -mt-1 text-right text-[11px] text-slate-500">Bấm số phút để hoãn nhắc lại</p>}
+            {item.kind === 'reminder' && (item.canAck || item.canHelp) && (
+                <div className={`col-span-2 grid gap-2 ${item.canAck && item.canHelp ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                    {item.canAck && (
+                        <button type="button" onClick={() => act(item, 'ack')} title="Báo đã nhận việc, file ghi người nhận và giờ nhận"
+                            className={`${compact ? 'h-8 text-[13px]' : 'h-10 text-[14px]'} rounded-control border border-emerald-300 bg-emerald-50 font-bold text-emerald-800 hover:bg-emerald-100`}>
+                            Đã nhận
+                        </button>
+                    )}
+                    {item.canHelp && (
+                        <button type="button" onClick={() => act(item, 'help')} title="Báo quản lý: việc đang vướng, cần hỗ trợ"
+                            className={`${compact ? 'h-8 text-[13px]' : 'h-10 text-[14px]'} rounded-control border border-amber-300 bg-amber-50 font-bold text-amber-800 hover:bg-amber-100`}>
+                            Cần hỗ trợ
+                        </button>
+                    )}
+                </div>
+            )}
             {item.kind === 'reminder' && (
                 <button type="button" onClick={() => act(item, 'open')} className={`col-span-2 ${compact ? 'h-8 text-[13px]' : 'h-10 text-[14px]'} rounded-control border border-slate-300 font-semibold text-slate-700 hover:bg-slate-50`}>
                     {item.hasChecklist ? 'Mở checklist liên kết' : 'Mở trong app'}

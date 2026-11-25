@@ -41,10 +41,10 @@ test('Đồng bộ hai chiều với Google Sheet: dán Link kết nối, đưa 
     await win.getByRole('button', { name: 'Tạo nhắc việc' }).first().click();
     const localForm = win.getByRole('dialog', { name: 'Tạo nhắc việc' });
     await localForm.getByLabel('Tiêu đề công việc').fill('Gọi khách đặt cọc');
-    await expect(localForm.getByText('Lưu lên Google Sheet')).toHaveCount(0);
+    await expect(localForm.getByText('Việc trên Google Sheet')).toHaveCount(0);
     await localForm.getByRole('button', { name: 'Tạo nhắc việc' }).click();
 
-    // Quản lý gửi Link kết nối: sao chép rồi bấm một nút là kết nối, nhận việc trong file
+    // Quản lý gửi Link kết nối: sao chép rồi bấm một nút là kết nối, nhận việc trong file; việc tạo trên máy trước đó tự lên file
     await win.getByRole('button', { name: 'Cài đặt' }).click();
     const settings = win.getByRole('dialog', { name: 'Cài đặt nhắc việc' });
     await app.evaluate(({ clipboard }, link) => clipboard.writeText(link), bridge.link);
@@ -53,16 +53,13 @@ test('Đồng bộ hai chiều với Google Sheet: dán Link kết nối, đưa 
     await clickInPopup(popup, 'Đóng');
     await expect(settings.getByText('Đồng bộ hai chiều', { exact: true })).toBeVisible();
     await expect(settings).toContainText('Nhắc việc cửa hàng');
-    await expect(settings.getByTestId('tinh-trang-sheet')).toContainText('1 công việc đang giao, 1 checklist');
+    await expect.poll(() => bridge.taskByTitle('Gọi khách đặt cọc')?.['Mã việc']).toBe('CV002');
+    await expect(settings.getByTestId('tinh-trang-sheet')).toContainText('2 công việc đang giao, 1 checklist');
+    await expect(settings.getByRole('button', { name: /^Đưa \d+ việc/ })).toHaveCount(0);
 
-    // Đặt tên của mình, đưa việc chỉ có trên máy lên file
+    // Đặt tên của mình: ghi vào cột Người giao, Người xong
     await settings.getByLabel('Tên của bạn').fill('Ngọc - 11443');
     await settings.getByRole('button', { name: 'Lưu tên' }).click();
-    await settings.getByRole('button', { name: 'Đưa 1 việc lên Google Sheet' }).click();
-    await expect.poll(() => bridge.taskByTitle('Gọi khách đặt cọc')?.['Mã việc']).toBe('CV002');
-    expect(bridge.task('CV002')['Người giao']).toBe('Ngọc - 11443');
-    await expect(settings.getByTestId('tinh-trang-sheet')).toContainText('2 công việc đang giao');
-    await expect(settings.getByRole('button', { name: /^Đưa \d+ việc/ })).toHaveCount(0);
     await win.keyboard.press('Escape');
 
     // Việc từ file sửa được ngay trong app
@@ -75,7 +72,7 @@ test('Đồng bộ hai chiều với Google Sheet: dán Link kết nối, đưa 
     await win.getByRole('button', { name: 'Tạo nhắc việc' }).first().click();
     const newForm = win.getByRole('dialog', { name: 'Tạo nhắc việc' });
     await newForm.getByLabel('Tiêu đề công việc').fill('Trả hàng lỗi cho NCC');
-    await expect(newForm.getByLabel('Lưu lên Google Sheet (mọi máy cùng thấy)')).toBeChecked();
+    await expect(newForm).toContainText('Việc trên Google Sheet');
     await newForm.getByLabel('Người xử lý').fill('Linh');
     await newForm.getByRole('group', { name: 'Mức độ' }).getByRole('button', { name: 'Khẩn' }).click();
     const dateValue = await newForm.getByLabel('Ngày hạn').inputValue();
@@ -118,7 +115,9 @@ test('Đồng bộ hai chiều với Google Sheet: dán Link kết nối, đưa 
     await win.getByRole('button', { name: 'Cài đặt' }).click();
     popup = await nextPopup(app, () => settings.getByRole('button', { name: 'Đồng bộ ngay' }).click());
     await expect(popup.getByRole('heading', { name: 'Có 1 công việc mới' })).toBeVisible();
-    await clickInPopup(popup, 'Đóng');
+    // Bảng việc mới có nút Đã nhận: file ghi người nhận
+    await clickInPopup(popup, 'Đã nhận');
+    await expect.poll(() => bridge.task('CV004')['Đã nhận']).toMatch(/^Ngọc - 11443 · /);
     await win.keyboard.press('Escape');
     const cv002 = win.getByTestId('nhac-viec-dong').filter({ hasText: 'Gọi khách đặt cọc (gấp)' });
     await expect(cv002).toBeVisible();

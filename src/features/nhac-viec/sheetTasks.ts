@@ -3,7 +3,7 @@
  * việc. Link chia sẻ thường thì chỉ đọc; Link kết nối của cầu nối thì đồng bộ hai chiều (sheetBridge.ts). Không đụng giao diện để
  * kiểm thử được.
  */
-import type { ChecklistItemTemplate, ChecklistSchedule, ChecklistTemplate, PresetSound, Priority, Reminder, RepeatKind, SoundSpec } from './nhacViecModel';
+import type { ChecklistItemTemplate, ChecklistSchedule, ChecklistTemplate, PresetSound, Priority, Proof, Reminder, RepeatKind, SoundSpec } from './nhacViecModel';
 import { MINUTE } from './nhacViecModel';
 
 /** File mẫu công khai (ai có link được xem). "Tạo file nhắc việc" mở trang tạo bản sao của file này. */
@@ -60,7 +60,7 @@ export const parseCsv = (text: string): string[][] => {
 };
 
 /** Bỏ dấu, chữ thường: "Quan trọng" và "quan trong" là một */
-const plain = (value: string): string => value.normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').replace(/\s+/g, ' ').trim().toLowerCase();
+export const plain = (value: string): string => value.normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').replace(/\s+/g, ' ').trim().toLowerCase();
 
 const COLUMNS = {
     id: 'ma viec',
@@ -80,6 +80,8 @@ const COLUMNS = {
     checklist: 'checklist',
     status: 'trang thai',
     assigner: 'nguoi giao',
+    department: 'bo phan',
+    proof: 'khi xong can',
 } as const;
 
 export interface SheetTask {
@@ -98,6 +100,8 @@ export interface SheetTask {
     /** Tên checklist gắn với việc */
     checklist: string;
     status: 'active' | 'done' | 'cancelled';
+    department: string;
+    proof?: Proof;
 }
 
 export interface SheetParseResult {
@@ -142,6 +146,14 @@ export const parseDeadline = (value: string): number | null => {
     if (month < 1 || month > 12 || day < 1 || day > 31 || h > 23 || m > 59) return null;
     const result = new Date(year, month - 1, day, h, m, 0, 0);
     return result.getMonth() === month - 1 ? result.getTime() : null;
+};
+
+/** Khi xong cần: "Ảnh + ghi chú", "Ảnh", "Ghi chú"; trống là không cần gì */
+export const parseProof = (value: string): Proof | undefined => {
+    const key = plain(value);
+    const photo = key.includes('anh');
+    const note = key.includes('ghi chu');
+    return photo && note ? 'both' : photo ? 'photo' : note ? 'note' : undefined;
 };
 
 const parsePriority = (value: string): Priority => {
@@ -265,6 +277,8 @@ export const parseTaskRows = (rows: string[][]): SheetParseResult => {
             sound: parseSound(get(row, 'sound'), speech),
             checklist: get(row, 'checklist'),
             status: status.startsWith('huy') ? 'cancelled' : status.startsWith('xong') || status.startsWith('da xong') ? 'done' : 'active',
+            department: get(row, 'department'),
+            proof: parseProof(get(row, 'proof')),
         });
     });
     return { tasks, skipped, badHeader: false };
@@ -307,6 +321,8 @@ export const mergeSheetTasks = (reminders: Reminder[], tasks: SheetTask[], now: 
             assignee: task.assignee,
             assigner: task.assigner,
             checklistTemplateId: task.checklist ? checklistIdOf(task.checklist, templates) : undefined,
+            department: task.department || undefined,
+            proof: task.proof,
         };
         const existing = fromSheet.get(task.id);
         // Âm thanh tự ghi chỉ có ở máy tạo việc (file ghi Chuông reo): máy đó vẫn dùng âm thanh của mình
@@ -358,6 +374,7 @@ const CHECKLIST_COLUMNS = {
     due: 'gio han',
     assignee: 'nguoi lam',
     status: 'trang thai',
+    department: 'bo phan',
 } as const;
 
 /** Mã mẫu checklist nhận từ file: theo tên checklist, bỏ dấu */
@@ -377,6 +394,7 @@ export interface SheetChecklist {
     schedule: ChecklistSchedule;
     assignee: string;
     stopped: boolean;
+    department: string;
 }
 
 const ticked = (value: string): boolean => ['true', 'x', 'co', '1', 'v'].includes(plain(value));
@@ -417,7 +435,7 @@ export const parseChecklistRows = (rows: string[][]): { checklists: SheetCheckli
         const id = checklistIdFor(name);
         let checklist = byId.get(id);
         if (!checklist) {
-            checklist = { id, name, items: [], schedule: { enabled: false, days: [], start: '08:00', due: '09:00' }, assignee: '', stopped: false };
+            checklist = { id, name, items: [], schedule: { enabled: false, days: [], start: '08:00', due: '09:00' }, assignee: '', stopped: false, department: '' };
             byId.set(id, checklist);
         }
         // Thông tin chung lấy ở dòng đầu có ghi
@@ -432,6 +450,7 @@ export const parseChecklistRows = (rows: string[][]): { checklists: SheetCheckli
             if (checklist.schedule.due <= checklist.schedule.start) checklist.schedule.due = '23:59';
         }
         if (!checklist.assignee) checklist.assignee = get(row, 'assignee');
+        if (!checklist.department) checklist.department = get(row, 'department');
         if (plain(get(row, 'status')).startsWith('ngung')) checklist.stopped = true;
         checklist.items.push({
             id: `${id}-${checklist.items.length + 1}`,
@@ -490,8 +509,12 @@ export const mergeSheetChecklists = (templates: ChecklistTemplate[], checklists:
         return !drop;
     });
     for (const checklist of active) {
-        const fields = { name: checklist.name, description: '', items: checklist.items, schedule: checklist.schedule, assignee: checklist.assignee };
         const at = next.findIndex(item => item.id === checklist.id);
+        // Mô tả không có cột trong file: giữ mô tả đã ghi trong app
+        const fields = {
+            name: checklist.name, description: at >= 0 ? next[at].description : '', items: checklist.items, schedule: checklist.schedule, assignee: checklist.assignee,
+            department: checklist.department || undefined,
+        };
         if (at < 0) {
             next.push({ id: checklist.id, ...fields, source: { kind: 'sheet' }, createdAt: now, updatedAt: now });
             changed = true;
@@ -499,9 +522,10 @@ export const mergeSheetChecklists = (templates: ChecklistTemplate[], checklists:
             continue;
         }
         const existing = next[at];
-        const same = JSON.stringify([existing.name, existing.items, existing.schedule, existing.assignee ?? '']) === JSON.stringify([fields.name, fields.items, fields.schedule, fields.assignee]);
+        const same = JSON.stringify([existing.name, existing.items, existing.schedule, existing.assignee ?? '', existing.department ?? '', existing.source?.kind ?? ''])
+            === JSON.stringify([fields.name, fields.items, fields.schedule, fields.assignee, fields.department ?? '', 'sheet']);
         if (same) continue;
-        next[at] = { ...existing, ...fields, updatedAt: now };
+        next[at] = { ...existing, ...fields, source: { kind: 'sheet' }, updatedAt: now };
         changed = true;
     }
     return { templates: next, changed, added };

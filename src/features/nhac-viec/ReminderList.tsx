@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
+import { OccDialog } from './ReminderDialogs';
 import { Button } from '../../components/shared/ui/Button';
 import { ConfirmDialog } from '../../components/shared/ui/ConfirmDialog';
 import { AppIcon } from '../../components/shared/ui/icon/AppIcon';
 import { toast } from '../../components/shared/ui/toast';
-import type { Reminder, ReminderState, ReminderView } from './nhacViecModel';
-import { PRIORITY_TEXT, dateTimeText, relativeText, reminderView, repeatText } from './nhacViecModel';
+import type { OccEvent, Reminder, ReminderState, ReminderView } from './nhacViecModel';
+import { PRIORITY_TEXT, PROOF_TEXT, dateTimeText, isManagerDept, relativeText, reminderView, repeatText, ringsHere, sameName, timeOfDay } from './nhacViecModel';
 import { PRESETS } from './sounds';
 import { useNhacViec } from './NhacViecProvider';
 
@@ -25,16 +26,50 @@ export const soundLabel = (reminder: Reminder): string => {
     return sound.name;
 };
 
-/** Một nhắc việc trong danh sách: mức độ, hạn, còn bao lâu, lặp lại, âm thanh, nút Xong, Nhân bản, Sửa và Xoá. */
+/** "Ngọc 14:05", kèm ngày nếu không phải hôm nay */
+const whoWhen = (event: OccEvent, now: number): string => {
+    const sameDay = new Date(event.at).toDateString() === new Date(now).toDateString();
+    return `${event.by} ${sameDay ? timeOfDay(event.at) : dateTimeText(event.at)}`;
+};
+
+/** Link ảnh trong Google Drive (máy khác gửi) mở bằng trình duyệt */
+const PhotoLinks: React.FC<{ event: OccEvent }> = ({ event }) => (
+    <>
+        {event.photos?.length ? ` · ${event.photos.length} ảnh` : ''}
+        {event.links?.map((link, index) => (
+            <button key={link} type="button" onClick={() => void window.stickerDesktop.reminders.openSheet(link)} className="ml-1.5 font-bold text-sky-700 underline underline-offset-2">
+                Ảnh {index + 1}
+            </button>
+        ))}
+    </>
+);
+
+/**
+ * Một nhắc việc trong danh sách: mức độ, bộ phận, hạn, còn bao lâu, lặp lại, âm thanh, ai đã nhận, cần hỗ trợ, ai xong; nút Đã nhận,
+ * Xong (kèm ghi chú, ảnh), Cần hỗ trợ, Nhân bản, Sửa và Xoá.
+ */
 export const ReminderRow: React.FC<{ view: ReminderView; now: number; onEdit: (reminder: Reminder) => void; onCopy: (reminder: Reminder) => void; highlight?: boolean }> = ({ view, now, onEdit, onCopy, highlight }) => {
-    const { completeReminder, saveReminder, deleteReminder, sheet, bridge } = useNhacViec();
+    const { completeReminder, ackReminder, saveReminder, deleteReminder, sheet, bridge, bridgeV2, role } = useNhacViec();
     const [deleteAsk, setDeleteAsk] = useState(false);
+    const [dialog, setDialog] = useState<'done' | 'help' | null>(null);
     const fromSheet = view.reminder.source?.kind === 'sheet';
     // Chỉ đọc file (link chia sẻ): sửa trong Google Sheet. Đồng bộ hai chiều: sửa ngay trong app.
     const editInSheet = fromSheet && !bridge;
     const fileUrl = sheet?.mode === 'bridge' ? sheet.sheetUrl : sheet?.url;
     const { reminder, state, occ, next } = view;
     const style = STATE_STYLE[state];
+    const key = occ === null ? '' : String(occ);
+    const open = occ !== null && state !== 'done' && state !== 'stopped';
+    const acked = key ? reminder.acks?.[key] : undefined;
+    const help = key ? reminder.helps?.[key] : undefined;
+    const doneInfo = key ? reminder.doneInfo?.[key] : undefined;
+    // Đã nhận: việc của máy này (bộ phận, việc chung, giao cho mình); máy quản lý xem việc bộ phận khác thì chỉ xem ai đã nhận
+    const canAck = bridgeV2 && open && !acked && ringsHere(reminder, role) && !(isManagerDept(role.department) && reminder.department && !sameName(reminder.department, role.department));
+    const finish = () => {
+        if (occ === null) return;
+        if (reminder.proof) setDialog('done');
+        else completeReminder(reminder.id, occ);
+    };
     return (
         <li data-testid="nhac-viec-dong" className={`relative flex items-start gap-3 rounded-card border bg-white px-4 py-3 pl-5 ${highlight ? 'border-sky-400 ring-2 ring-sky-200' : 'border-slate-200'}`}>
             <span className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-card ${PRIORITY_BAR[reminder.priority]}`} aria-hidden="true" />
@@ -42,6 +77,7 @@ export const ReminderRow: React.FC<{ view: ReminderView; now: number; onEdit: (r
                 <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[15px] font-bold text-slate-900 break-words">{reminder.title}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${style.className}`}>{style.label}</span>
+                    {reminder.department && <span data-testid="bo-phan-viec" className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-bold text-violet-700 ring-1 ring-violet-200">{reminder.department}</span>}
                     {fromSheet && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200">Google Sheet · {reminder.source!.taskId || 'đang gửi'}</span>}
                     {reminder.priority !== 'normal' && (
                         <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${reminder.priority === 'urgent' ? 'bg-rose-600 text-white' : 'bg-amber-500 text-white'}`}>
@@ -63,13 +99,43 @@ export const ReminderRow: React.FC<{ view: ReminderView; now: number; onEdit: (r
                     )}
                     {reminder.repeat !== 'none' && <span className="inline-flex items-center gap-1"><AppIcon name="refresh" size="xs" />{repeatText(reminder)}{next && state !== 'done' ? ` · lần sau ${dateTimeText(next)}` : ''}</span>}
                     <span className="inline-flex items-center gap-1"><AppIcon name="notification" size="xs" />{soundLabel(reminder)}</span>
+                    {reminder.proof && <span className="inline-flex items-center gap-1 font-semibold text-violet-700"><AppIcon name="takePhoto" size="xs" />Khi xong cần {PROOF_TEXT[reminder.proof].toLowerCase()}</span>}
+                    {bridgeV2 && open && (
+                        <span data-testid="da-nhan" className={`inline-flex items-center gap-1 font-semibold ${acked ? 'text-emerald-700' : 'text-slate-400'}`}>
+                            <AppIcon name="userCheck" size="xs" />{acked ? `Đã nhận: ${whoWhen(acked, now)}` : 'Chưa ai nhận'}
+                        </span>
+                    )}
                 </p>
+                {help && open && (
+                    <p data-testid="can-ho-tro" className="mt-1.5 rounded-control bg-amber-50 px-2.5 py-1.5 text-[12px] text-amber-900 ring-1 ring-amber-200">
+                        <strong>Cần hỗ trợ</strong> · {whoWhen(help, now)}{help.note ? `: ${help.note}` : ''}<PhotoLinks event={help} />
+                    </p>
+                )}
+                {doneInfo && state === 'done' && (
+                    <p data-testid="nguoi-xong" className="mt-1 text-[12px] text-emerald-800">
+                        Xong: {whoWhen(doneInfo, now)}{doneInfo.note ? ` · ${doneInfo.note}` : ''}<PhotoLinks event={doneInfo} />
+                    </p>
+                )}
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
-                {occ !== null && state !== 'done' && state !== 'stopped' && (
-                    <Button size="sm" icon="check" onClick={() => completeReminder(reminder.id, occ)} className="!bg-emerald-600 hover:!bg-emerald-700 !text-white border-transparent">
+                {canAck && occ !== null && (
+                    <Button size="sm" variant="secondary" icon="userCheck" onClick={() => { ackReminder(reminder.id, occ); toast.success('Đã nhận việc'); }}
+                        aria-label={`Đã nhận ${reminder.title}`} title="Báo đã nhận việc: file ghi người nhận và giờ nhận" className="!text-emerald-700">
+                        Đã nhận
+                    </Button>
+                )}
+                {open && (
+                    <Button size="sm" icon="check" onClick={finish} title={reminder.proof ? `Xong: cần kèm ${PROOF_TEXT[reminder.proof].toLowerCase()}` : 'Đã xong việc này'}
+                        className="!bg-emerald-600 hover:!bg-emerald-700 !text-white border-transparent">
                         Xong
                     </Button>
+                )}
+                {open && !reminder.proof && (
+                    <Button size="sm" variant="secondary" icon="takePhoto" aria-label={`Xong kèm ghi chú, ảnh: ${reminder.title}`} title="Xong kèm ghi chú, ảnh" onClick={() => setDialog('done')} />
+                )}
+                {open && bridgeV2 && (
+                    <Button size="sm" variant="secondary" icon="help" aria-label={`Cần hỗ trợ: ${reminder.title}`} title="Cần hỗ trợ: báo quản lý việc đang vướng"
+                        className="!text-amber-700" onClick={() => setDialog('help')} />
                 )}
                 {state === 'stopped' && (
                     <Button size="sm" variant="secondary" onClick={() => saveReminder({ ...reminder, stopped: false, armedAt: Date.now(), updatedAt: Date.now() })}>Bật lại</Button>
@@ -103,6 +169,7 @@ export const ReminderRow: React.FC<{ view: ReminderView; now: number; onEdit: (r
                 cancelText="Không xoá"
                 message={`Việc "${reminder.title}"${reminder.repeat !== 'none' ? ' cùng mọi lần lặp lại sau' : ''} sẽ bị xoá, không lấy lại được.${fromSheet ? ' Trong Google Sheet, việc này được ghi Huỷ.' : ''}`}
             />
+            {dialog && occ !== null && <OccDialog mode={dialog} reminder={reminder} occ={occ} onClose={() => setDialog(null)} />}
         </li>
     );
 };
@@ -124,13 +191,17 @@ export const sortedViews = (reminders: Reminder[], now: number): ReminderView[] 
 
 /** Tab Nhắc việc: lọc theo trạng thái, tìm, tạo mới. */
 export const ReminderList: React.FC<{ onCreate: () => void; onEdit: (reminder: Reminder) => void; onCopy: (reminder: Reminder) => void; highlightId?: string }> = ({ onCreate, onEdit, onCopy, highlightId }) => {
-    const { reminders, now } = useNhacViec();
+    const { visibleReminders: reminders, now, departments, role } = useNhacViec();
     const [filter, setFilter] = useState<Filter>('active');
     const [search, setSearch] = useState('');
-    const views = useMemo(() => sortedViews(reminders, now), [reminders, now]);
+    /** Máy quản lý (hay máy chưa chọn bộ phận): lọc theo bộ phận; '' là tất cả, '-' là việc chung */
+    const [department, setDepartment] = useState('');
+    const byDepartment = (!role.department || isManagerDept(role.department)) && reminders.some(item => item.department);
+    const inDepartment = (item: Reminder) => !department || (department === '-' ? !item.department : sameName(item.department, department));
+    const views = useMemo(() => sortedViews(reminders, now), [reminders, now]).filter(view => inDepartment(view.reminder));
     const key = search.trim().toLowerCase();
     const shown = views.filter(view => FILTERS.find(item => item.id === filter)!.test(view.state)
-        && (!key || [view.reminder.title, view.reminder.content, view.reminder.assignee ?? '', view.reminder.assigner ?? ''].some(text => text.toLowerCase().includes(key))));
+        && (!key || [view.reminder.title, view.reminder.content, view.reminder.assignee ?? '', view.reminder.assigner ?? '', view.reminder.department ?? ''].some(text => text.toLowerCase().includes(key))));
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-3">
@@ -147,8 +218,16 @@ export const ReminderList: React.FC<{ onCreate: () => void; onEdit: (reminder: R
                         );
                     })}
                 </div>
+                {byDepartment && (
+                    <select value={department} onChange={e => setDepartment(e.target.value)} aria-label="Lọc theo bộ phận"
+                        className="ml-auto h-9 rounded-control border border-slate-200 bg-white px-2 text-[13px] font-semibold text-slate-700 focus:outline-none focus:border-sky-400">
+                        <option value="">Mọi bộ phận</option>
+                        {departments.map(name => <option key={name} value={name}>{name}</option>)}
+                        <option value="-">Việc chung</option>
+                    </select>
+                )}
                 <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm tiêu đề, nội dung, người xử lý…" aria-label="Tìm nhắc việc"
-                    className="ml-auto h-9 w-56 rounded-control border border-slate-200 px-3 text-[13px] focus:outline-none focus:border-sky-400" />
+                    className={`${byDepartment ? '' : 'ml-auto '}h-9 w-56 rounded-control border border-slate-200 px-3 text-[13px] focus:outline-none focus:border-sky-400`} />
                 <Button icon="add" onClick={onCreate}>Tạo nhắc việc</Button>
             </div>
             <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-thin pr-1">

@@ -203,7 +203,7 @@ const exportRunExcel = async (run: ChecklistRun) => {
 
 /** Làm một lượt checklist và báo cáo. */
 export const RunView: React.FC<{ run: ChecklistRun; onBack: () => void; onOpenRun: (run: ChecklistRun) => void }> = ({ run, onBack, onOpenRun }) => {
-    const { saveRun, deleteRun, setPerformer, now, templates, startNewRun, sheet } = useNhacViec();
+    const { saveRun, deleteRun, setPerformer, now, templates, startNewRun, sheet, bridgeV2 } = useNhacViec();
     const template = templates.find(item => item.id === run.templateId) ?? null;
     const hasTemplate = template !== null;
     const [editingTemplate, setEditingTemplate] = useState(false);
@@ -232,7 +232,7 @@ export const RunView: React.FC<{ run: ChecklistRun; onBack: () => void; onOpenRu
                             {run.deadline ? ` · hạn ${timeOfDay(run.deadline)} (${finished ? (runOnTime(run) ? 'đúng hạn' : 'trễ hạn') : relativeText(run.deadline, now)})` : ''}
                         </p>
                     </div>
-                    {template && (template.source?.kind === 'sheet' ? (
+                    {template && (template.source?.kind === 'sheet' && !bridgeV2 ? (
                         <Button variant="secondary" size="sm" icon="externalLink" title="Checklist này lấy từ Google Sheet: sửa trong file"
                             onClick={() => { const url = sheet?.mode === 'bridge' ? sheet.sheetUrl : sheet?.url; if (url) void window.stickerDesktop.reminders.openSheet(url); }}>Sửa trong Google Sheet</Button>
                     ) : (

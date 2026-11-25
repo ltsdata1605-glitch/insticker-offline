@@ -3,13 +3,16 @@ import { getSetting, saveSetting } from '../sticker-event/services/dbService';
 import type { BridgeResponse, ReminderPopupData, SheetFetchResult } from '../../../electron/contract';
 import { toast } from '../../components/shared/ui/toast';
 import type { SheetReadResult, SheetTable } from './sheetTasks';
-import { SYNC_EVERY, mergeSheetChecklists, mergeSheetTasks, readSheetTables, sheetIdFromUrl } from './sheetTasks';
-import type { BridgeResult, DoneEntry, NewOp, OutboxOp } from './sheetBridge';
-import { BRIDGE_SYNC_EVERY, applyDoneLog, applyResults, bridgeLinkFrom, buildOps, doneToday, enqueue, localReminders } from './sheetBridge';
-import type { ChecklistAlert, ChecklistRun, ChecklistTemplate, Reminder } from './nhacViecModel';
+import { SYNC_EVERY, checklistIdFor, mergeSheetChecklists, mergeSheetTasks, readSheetTables, sheetIdFromUrl } from './sheetTasks';
+import type { BridgeResult, DoneEntry, NewOp, OutboxOp, SheetEvent } from './sheetBridge';
 import {
-    DAY, MINUTE, applyTemplateToRun, atTime, checklistAlerts, dateKey, dayOfKey, defaultSpeech, dropLeftoverRuns, markDone, markFired, newId, pendingAlerts, pruneReminder,
-    reminderView, runOfDay, runProgress, startRun, startOfDay, timeOfDay,
+    BRIDGE_SYNC_EVERY, BRIDGE_V2, adoptTemplate, applyDoneLog, applyEvents, applyResults, bridgeLinkFrom, buildOps, doneToday, enqueue, localReminders, localTemplates,
+    opHasPhotos,
+} from './sheetBridge';
+import type { ChecklistAlert, ChecklistRun, ChecklistTemplate, MachineRole, OccEvent, Reminder } from './nhacViecModel';
+import {
+    DAY, DEFAULT_DEPARTMENTS, MINUTE, OVERDUE_ALERT_AFTER, applyTemplateToRun, atTime, checklistAlerts, dateKey, dayOfKey, defaultSpeech, dropLeftoverRuns, markDone, markFired,
+    newId, pendingAlerts, pruneReminder, reminderView, ringsHere, runOfDay, runProgress, sameName, shownHere, startRun, startOfDay, timeOfDay, watchedHere,
 } from './nhacViecModel';
 
 export const KEYS = {
@@ -54,6 +57,8 @@ export interface SheetConfig {
     checklistCount?: number;
     /** Dòng ghi sai, app bỏ qua */
     skipped?: { row: number; reason: string; sheet?: string }[];
+    /** Phiên bản script cầu nối trong file (1: bản cũ chưa có Đã nhận, Cần hỗ trợ, ảnh, checklist từ app) */
+    scriptVersion?: number;
 }
 
 interface NhacViecState {
@@ -66,6 +71,10 @@ interface NhacViecState {
     sheet?: SheetConfig;
     /** Thay đổi chờ gửi lên Google Sheet (đồng bộ hai chiều): mất mạng thì giữ lại, có mạng gửi tiếp */
     outbox?: OutboxOp[];
+    /** Bộ phận của máy (Kho, Thu ngân, Quản lý…): chỉ nhắc việc của bộ phận và việc chung. Trống là nhận mọi việc. */
+    department?: string;
+    /** Đã báo quản lý, người giao: việc quá hạn, lần cần hỗ trợ (khoá → lúc báo) */
+    watchSeen?: Record<string, number>;
 }
 
 const SHEET_ERRORS: Record<Exclude<SheetFetchResult, { ok: true }>['reason'], string> = {
@@ -99,9 +108,13 @@ interface BridgeData {
     sheetUrl?: string;
     tables?: SheetTable[];
     doneLog?: DoneEntry[];
+    /** Script bản 2: mọi dòng Nhật ký gần đây (Đã nhận, Cần hỗ trợ, Xong) */
+    events?: SheetEvent[];
     staff?: string[];
     assigners?: string[];
     results?: BridgeResult[];
+    /** Phiên bản script */
+    v?: number;
 }
 
 const bridgeError = (data: BridgeData | null | undefined): string =>
@@ -109,10 +122,24 @@ const bridgeError = (data: BridgeData | null | undefined): string =>
 
 const EMPTY_STATE: NhacViecState = { checklistFired: {}, checklistSnoozes: {}, performer: '' };
 
+const roleOf = (state: NhacViecState): MachineRole => ({ department: state.department ?? '', performer: state.performer });
+const isBridgeV2 = (state: NhacViecState): boolean => state.sheet?.mode === 'bridge' && (state.sheet.scriptVersion ?? 1) >= BRIDGE_V2;
+/** Tên ghi vào file khi máy chưa đặt tên */
+const byOf = (state: NhacViecState): string => state.performer.trim() || 'Máy chưa đặt tên';
+
 export type OpenRequest =
     | { kind: 'today' }
     | { kind: 'reminder'; id: string }
-    | { kind: 'run'; id: string };
+    | { kind: 'run'; id: string }
+    /** Bấm Đã xong trên cửa sổ nhắc mà việc cần kèm ghi chú, ảnh; bấm Cần hỗ trợ */
+    | { kind: 'done'; id: string; occ: number }
+    | { kind: 'help'; id: string; occ: number };
+
+/** Ghi chú, ảnh (data URL) kèm khi bấm Đã xong hay Cần hỗ trợ */
+export interface OccExtra {
+    note?: string;
+    photos?: string[];
+}
 
 interface NhacViecApi {
     loaded: boolean;
@@ -123,10 +150,26 @@ interface NhacViecApi {
     runs: ChecklistRun[];
     performer: string;
     setPerformer: (name: string) => void;
-    /** `sync`: đưa việc tạo trên máy lên Google Sheet (đồng bộ hai chiều). Việc đã ở trên file thì luôn đồng bộ. */
-    saveReminder: (reminder: Reminder, options?: { sync?: boolean }) => void;
+    /** Bộ phận và tên của máy này */
+    role: MachineRole;
+    /** Đổi bộ phận của máy (giao diện hỏi mật khẩu quản lý trước) */
+    setDepartment: (department: string) => void;
+    /** Các bộ phận để chọn: có sẵn và bộ phận ghi trong file */
+    departments: string[];
+    /** Việc, checklist hiện trên máy này (máy quản lý thấy hết; máy bộ phận chỉ thấy việc của bộ phận và việc chung) */
+    visibleReminders: Reminder[];
+    visibleTemplates: ChecklistTemplate[];
+    /** Đồng bộ hai chiều với script bản mới: có Đã nhận, Cần hỗ trợ, ảnh, checklist từ app */
+    bridgeV2: boolean;
+    /** Đang đồng bộ hai chiều thì mọi việc lưu đều ghi lên Google Sheet */
+    saveReminder: (reminder: Reminder) => void;
     deleteReminder: (id: string) => void;
-    completeReminder: (id: string, occ: number) => void;
+    /** Đã xong, có thể kèm ghi chú và ảnh */
+    completeReminder: (id: string, occ: number, extra?: OccExtra) => void;
+    /** Đã nhận việc (lần hạn `occ`) */
+    ackReminder: (id: string, occ: number) => void;
+    /** Cần hỗ trợ: lý do, ảnh */
+    requestHelp: (id: string, occ: number, extra: OccExtra) => void;
     saveTemplate: (template: ChecklistTemplate) => void;
     deleteTemplate: (id: string) => void;
     /** Lượt hôm nay của mẫu: đang làm dở, hoặc đã hoàn tất (mở ra xem, không làm lại từ đầu); chưa có thì bắt đầu lượt mới */
@@ -146,10 +189,6 @@ interface NhacViecApi {
     bridge: boolean;
     /** Số thay đổi chưa gửi lên Google Sheet */
     pendingCount: number;
-    /** Việc chỉ có trên máy này, đưa lên Google Sheet được */
-    localCount: number;
-    /** Đưa các việc chỉ có trên máy lên Google Sheet, trả về số việc */
-    pushLocalReminders: () => number;
     /** Người xử lý ở trang Danh mục của file */
     staff: string[];
     syncing: boolean;
@@ -246,7 +285,10 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
     /** Bỏ ảnh và âm thanh không còn nhắc việc hay lượt checklist nào dùng */
     const collectMedia = useCallback(() => {
         const used = new Set<string>();
-        for (const reminder of refs.current.reminders) if (reminder.sound.kind === 'file') used.add(reminder.sound.mediaId);
+        for (const reminder of refs.current.reminders) {
+            if (reminder.sound.kind === 'file') used.add(reminder.sound.mediaId);
+            for (const info of [...Object.values(reminder.doneInfo ?? {}), ...Object.values(reminder.helps ?? {})]) info.photos?.forEach(id => used.add(id));
+        }
         for (const run of refs.current.runs) for (const item of run.items) item.photos.forEach(id => used.add(id));
         const current = refs.current.media;
         if (Object.keys(current).every(id => used.has(id))) return;
@@ -284,6 +326,8 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
     }, []);
 
     const lastNow = useRef(0);
+    /** Cửa sổ báo việc mới → các việc trong đó (bấm Đã nhận là nhận hết) */
+    const newBatches = useRef(new Map<string, string[]>());
     const tick = useCallback(() => {
         if (!enabled) return;
         const at = clockNow();
@@ -293,8 +337,10 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
             setNow(at);
         }
         const { reminders: list, templates: tpls, runs: runList, state: st } = refs.current;
-        const { due, missed } = pendingAlerts(list, at);
-        const checklist = checklistAlerts(tpls, runList, st.checklistFired, at);
+        // Máy có bộ phận: chỉ nhắc việc của bộ phận, việc chung và việc giao đích danh cho người dùng máy
+        const role = roleOf(st);
+        const { due, missed } = pendingAlerts(list.filter(reminder => ringsHere(reminder, role)), at);
+        const checklist = checklistAlerts(tpls.filter(template => ringsHere(template, role)), runList, st.checklistFired, at);
         const missedLines: { title: string; at: number }[] = [];
         let nextReminders = list;
         const touch = (id: string, change: (reminder: Reminder) => Reminder) => {
@@ -314,6 +360,10 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
                 hasChecklist: Boolean(reminder.checklistTemplateId),
                 assignee: reminder.assignee,
                 assigner: reminder.assigner,
+                department: reminder.department,
+                proof: reminder.proof,
+                canAck: isBridgeV2(st) && !reminder.acks?.[String(alert.occ)],
+                canHelp: isBridgeV2(st),
             });
             touch(reminder.id, item => markFired(item, alert.occ, at));
         }
@@ -357,11 +407,46 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
                 missed: missedLines.sort((a, b) => a.at - b.at),
             });
         }
+        // Máy quản lý, người giao: việc của người khác quá hạn 15 phút chưa xong thì báo một lần (chỉ khi vừa đồng bộ được với file,
+        // để không báo nhầm việc đã xong ở máy khác)
+        const watchSeen = { ...(st.watchSeen ?? {}) };
+        const lateLines: { title: string; at: number; note?: string }[] = [];
+        if (st.sheet?.mode === 'bridge' && st.sheet.lastOk !== false && (st.sheet.lastSyncAt ?? 0) > at - 5 * MINUTE) {
+            for (const reminder of list) {
+                if (reminder.stopped || !watchedHere(reminder, role)) continue;
+                const view = reminderView(reminder, at);
+                if (view.state !== 'overdue' || view.occ === null) continue;
+                const late = at - view.occ;
+                if (late < OVERDUE_ALERT_AFTER || late > DAY || view.occ < reminder.createdAt) continue;
+                const key = `q:${reminder.id}@${view.occ}`;
+                if (watchSeen[key]) continue;
+                watchSeen[key] = at;
+                const acked = reminder.acks?.[String(view.occ)];
+                lateLines.push({
+                    title: reminder.title,
+                    at: view.occ,
+                    note: [reminder.department, reminder.assignee && `Giao cho ${reminder.assignee}`, acked ? `Đã nhận: ${acked.by}` : 'Chưa ai bấm Đã nhận'].filter(Boolean).join(' · '),
+                });
+            }
+        }
+        if (lateLines.length > 0) {
+            showPopup({
+                key: `alert@q${at}`,
+                kind: 'alert',
+                title: `${lateLines.length} việc quá hạn chưa xong`,
+                content: 'Việc của bộ phận khác hoặc việc bạn giao đã quá hạn 15 phút mà chưa ai bấm Đã xong.',
+                priority: 'urgent',
+                sound: { kind: 'preset', preset: 'chuong-cua' },
+                speech: `Có ${lateLines.length} việc quá hạn chưa xong.`,
+                missed: lateLines,
+            });
+        }
         if (nextReminders !== list) commitReminders(nextReminders.map(reminder => pruneReminder(reminder, at)));
-        if (stateChanged) {
+        if (stateChanged || lateLines.length > 0) {
             // Bỏ dấu đã hiện cũ hơn 7 ngày
             const keep = at - 7 * DAY;
-            commitState({ ...st, checklistFired: Object.fromEntries(Object.entries(fired).filter(([, time]) => time >= keep)), checklistSnoozes: snoozes });
+            const recent = (map: Record<string, number>) => Object.fromEntries(Object.entries(map).filter(([, time]) => time >= keep));
+            commitState({ ...refs.current.state, checklistFired: recent(fired), checklistSnoozes: snoozes, watchSeen: recent(watchSeen) });
         }
     }, [enabled, showPopup, checklistPopup, commitReminders, commitState]);
 
@@ -397,17 +482,21 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
         if (merged.added.length || merged.updated || merged.removed) commitReminders(merged.reminders);
         const taskCount = parsed.tasks.filter(task => task.status !== 'cancelled').length;
         const checklistCount = parsed.checklists.filter(item => !item.stopped).length;
-        if (merged.added.length > 0) {
-            const count = merged.added.length;
+        // Chỉ báo việc mới của máy này (bộ phận của máy, việc chung, việc giao cho mình)
+        const mine = merged.added.filter(item => ringsHere(item, roleOf(refs.current.state)));
+        if (mine.length > 0) {
+            const count = mine.length;
+            newBatches.current.set(`new@${at}`, mine.map(item => item.id));
             showPopup({
                 key: `new@${at}`,
                 kind: 'new',
                 title: `Có ${count} công việc mới`,
                 content: 'Việc mới giao qua Google Sheet.',
-                priority: merged.added.some(item => item.priority === 'urgent') ? 'urgent' : 'important',
+                priority: mine.some(item => item.priority === 'urgent') ? 'urgent' : 'important',
                 sound: { kind: 'preset', preset: 'chuong-cua' },
                 speech: `Có ${count} công việc mới.`,
-                missed: merged.added.map(item => ({ title: item.title, at: item.deadline, note: item.assignee ? `Giao cho ${item.assignee}` : undefined })),
+                missed: mine.map(item => ({ title: item.title, at: item.deadline, note: [item.department, item.assignee && `Giao cho ${item.assignee}`].filter(Boolean).join(' · ') || undefined })),
+                canAck: isBridgeV2(refs.current.state),
             });
             toast.success(`Có ${count} công việc mới từ Google Sheet`);
         }
@@ -453,13 +542,59 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
         }
     }, [applySheetData, commitState]);
 
+    /**
+     * Máy quản lý, người giao: nhân viên vừa bấm Cần hỗ trợ (đọc từ Nhật ký) thì bật bảng báo, mỗi lần một lần. Lần cũ hơn `since`
+     * (trước khi kết nối, quá một ngày) thì bỏ qua.
+     */
+    const alertHelps = useCallback((since: number, at: number) => {
+        const st = refs.current.state;
+        const role = roleOf(st);
+        const seen = { ...(st.watchSeen ?? {}) };
+        const lines: { title: string; at: number; note?: string }[] = [];
+        for (const reminder of refs.current.reminders) {
+            if (!watchedHere(reminder, role)) continue;
+            for (const [occ, help] of Object.entries(reminder.helps ?? {})) {
+                if (help.at < since || sameName(help.by, role.performer) || reminder.done[occ]) continue;
+                const key = `h:${reminder.id}@${occ}@${help.at}`;
+                if (seen[key]) continue;
+                seen[key] = at;
+                lines.push({ title: reminder.title, at: help.at, note: `${help.by}${help.note ? `: ${help.note}` : ''}` });
+            }
+        }
+        if (lines.length === 0) return;
+        commitState({ ...refs.current.state, watchSeen: seen });
+        showPopup({
+            key: `alert@h${at}`,
+            kind: 'alert',
+            title: lines.length > 1 ? `${lines.length} việc cần hỗ trợ` : `Cần hỗ trợ: ${lines[0].title}`,
+            content: 'Nhân viên bấm Cần hỗ trợ trong app.',
+            priority: 'urgent',
+            sound: { kind: 'preset', preset: 'chuong-cua' },
+            speech: lines.length > 1 ? `Có ${lines.length} việc cần hỗ trợ.` : `Cần hỗ trợ. ${lines[0].title}.`,
+            missed: lines,
+        });
+    }, [commitState, showPopup]);
+
     /** Gửi hàng chờ lên cầu nối. Gửi được thì bỏ các thao tác đã gửi khỏi hàng chờ, gắn mã việc cho việc mới tạo trên máy. */
     const flushOutbox = useCallback(async (link: string): Promise<{ ok: boolean; message?: string }> => {
         const api = desktop();
         const outbox = refs.current.state.outbox ?? [];
         if (!api || outbox.length === 0) return { ok: true };
-        const sent = new Set(outbox.map(op => op.id));
-        const ops = buildOps(outbox, refs.current.reminders, refs.current.runs, refs.current.templates);
+        // Thao tác kèm ảnh gửi ít một (mỗi lần tối đa 2), phần còn lại gửi ở lượt sau, giữ đúng thứ tự
+        const batch: OutboxOp[] = [];
+        let photoOps = 0;
+        for (const op of outbox) {
+            if (opHasPhotos(op, refs.current.reminders)) {
+                if (photoOps >= 2) break;
+                photoOps += 1;
+            }
+            batch.push(op);
+        }
+        const sent = new Set(batch.map(op => op.id));
+        const ops = buildOps(batch, refs.current.reminders, refs.current.runs, refs.current.templates, {
+            version: refs.current.state.sheet?.scriptVersion,
+            photo: id => refs.current.media[id]?.dataUrl ?? null,
+        });
         if (ops.length > 0) {
             const response = await api.bridge(link, { method: 'POST', body: { by: refs.current.state.performer, ops } });
             if (!response.ok) return { ok: false, message: BRIDGE_ERRORS[response.reason] };
@@ -503,22 +638,25 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
                 return { ok: true, message: 'Đang gửi thay đổi lên Google Sheet.' };
             }
             const current = refs.current.state.sheet;
+            const scriptVersion = Number(data.v) || 1;
             if (data.unchanged && current) {
-                commitState({ ...refs.current.state, sheet: { ...current, lastSyncAt: at, lastOk: true, lastMessage: undefined } });
+                commitState({ ...refs.current.state, sheet: { ...current, lastSyncAt: at, lastOk: true, lastMessage: undefined, scriptVersion } });
                 return { ok: true, message: `Đọc được ${current.taskCount ?? 0} công việc, ${current.checklistCount ?? 0} checklist.` };
             }
             const parsed = readSheetTables(data.tables ?? []);
             if (parsed.badHeader) return fail(BRIDGE_ERRORS.mau);
             const { taskCount, checklistCount, message } = applySheetData(parsed, at);
-            const withDone = applyDoneLog(refs.current.reminders, data.doneLog ?? [], at);
+            const withDone = applyEvents(applyDoneLog(refs.current.reminders, data.doneLog ?? [], at), data.events ?? []);
             if (withDone !== refs.current.reminders) commitReminders(withDone);
             commitState({
                 ...refs.current.state,
                 sheet: {
                     ...base, mode: 'bridge', lastSyncAt: at, lastOk: true, lastMessage: undefined, taskCount, checklistCount, skipped: parsed.skipped,
-                    version: data.version, title: data.title, sheetUrl: data.sheetUrl, staff: data.staff ?? [], assigners: data.assigners ?? [],
+                    version: data.version, title: data.title, sheetUrl: data.sheetUrl, staff: data.staff ?? [], assigners: data.assigners ?? [], scriptVersion,
                 },
             });
+            // Nhật ký ghi giờ đến phút: lùi vài phút để không bỏ sót lần cần hỗ trợ ngay sau khi kết nối
+            alertHelps(Math.max(base.connectedAt - 5 * MINUTE, at - DAY), at);
             return { ok: true, message };
         } catch (error) {
             console.error('[Nhắc việc] Không đồng bộ được với Google Sheet', error);
@@ -526,7 +664,7 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
         } finally {
             setSyncing(false);
         }
-    }, [applySheetData, commitReminders, commitState, flushOutbox]);
+    }, [applySheetData, commitReminders, commitState, flushOutbox, alertHelps]);
 
     // Một lượt đồng bộ một lúc; có yêu cầu trong lúc đang chạy thì chạy thêm một lượt sau
     const syncBusy = useRef(false);
@@ -590,6 +728,121 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
 
     useEffect(() => () => window.clearTimeout(syncTimer.current), []);
 
+    // Đồng bộ hai chiều: việc chỉ có trên máy này (tạo trước khi kết nối) tự đưa lên file để file và mọi máy cùng thấy. Việc một
+    // lần đã xong và việc lặp đã dừng thì để lại trên máy.
+    useEffect(() => {
+        if (!loaded || !enabled || sheetMode !== 'bridge') return;
+        const locals = localReminders(refs.current.reminders);
+        if (locals.length === 0) return;
+        const at = clockNow();
+        const ids = new Set(locals.map(item => item.id));
+        const performer = refs.current.state.performer.trim();
+        commitReminders(refs.current.reminders.map(item => (ids.has(item.id)
+            ? { ...item, source: { kind: 'sheet' as const, taskId: '' }, assigner: item.assigner ?? (performer || undefined) }
+            : item)));
+        // Lần đã xong hôm nay cũng ghi lên, để máy khác không nhắc lại
+        enqueueOps(locals.flatMap(item => [
+            { kind: 'upsert' as const, ref: item.id },
+            ...doneToday(item, at).map(occ => ({ kind: 'done' as const, ref: item.id, occ, at: item.done[String(occ)] })),
+        ]));
+    }, [loaded, enabled, sheetMode, reminders, commitReminders, enqueueOps]);
+
+    /**
+     * Checklist lên file (đồng bộ hai chiều, script bản 2): mã theo tên như checklist đọc từ file. Đổi mã thì nhắc việc gắn checklist,
+     * các lượt (kể cả mã từng việc), hàng chờ và dấu đã nhắc đổi theo.
+     */
+    const adoptForSheet = useCallback((template: ChecklistTemplate): ChecklistTemplate => {
+        const { template: adopted, itemIds } = adoptTemplate(template);
+        const oldId = template.id;
+        // Trùng tên với checklist khác: để nguyên trên máy, không ghi đè checklist kia trong file
+        if (refs.current.templates.some(item => item.id === adopted.id && item.id !== oldId)) return template;
+        if (adopted.id === oldId && [...itemIds].every(([from, to]) => from === to)) return adopted;
+        commitRuns(refs.current.runs.map(run => (run.templateId !== oldId ? run
+            : { ...run, templateId: adopted.id, items: run.items.map(item => ({ ...item, id: itemIds.get(item.id) ?? item.id })) })));
+        if (adopted.id !== oldId) {
+            commitReminders(refs.current.reminders.map(item => (item.checklistTemplateId === oldId ? { ...item, checklistTemplateId: adopted.id } : item)));
+            const st = refs.current.state;
+            const renameKeys = (map: Record<string, number>) => Object.fromEntries(Object.entries(map).map(([key, value]) => [key.startsWith(`cl:${oldId}@`) ? `cl:${adopted.id}@${key.slice(oldId.length + 4)}` : key, value]));
+            commitState({
+                ...st,
+                outbox: (st.outbox ?? []).map(op => ((op.kind === 'checklist' || op.kind === 'checklist-stop') && op.ref === oldId ? { ...op, ref: adopted.id } : op)),
+                checklistFired: renameKeys(st.checklistFired),
+                checklistSnoozes: renameKeys(st.checklistSnoozes),
+            });
+        }
+        return adopted;
+    }, [commitReminders, commitRuns, commitState]);
+
+    // Checklist chỉ có trên máy này cũng tự lên file (trùng tên với checklist trong file thì để nguyên)
+    const bridgeV2Now = isBridgeV2(state);
+    useEffect(() => {
+        if (!loaded || !enabled || !bridgeV2Now) return;
+        const locals = localTemplates(refs.current.templates)
+            .filter(template => template.items.length > 0 && !refs.current.templates.some(other => other.id === checklistIdFor(template.name) && other.id !== template.id));
+        if (locals.length === 0) return;
+        const ops: NewOp[] = [];
+        let list = refs.current.templates;
+        for (const template of locals) {
+            const adopted = adoptForSheet(template);
+            if (!adopted.source) continue;
+            list = list.map(item => (item.id === template.id ? adopted : item));
+            ops.push({ kind: 'checklist', ref: adopted.id });
+        }
+        commitTemplates(list);
+        enqueueOps(ops);
+    }, [loaded, enabled, bridgeV2Now, templates, adoptForSheet, commitTemplates, enqueueOps]);
+
+    // ---------- Đã xong, Đã nhận, Cần hỗ trợ ----------
+
+    /** Ảnh (data URL) vào kho ảnh của máy, trả về mã ảnh */
+    const storePhotos = useCallback((urls: string[] = []): string[] => {
+        if (urls.length === 0) return [];
+        const next = { ...refs.current.media };
+        const ids = urls.map(dataUrl => {
+            const id = newId('m');
+            next[id] = { dataUrl, name: 'anh.jpg', kind: 'image', createdAt: Date.now() };
+            return id;
+        });
+        commitMedia(next);
+        return ids;
+    }, [commitMedia]);
+
+    const isOnSheet = (id: string) => refs.current.reminders.find(item => item.id === id)?.source?.kind === 'sheet';
+
+    const complete = useCallback((id: string, occ: number, extra?: OccExtra) => {
+        const at = clockNow();
+        const photos = storePhotos(extra?.photos);
+        const note = extra?.note?.trim();
+        const info: OccEvent = { by: byOf(refs.current.state), at, ...(note ? { note } : {}), ...(photos.length ? { photos } : {}) };
+        commitReminders(refs.current.reminders.map(item => (item.id === id ? markDone(item, occ, at, info) : item)));
+        void desktop()?.closePopup(`${id}@${occ}`);
+        if (isOnSheet(id)) enqueueOps([{ kind: 'done', ref: id, occ, at }]);
+    }, [commitReminders, enqueueOps, storePhotos]);
+
+    const ackMany = useCallback((targets: { id: string; occ: number }[]) => {
+        const at = clockNow();
+        const by = byOf(refs.current.state);
+        const fresh = targets.filter(target => {
+            const reminder = refs.current.reminders.find(item => item.id === target.id);
+            return reminder && !reminder.acks?.[String(target.occ)];
+        });
+        if (fresh.length === 0) return;
+        commitReminders(refs.current.reminders.map(item => {
+            const target = fresh.find(entry => entry.id === item.id);
+            return target ? { ...item, acks: { ...item.acks, [String(target.occ)]: { by, at } } } : item;
+        }));
+        enqueueOps(fresh.filter(target => isOnSheet(target.id)).map(target => ({ kind: 'ack' as const, ref: target.id, occ: target.occ, at })));
+    }, [commitReminders, enqueueOps]);
+
+    const requestHelp = useCallback((id: string, occ: number, extra: OccExtra) => {
+        const at = clockNow();
+        const photos = storePhotos(extra.photos);
+        const note = extra.note?.trim();
+        const info: OccEvent = { by: byOf(refs.current.state), at, ...(note ? { note } : {}), ...(photos.length ? { photos } : {}) };
+        commitReminders(refs.current.reminders.map(item => (item.id === id ? { ...item, helps: { ...item.helps, [String(occ)]: info } } : item)));
+        if (isOnSheet(id)) enqueueOps([{ kind: 'help', ref: id, occ, at }]);
+    }, [commitReminders, enqueueOps, storePhotos]);
+
     // ---------- Lượt checklist ----------
 
     const startNewRun = useCallback((templateId: string): ChecklistRun | null => {
@@ -610,7 +863,16 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
     useEffect(() => {
         const off = desktop()?.onAction(action => {
             const at = clockNow();
-            if (action.key.startsWith('missed@') || action.key.startsWith('new@')) {
+            if (action.key.startsWith('missed@') || action.key.startsWith('new@') || action.key.startsWith('alert@')) {
+                // Việc mới: Đã nhận là nhận hết các việc trong bảng (lần hạn sắp tới của mỗi việc)
+                if (action.action === 'ack') {
+                    ackMany((newBatches.current.get(action.key) ?? []).flatMap(id => {
+                        const reminder = refs.current.reminders.find(item => item.id === id);
+                        const occ = reminder ? reminderView(reminder, at).occ ?? reminder.deadline : null;
+                        return occ === null ? [] : [{ id, occ }];
+                    }));
+                }
+                newBatches.current.delete(action.key);
                 if (action.action === 'open') {
                     setOpenRequest({ kind: 'today' });
                     onOpenRef.current();
@@ -634,8 +896,18 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
             const reminder = refs.current.reminders.find(item => item.id === id);
             if (!reminder) return;
             if (action.action === 'done') {
-                commitReminders(refs.current.reminders.map(item => (item.id === id ? markDone(item, occ, at) : item)));
-                if (reminder.source?.kind === 'sheet') enqueueOps([{ kind: 'done', ref: id, occ, at }]);
+                // Việc phải kèm ghi chú, ảnh: mở app để ghi rồi mới xong
+                if (reminder.proof) {
+                    setOpenRequest({ kind: 'done', id, occ });
+                    onOpenRef.current();
+                } else {
+                    complete(id, occ);
+                }
+            } else if (action.action === 'ack') {
+                ackMany([{ id, occ }]);
+            } else if (action.action === 'help') {
+                setOpenRequest({ kind: 'help', id, occ });
+                onOpenRef.current();
             } else if (action.action === 'snooze') {
                 commitReminders(refs.current.reminders.map(item => (item.id === id
                     ? { ...markFired(item, occ, at), snoozes: [...item.snoozes.filter(s => s.occ !== occ), { occ, at: at + (action.minutes ?? 10) * MINUTE }] }
@@ -651,15 +923,22 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
             }
         });
         return () => off?.();
-    }, [commitReminders, commitState, openRunFor, enqueueOps]);
+    }, [commitReminders, commitState, openRunFor, complete, ackMany]);
 
     // ---------- Thao tác từ màn Nhắc việc ----------
 
     const api = useMemo<NhacViecApi>(() => {
-        const reminderList = reminders;
+        const role = roleOf(state);
+        // Máy có bộ phận: danh sách và số đỏ chỉ tính việc của máy (máy quản lý thấy hết)
+        const visibleReminders = reminders.filter(reminder => shownHere(reminder, role));
+        const visibleTemplates = templates.filter(template => shownHere(template, role));
+        const departments: string[] = [];
+        for (const name of [...DEFAULT_DEPARTMENTS, ...reminders.map(item => item.department ?? ''), ...templates.map(item => item.department ?? ''), role.department]) {
+            if (name.trim() && !departments.some(item => sameName(item, name))) departments.push(name.trim());
+        }
         const today = startOfDay(now);
-        const overdueReminders = reminderList.filter(reminder => reminderView(reminder, now).state === 'overdue').length;
-        const overdueChecklists = templates.filter(template => {
+        const overdueReminders = visibleReminders.filter(reminder => reminderView(reminder, now).state === 'overdue').length;
+        const overdueChecklists = visibleTemplates.filter(template => {
             if (!template.schedule.enabled || !template.schedule.days.includes(new Date(now).getDay())) return false;
             const due = new Date(today);
             const [h, m] = template.schedule.due.split(':').map(Number);
@@ -674,12 +953,18 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
             runs,
             performer: state.performer,
             setPerformer: name => commitState({ ...refs.current.state, performer: name }),
-            saveReminder: (reminder, options) => {
+            role,
+            setDepartment: department => commitState({ ...refs.current.state, department: department.trim() || undefined }),
+            departments,
+            visibleReminders,
+            visibleTemplates,
+            bridgeV2: isBridgeV2(state),
+            saveReminder: reminder => {
                 const list = refs.current.reminders;
                 const previous = list.find(item => item.id === reminder.id);
                 const onSheet = previous?.source?.kind === 'sheet' ? previous.source : reminder.source;
-                // Đồng bộ hai chiều: việc đã ở trên file thì luôn ghi lên file; việc tạo trên máy thì theo lựa chọn khi lưu
-                const sync = refs.current.state.sheet?.mode === 'bridge' && (Boolean(onSheet) || Boolean(options?.sync));
+                // Đồng bộ hai chiều: việc nào lưu trong app cũng ghi lên file, mọi máy cùng thấy
+                const sync = refs.current.state.sheet?.mode === 'bridge';
                 const next: Reminder = onSheet || sync ? { ...reminder, source: { kind: 'sheet', taskId: onSheet?.taskId ?? '' } } : reminder;
                 commitReminders(previous ? list.map(item => (item.id === next.id ? next : item)) : [next, ...list]);
                 collectMedia();
@@ -692,26 +977,31 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
                 // Việc trên file: ghi Huỷ (giữ lịch sử trong file), các máy khác tự bỏ việc này
                 if (target?.source?.kind === 'sheet') enqueueOps([{ kind: 'cancel', ref: id, taskId: target.source.taskId }]);
             },
-            completeReminder: (id, occ) => {
-                const at = clockNow();
-                commitReminders(refs.current.reminders.map(item => (item.id === id ? markDone(item, occ, at) : item)));
-                void desktop()?.closePopup(`${id}@${occ}`);
-                if (refs.current.reminders.find(item => item.id === id)?.source?.kind === 'sheet') enqueueOps([{ kind: 'done', ref: id, occ, at }]);
-            },
+            completeReminder: complete,
+            ackReminder: (id, occ) => ackMany([{ id, occ }]),
+            requestHelp,
             saveTemplate: template => {
                 const list = refs.current.templates;
-                commitTemplates(list.some(item => item.id === template.id) ? list.map(item => (item.id === template.id ? template : item)) : [...list, template]);
+                const previous = list.find(item => item.id === template.id);
+                // Đồng bộ hai chiều (script bản 2): checklist lưu trong app ghi lên trang Checklist của file
+                const sync = isBridgeV2(refs.current.state);
+                const next = sync ? adoptForSheet(template) : template;
+                commitTemplates(previous ? list.map(item => (item.id === template.id ? next : item)) : [...list, next]);
                 // Lượt hôm nay đang làm dở theo mẫu này nhận ngay tên, danh sách việc và giờ hạn mới (sửa mẫu ngay khi đang làm)
                 const today = dateKey(clockNow());
                 const runList = refs.current.runs;
-                if (runList.some(run => run.templateId === template.id && run.date === today && !run.finishedAt)) {
-                    commitRuns(runList.map(run => (run.date === today ? applyTemplateToRun(run, template) : run)));
+                if (runList.some(run => run.templateId === next.id && run.date === today && !run.finishedAt)) {
+                    commitRuns(runList.map(run => (run.date === today ? applyTemplateToRun(run, next) : run)));
                     collectMedia();
                 }
+                if (sync && next.source) enqueueOps([{ kind: 'checklist', ref: next.id, ...(previous?.source?.kind === 'sheet' ? { from: previous.name } : {}) }]);
             },
             deleteTemplate: id => {
+                const target = refs.current.templates.find(item => item.id === id);
                 commitTemplates(refs.current.templates.filter(item => item.id !== id));
                 commitReminders(refs.current.reminders.map(item => (item.checklistTemplateId === id ? { ...item, checklistTemplateId: undefined } : item)));
+                // Checklist trong file: ghi Ngưng (giữ lịch sử), các máy khác tự bỏ
+                if (target?.source?.kind === 'sheet' && isBridgeV2(refs.current.state)) enqueueOps([{ kind: 'checklist-stop', ref: id, name: target.name }]);
             },
             openRunFor,
             startNewRun,
@@ -740,23 +1030,6 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
             sheet: state.sheet ?? null,
             bridge: state.sheet?.mode === 'bridge',
             pendingCount: state.outbox?.length ?? 0,
-            localCount: state.sheet?.mode === 'bridge' ? localReminders(reminders).length : 0,
-            pushLocalReminders: () => {
-                const at = clockNow();
-                const locals = localReminders(refs.current.reminders);
-                if (refs.current.state.sheet?.mode !== 'bridge' || locals.length === 0) return 0;
-                const ids = new Set(locals.map(item => item.id));
-                const performer = refs.current.state.performer.trim();
-                commitReminders(refs.current.reminders.map(item => (ids.has(item.id)
-                    ? { ...item, source: { kind: 'sheet' as const, taskId: '' }, assigner: item.assigner ?? (performer || undefined) }
-                    : item)));
-                // Lần đã xong hôm nay cũng ghi lên, để máy khác không nhắc lại
-                enqueueOps(locals.flatMap(item => [
-                    { kind: 'upsert' as const, ref: item.id },
-                    ...doneToday(item, at).map(occ => ({ kind: 'done' as const, ref: item.id, occ, at: item.done[String(occ)] })),
-                ]));
-                return locals.length;
-            },
             staff: state.sheet?.staff ?? [],
             syncing,
             connectSheet: async url => {
@@ -774,7 +1047,8 @@ export const NhacViecProvider: React.FC<{ enabled: boolean; onOpen: () => void; 
             },
             syncSheet,
         };
-    }, [loaded, now, reminders, templates, runs, state.performer, state.sheet, state.outbox, syncing, media, openRequest, commitReminders, commitTemplates, commitRuns, commitState, commitMedia, collectMedia, openRunFor, startNewRun, runSheetSync, runBridgeSync, syncSheet, enqueueOps]);
+    }, [loaded, now, reminders, templates, runs, state, syncing, media, openRequest, commitReminders, commitTemplates, commitRuns, commitState, commitMedia, collectMedia, openRunFor,
+        startNewRun, runSheetSync, runBridgeSync, syncSheet, enqueueOps, complete, ackMany, requestHelp, adoptForSheet]);
 
     return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 };

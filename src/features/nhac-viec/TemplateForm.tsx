@@ -5,8 +5,9 @@ import { Input } from '../../components/shared/ui/Input';
 import { AppIcon } from '../../components/shared/ui/icon/AppIcon';
 import { toast } from '../../components/shared/ui/toast';
 import type { ChecklistItemTemplate, ChecklistTemplate } from './nhacViecModel';
-import { newId, weekdayName } from './nhacViecModel';
+import { isManagerDept, newId, weekdayName } from './nhacViecModel';
 import { useNhacViec } from './NhacViecProvider';
+import { plain } from './sheetTasks';
 
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 const emptyItem = (): ChecklistItemTemplate => ({ id: newId('i'), title: '', guide: '', required: true, needPhoto: false, needNote: false });
@@ -23,7 +24,7 @@ const Toggle: React.FC<{ on: boolean; label: string; onChange: (value: boolean) 
  * `copyFrom`: nhân bản, điền sẵn đủ danh sách việc và lịch, tên thêm "(bản sao)", lưu thành mẫu mới.
  */
 export const TemplateForm: React.FC<{ template: ChecklistTemplate | null; copyFrom?: ChecklistTemplate | null; onClose: () => void }> = ({ template, copyFrom, onClose }) => {
-    const { saveTemplate, deleteTemplate } = useNhacViec();
+    const { saveTemplate, deleteTemplate, templates, departments, role, bridgeV2 } = useNhacViec();
     const base = template ?? copyFrom ?? null;
     const [name, setName] = useState(template?.name ?? (copyFrom ? `${copyFrom.name} (bản sao)` : ''));
     const [description, setDescription] = useState(base?.description ?? '');
@@ -33,6 +34,8 @@ export const TemplateForm: React.FC<{ template: ChecklistTemplate | null; copyFr
         return [emptyItem(), emptyItem(), emptyItem()];
     });
     const [schedule, setSchedule] = useState(base?.schedule ?? { enabled: false, days: [1, 2, 3, 4, 5, 6, 0], start: '08:00', due: '09:00' });
+    // Mẫu mới trên máy bộ phận: mặc định bộ phận của máy
+    const [department, setDepartment] = useState(base?.department ?? (template || isManagerDept(role.department) ? '' : role.department));
     const [error, setError] = useState('');
 
     const update = (index: number, change: Partial<ChecklistItemTemplate>) => setItems(list => list.map((item, i) => (i === index ? { ...item, ...change } : item)));
@@ -49,6 +52,8 @@ export const TemplateForm: React.FC<{ template: ChecklistTemplate | null; copyFr
         if (cleanItems.length === 0) return setError('Thêm ít nhất một việc.');
         if (schedule.enabled && schedule.days.length === 0) return setError('Chọn ít nhất một ngày trong lịch.');
         if (schedule.enabled && schedule.due <= schedule.start) return setError('Giờ hạn phải sau giờ bắt đầu.');
+        // Trùng tên thì trên Google Sheet là một checklist: không cho trùng
+        if (templates.some(item => item.id !== template?.id && plain(item.name) === plain(name))) return setError('Đã có checklist tên này, đặt tên khác.');
         const now = Date.now();
         saveTemplate({
             id: template?.id ?? newId('cl'),
@@ -58,6 +63,9 @@ export const TemplateForm: React.FC<{ template: ChecklistTemplate | null; copyFr
             schedule,
             createdAt: template?.createdAt ?? now,
             updatedAt: now,
+            ...(template?.source ? { source: template.source } : {}),
+            ...(template?.assignee ? { assignee: template.assignee } : {}),
+            ...(department.trim() ? { department: department.trim() } : {}),
         });
         toast.success(template ? 'Đã lưu mẫu checklist' : copyFrom ? 'Đã tạo bản sao mẫu checklist' : 'Đã tạo mẫu checklist');
         onClose();
@@ -141,6 +149,18 @@ export const TemplateForm: React.FC<{ template: ChecklistTemplate | null; copyFr
                             <p className="text-[11px] text-slate-500">App nhắc lúc bắt đầu, 15 phút trước hạn và lúc hạn nếu chưa hoàn tất.</p>
                         </>
                     )}
+                </div>
+                <div className="space-y-1.5">
+                    <p className="text-[12px] font-bold text-slate-600">Bộ phận làm checklist</p>
+                    <div role="group" aria-label="Bộ phận làm checklist" className="flex flex-wrap gap-1.5">
+                        {['', ...departments].map(name => (
+                            <button key={name || '-'} type="button" aria-pressed={department === name} onClick={() => setDepartment(name)}
+                                className={`rounded-full border px-3 py-1 text-[13px] font-semibold ${department === name ? 'border-violet-600 bg-violet-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>
+                                {name || 'Chung'}
+                            </button>
+                        ))}
+                    </div>
+                    <p className="text-[11px] text-slate-500">Chọn bộ phận thì chỉ máy của bộ phận đó nhắc checklist này. Chung là máy nào cũng nhắc.{bridgeV2 ? ' Lưu là ghi lên trang Checklist của Google Sheet.' : ''}</p>
                 </div>
                 {error && <p role="alert" className="rounded-control bg-rose-50 px-3 py-2 text-[13px] font-semibold text-rose-700">{error}</p>}
             </div>

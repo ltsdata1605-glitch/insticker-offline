@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { FakeBridge } from '../e2e/cau-noi-gia';
 import type { Reminder } from '../../src/features/nhac-viec/nhacViecModel';
+import { personStats, ringsHere, shownHere, watchedHere } from '../../src/features/nhac-viec/nhacViecModel';
 import { mergeSheetTasks, readSheetTables } from '../../src/features/nhac-viec/sheetTasks';
 import {
-  applyDoneLog, applyResults, beforeText, bridgeLinkFrom, buildOps, enqueue, localReminders, reminderToRow, repeatCellText, runReport,
+  adoptTemplate, applyDoneLog, applyEvents, applyResults, beforeText, bridgeLinkFrom, buildOps, checklistRows, enqueue, localReminders, reminderToRow, repeatCellText, runReport,
 } from '../../src/features/nhac-viec/sheetBridge';
 import type { OutboxOp } from '../../src/features/nhac-viec/sheetBridge';
 
@@ -80,6 +81,62 @@ describe('Script cầu nối trong file (phần Lõi)', () => {
     expect(row['Ngày hạn']).toEqual({ ngay: '2026-11-26' });
     bridge.apply([{ op: 'upsert', row }], 'QL Sơn');
     expect(bridge.task('CV001')).toMatchObject({ 'Tiêu đề': 'Kiểm kho', 'Ngày hạn': '26/11/2026', 'Người xử lý': 'Linh', 'Người giao': 'QL Sơn' });
+    const kho = bridge.core.cnDongTuForm_({ tieuDe: 'Nhập hàng', ngay: '2026-11-26', boPhan: 'Kho', khiXong: 'Ảnh' });
+    expect(kho).toMatchObject({ 'Bộ phận': 'Kho', 'Khi xong cần': 'Ảnh' });
+  });
+
+  it('Đã nhận, Cần hỗ trợ ghi ô của việc và Nhật ký (kèm lý do, link ảnh, bộ phận); gửi lại không ghi trùng; xong thì xoá ô Cần hỗ trợ', () => {
+    const bridge = new FakeBridge(2);
+    bridge.setTask('CV001', { 'Tiêu đề': 'Nhập hàng Samsung', 'Bộ phận': 'Kho', 'Trạng thái': 'Đang giao' });
+    const occ = at(25, 15);
+    const ack = { op: 'ack', ref: 'r1', id: 'CV001', occ, at: at(25, 14, 5) };
+    bridge.apply([ack, ack], 'Linh');
+    expect(bridge.task('CV001')['Đã nhận']).toBe('Linh · 25/11/2026 14:05');
+    const help = { op: 'help', ref: 'r1', id: 'CV001', occ, at: at(25, 14, 30), note: 'Xe chưa tới', photos: [{ name: 'xe.jpg', data: Buffer.from('anh').toString('base64') }] };
+    bridge.apply([help], 'Linh');
+    bridge.apply([{ ...help, photos: undefined }], 'Linh');
+    expect(bridge.task('CV001')['Cần hỗ trợ']).toBe('Linh · 25/11/2026 14:30: Xe chưa tới');
+    expect(bridge.photos).toEqual([{ name: 'xe.jpg', bytes: 3 }]);
+    bridge.apply([{ op: 'done', ref: 'r1', id: 'CV001', occ, at: at(25, 15, 10), repeat: false, note: 'Đã nhập đủ', photos: [{ name: 'kho.jpg', data: 'YQ==' }] }], 'Linh');
+    expect(bridge.task('CV001')).toMatchObject({ 'Trạng thái': 'Xong', 'Cần hỗ trợ': '', 'Người xong': 'Linh' });
+    expect(bridge.nhatKy.map(row => [row[1], row[4], row[6], row[7], row[9]])).toEqual([
+      ['CV001', 'Linh', 'Đã nhận', '', 'Kho'],
+      ['CV001', 'Linh', 'Cần hỗ trợ', 'Xe chưa tới', 'Kho'],
+      ['CV001', 'Linh', 'Xong', 'Đã nhập đủ', 'Kho'],
+    ]);
+    // Lần xong cho bản app cũ chỉ gồm dòng Xong; sự kiện cho bản mới gồm cả Đã nhận, Cần hỗ trợ, kèm link ảnh
+    expect(bridge.core.cnLanXong_(bridge.nhatKy, 0)).toEqual([{ id: 'CV001', occ, by: 'Linh' }]);
+    const events = bridge.core.cnSuKien_(bridge.nhatKy, 0);
+    expect(events.map(event => [event.loai, event.by, event.at, event.note, event.anh.length])).toEqual([
+      ['nhan', 'Linh', at(25, 14, 5), '', 0], ['hotro', 'Linh', at(25, 14, 30), 'Xe chưa tới', 1], ['xong', 'Linh', at(25, 15, 10), 'Đã nhập đủ', 1],
+    ]);
+    expect(events[1].anh[0]).toMatch(/^https:\/\/drive\.google\.com\//);
+  });
+
+  it('checklist từ app: ghi dòng mới; sửa và đổi tên ghi đè đúng các dòng cũ, bớt việc thì xoá trắng dòng thừa; ngưng ghi Ngưng', () => {
+    const bridge = new FakeBridge(1);
+    bridge.checklist.push(['Đóng ca', 'Tắt đèn', '', 'TRUE', 'FALSE', 'FALSE', 'Mỗi ngày', '21:00', '22:00', '', 'Đang dùng', '']);
+    const rows = (name: string, titles: string[]) => titles.map((title, n) => ({
+      'Tên checklist': name, 'Việc': title, 'Hướng dẫn': '', 'Bắt buộc': n === 0, 'Cần ảnh': n === 1, 'Cần ghi chú': false,
+      ...(n === 0 ? { 'Lịch làm': 'T2 - T6', 'Giờ bắt đầu': '08:00', 'Giờ hạn': '09:00', 'Người làm': 'Linh', 'Trạng thái': 'Đang dùng', 'Bộ phận': 'Kho' } : {}),
+    }));
+    bridge.apply([{ op: 'checklist', ref: 'tpl-1', name: 'Mở kho', rows: rows('Mở kho', ['Mở cửa kho', 'Chụp ảnh kệ', 'Đếm pallet']) }], 'Linh');
+    expect(bridge.checklist.slice(1).map(row => [row[0], row[1], row[3], row[4], row[6], row[11]])).toEqual([
+      ['Đóng ca', 'Tắt đèn', 'TRUE', 'FALSE', 'Mỗi ngày', ''],
+      ['Mở kho', 'Mở cửa kho', 'TRUE', 'FALSE', 'T2 - T6', 'Kho'],
+      ['Mở kho', 'Chụp ảnh kệ', 'FALSE', 'TRUE', '', ''],
+      ['Mở kho', 'Đếm pallet', 'FALSE', 'FALSE', '', ''],
+    ]);
+    // Đổi tên, bớt một việc
+    bridge.apply([{ op: 'checklist', ref: 'tpl-1', name: 'Mở kho sáng', from: 'Mở kho', rows: rows('Mở kho sáng', ['Mở cửa kho', 'Chụp ảnh kệ']) }], 'Linh');
+    expect(bridge.checklist.slice(1).map(row => row.slice(0, 2))).toEqual([['Đóng ca', 'Tắt đèn'], ['Mở kho sáng', 'Mở cửa kho'], ['Mở kho sáng', 'Chụp ảnh kệ'], ['', '']]);
+    // Thêm việc thì dùng lại dòng trống
+    bridge.apply([{ op: 'checklist', ref: 'tpl-1', name: 'Mở kho sáng', rows: rows('Mở kho sáng', ['Mở cửa kho', 'Chụp ảnh kệ', 'Bật quạt']) }], 'Linh');
+    expect(bridge.checklist).toHaveLength(5);
+    expect(bridge.checklist[4].slice(0, 2)).toEqual(['Mở kho sáng', 'Bật quạt']);
+    bridge.apply([{ op: 'checklist-stop', ref: 'tpl-1', name: 'Mở kho sáng' }], 'Linh');
+    expect(bridge.checklist.slice(2).map(row => row[10])).toEqual(['Ngưng', 'Ngưng', 'Ngưng']);
+    expect(bridge.checklist[1][10]).toBe('Đang dùng');
   });
 });
 
@@ -166,3 +223,101 @@ describe('Đồng bộ hai chiều (app)', () => {
     expect(report.detail).toBe('1. Bật đèn: Hoàn tất\n2. Kiểm tem: Có vấn đề (3 tem sai), 1 ảnh\nCó vấn đề: Kiểm tem');
   });
 });
+
+describe('Bộ phận, Đã nhận, Cần hỗ trợ, thống kê theo người', () => {
+  const kho = { department: 'Kho', performer: 'Linh' };
+  const quanLy = { department: 'Quản lý', performer: 'QL Sơn' };
+  const moi = { department: '', performer: '' };
+
+  it('máy bộ phận chỉ nhắc việc của bộ phận, việc chung và việc giao cho mình; máy quản lý thấy hết, theo dõi việc bộ phận khác', () => {
+    expect(ringsHere({ department: 'Kho' }, kho)).toBe(true);
+    expect(ringsHere({ department: 'kho ' }, kho)).toBe(true);
+    expect(ringsHere({}, kho)).toBe(true);
+    expect(ringsHere({ department: 'Thu ngân' }, kho)).toBe(false);
+    expect(ringsHere({ department: 'Thu ngân', assignee: 'linh' }, kho)).toBe(true);
+    expect(ringsHere({ department: 'Thu ngân' }, moi)).toBe(true);
+    expect(shownHere({ department: 'Thu ngân' }, kho)).toBe(false);
+    expect(shownHere({ department: 'Thu ngân' }, quanLy)).toBe(true);
+    expect(ringsHere({ department: 'Thu ngân' }, quanLy)).toBe(false);
+    expect(watchedHere(reminder({ department: 'Thu ngân', assignee: 'Minh', assigner: 'Ai đó' }), quanLy)).toBe(true);
+    expect(watchedHere(reminder({ department: 'Quản lý', assignee: '', assigner: '' }), quanLy)).toBe(false);
+    // Người giao theo dõi việc mình giao cho người khác
+    expect(watchedHere(reminder({ department: undefined, assignee: 'Minh', assigner: 'Linh' }), kho)).toBe(true);
+    expect(watchedHere(reminder({ department: undefined, assignee: 'Linh', assigner: 'Linh' }), kho)).toBe(false);
+  });
+
+  it('Nhật ký ghép vào việc: người nhận sớm nhất, lần cần hỗ trợ mới nhất, người xong kèm link ảnh; lần của chính máy chỉ thêm link', () => {
+    const occ = at(25, 15);
+    const base = reminder({ source: { kind: 'sheet', taskId: 'CV001' }, helps: { [occ]: { by: 'Linh', at: at(25, 14, 30), note: 'Xe chưa tới', photos: ['m-1'] } } });
+    const events = [
+      { id: 'CV001', occ, loai: 'nhan' as const, by: 'Minh', at: at(25, 14, 10), note: '', anh: [] },
+      { id: 'CV001', occ, loai: 'nhan' as const, by: 'Linh', at: at(25, 14, 20), note: '', anh: [] },
+      { id: 'cv001', occ, loai: 'hotro' as const, by: 'Linh', at: at(25, 14, 30), note: 'Xe chưa tới', anh: ['https://drive.google.com/file/d/abc/view'] },
+      { id: 'CV001', occ, loai: 'xong' as const, by: 'Minh', at: at(25, 15, 5), note: 'Đủ hàng', anh: [] },
+    ];
+    const [merged] = applyEvents([base], events);
+    expect(merged.acks?.[occ]).toEqual({ by: 'Minh', at: at(25, 14, 10) });
+    expect(merged.helps?.[occ]).toEqual({ by: 'Linh', at: at(25, 14, 30), note: 'Xe chưa tới', photos: ['m-1'], links: ['https://drive.google.com/file/d/abc/view'] });
+    expect(merged.doneInfo?.[occ]).toEqual({ by: 'Minh', at: at(25, 15, 5), note: 'Đủ hàng' });
+    // Đọc lại cùng Nhật ký: không đổi gì
+    expect(applyEvents([merged], events)[0]).toBe(merged);
+  });
+
+  it('gửi lên: Đã nhận, Cần hỗ trợ kèm lý do và ảnh, xong kèm ghi chú; script bản cũ thì không gửi', () => {
+    const occ = at(25, 15);
+    const task = reminder({
+      source: { kind: 'sheet', taskId: 'CV001' },
+      helps: { [occ]: { by: 'Linh', at: at(25, 14, 30), note: 'Xe chưa tới', photos: ['m-1'] } },
+      doneInfo: { [occ]: { by: 'Linh', at: at(25, 15, 1), note: 'Đủ hàng' } },
+    });
+    const outbox: OutboxOp[] = [
+      { id: 'a', kind: 'ack', ref: 'nv-1', occ, at: at(25, 14) },
+      { id: 'b', kind: 'help', ref: 'nv-1', occ, at: at(25, 14, 30) },
+      { id: 'c', kind: 'done', ref: 'nv-1', occ, at: at(25, 15, 1) },
+    ];
+    const photo = (id: string) => (id === 'm-1' ? 'data:image/jpeg;base64,QUJD' : null);
+    expect(buildOps(outbox, [task], [], [], { version: 2, photo })).toEqual([
+      { op: 'ack', ref: 'nv-1', id: 'CV001', occ, at: at(25, 14) },
+      { op: 'help', ref: 'nv-1', id: 'CV001', occ, at: at(25, 14, 30), note: 'Xe chưa tới', photos: [{ name: 'anh-1.jpg', data: 'QUJD' }] },
+      { op: 'done', ref: 'nv-1', id: 'CV001', occ, at: at(25, 15, 1), repeat: false, note: 'Đủ hàng' },
+    ]);
+    expect(buildOps(outbox, [task], [], [], { version: 1, photo })).toEqual([{ op: 'done', ref: 'nv-1', id: 'CV001', occ, at: at(25, 15, 1), repeat: false }]);
+    expect(enqueue(outbox, { kind: 'ack', ref: 'nv-1', occ, at: at(25, 14, 5) }, () => 'CV001')).toBe(outbox);
+  });
+
+  it('checklist lên file: mã theo tên, mã việc theo thứ tự, lịch ghi đúng chữ của file', () => {
+    const template = {
+      id: 'cl-1', name: 'Mở kho', description: '', createdAt: 0, updatedAt: 0, department: 'Kho',
+      items: [{ id: 'i-a', title: 'Mở cửa', guide: '', required: true, needPhoto: false, needNote: false }, { id: 'i-b', title: 'Chụp kệ', guide: 'Chụp cả 3 tầng', required: false, needPhoto: true, needNote: false }],
+      schedule: { enabled: true, days: [1, 2, 3, 4, 5], start: '07:30', due: '08:00' },
+    };
+    const { template: adopted, itemIds } = adoptTemplate(template);
+    expect(adopted.id).toBe('gs-cl-mo-kho');
+    expect(adopted.source).toEqual({ kind: 'sheet' });
+    expect([...itemIds]).toEqual([['i-a', 'gs-cl-mo-kho-1'], ['i-b', 'gs-cl-mo-kho-2']]);
+    const rows = checklistRows(adopted);
+    expect(rows[0]).toMatchObject({ 'Tên checklist': 'Mở kho', 'Việc': 'Mở cửa', 'Bắt buộc': true, 'Lịch làm': 'T2 - T6', 'Giờ bắt đầu': '07:30', 'Giờ hạn': '08:00', 'Bộ phận': 'Kho', 'Trạng thái': 'Đang dùng' });
+    expect(rows[1]).toMatchObject({ 'Việc': 'Chụp kệ', 'Hướng dẫn': 'Chụp cả 3 tầng', 'Cần ảnh': true, 'Lịch làm': '', 'Bộ phận': '' });
+    // Ghi lên file rồi đọc về: cùng mã, cùng việc, cùng lịch
+    const bridge = new FakeBridge(1);
+    bridge.apply([{ op: 'checklist', ref: adopted.id, name: adopted.name, rows }], 'Linh');
+    const read = readSheetTables([{ name: 'Checklist', rows: bridge.checklist }]).checklists[0];
+    expect(read).toMatchObject({ id: adopted.id, department: 'Kho', schedule: template.schedule });
+    expect(read.items).toEqual(adopted.items);
+  });
+
+  it('thống kê theo người: người xử lý, không giao đích danh thì người bấm xong, chưa ai xong thì bộ phận', () => {
+    const daily = (overrides: Partial<Reminder>) => reminder({ repeat: 'daily', deadline: at(20, 9), createdAt: at(19, 8), ...overrides });
+    const list = [
+      daily({ id: 'a', assignee: 'Minh', done: { [at(21, 9)]: at(21, 8, 50), [at(22, 9)]: at(22, 9, 30) }, acks: { [at(21, 9)]: { by: 'Minh', at: at(21, 8) } } }),
+      daily({ id: 'b', assignee: '', department: 'Kho', done: { [at(21, 9)]: at(21, 9) }, doneInfo: { [at(21, 9)]: { by: 'Linh', at: at(21, 9) } }, helps: { [at(22, 9)]: { by: 'Linh', at: at(22, 8) } } }),
+    ];
+    const stats = personStats(list, at(21, 0), at(22, 12));
+    expect(stats).toEqual([
+      { name: 'Minh', total: 2, acked: 1, onTime: 1, late: 1, open: 0, help: 0 },
+      { name: 'Bộ phận Kho', total: 1, acked: 0, onTime: 0, late: 0, open: 1, help: 1 },
+      { name: 'Linh', total: 1, acked: 0, onTime: 1, late: 0, open: 0, help: 0 },
+    ]);
+  });
+});
+

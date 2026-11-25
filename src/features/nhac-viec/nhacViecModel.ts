@@ -14,6 +14,21 @@ export type SoundSpec =
     /** File âm thanh nhập vào hoặc ghi âm, lưu trong kho ảnh và âm thanh */
     | { kind: 'file'; mediaId: string; name: string };
 
+/** Khi bấm Đã xong phải kèm: ghi chú, ảnh, hay cả hai */
+export type Proof = 'note' | 'photo' | 'both';
+
+/** Một lần ai đó bấm Đã nhận, Cần hỗ trợ hay Đã xong cho một lần hạn */
+export interface OccEvent {
+    by: string;
+    at: number;
+    /** Lý do cần hỗ trợ, ghi chú khi xong */
+    note?: string;
+    /** Ảnh trên máy này (mã trong kho ảnh và âm thanh) */
+    photos?: string[];
+    /** Link ảnh trong Google Drive (máy khác gửi, đọc từ trang Nhật ký) */
+    links?: string[];
+}
+
 export interface Reminder {
     id: string;
     title: string;
@@ -49,6 +64,16 @@ export interface Reminder {
     /** Người xử lý, người giao (việc từ Google Sheet) */
     assignee?: string;
     assigner?: string;
+    /** Bộ phận nhận việc (Kho, Thu ngân, Quản lý…). Trống là việc chung, máy nào cũng nhắc. */
+    department?: string;
+    /** Bấm Đã xong phải kèm ghi chú, ảnh */
+    proof?: Proof;
+    /** Lần hạn → ai bấm Đã nhận */
+    acks?: Record<string, OccEvent>;
+    /** Lần hạn → lần Cần hỗ trợ gần nhất */
+    helps?: Record<string, OccEvent>;
+    /** Lần hạn → ai bấm Đã xong, ghi chú, ảnh */
+    doneInfo?: Record<string, OccEvent>;
 }
 
 export type ItemStatus = 'todo' | 'done' | 'issue' | 'na';
@@ -83,6 +108,8 @@ export interface ChecklistTemplate {
     source?: { kind: 'sheet' };
     /** Người làm (checklist từ Google Sheet) */
     assignee?: string;
+    /** Bộ phận làm checklist. Trống là máy nào cũng nhắc. */
+    department?: string;
 }
 
 export interface ChecklistRunItem extends ChecklistItemTemplate {
@@ -261,9 +288,10 @@ export const markFired = (reminder: Reminder, occ: number, now: number): Reminde
     return { ...reminder, fired };
 };
 
-export const markDone = (reminder: Reminder, occ: number, now: number): Reminder => ({
+export const markDone = (reminder: Reminder, occ: number, now: number, info?: OccEvent): Reminder => ({
     ...markFired(reminder, occ, now),
     done: { ...reminder.done, [String(occ)]: now },
+    ...(info ? { doneInfo: { ...reminder.doneInfo, [String(occ)]: info } } : {}),
     snoozes: reminder.snoozes.filter(snooze => snooze.occ !== occ),
     updatedAt: now,
 });
@@ -293,7 +321,11 @@ export const pruneReminder = (reminder: Reminder, now: number): Reminder => {
     const keep = now - 40 * DAY;
     const fired = Object.fromEntries(Object.entries(reminder.fired).filter(([, at]) => at >= keep));
     const done = reminder.repeat === 'none' ? reminder.done : Object.fromEntries(Object.entries(reminder.done).filter(([occ]) => Number(occ) >= keep));
-    return { ...reminder, fired, done, snoozes: reminder.snoozes.filter(item => item.at >= keep) };
+    const recent = <T,>(map: Record<string, T> | undefined) => (map && reminder.repeat !== 'none' ? Object.fromEntries(Object.entries(map).filter(([occ]) => Number(occ) >= keep)) : map);
+    return {
+        ...reminder, fired, done, snoozes: reminder.snoozes.filter(item => item.at >= keep),
+        acks: recent(reminder.acks), helps: recent(reminder.helps), doneInfo: recent(reminder.doneInfo),
+    };
 };
 
 export type ReminderState = 'overdue' | 'today' | 'upcoming' | 'done' | 'stopped';
@@ -329,6 +361,47 @@ export const reminderView = (reminder: Reminder, now: number): ReminderView => {
 };
 
 export const PRIORITY_TEXT: Record<Priority, string> = { normal: 'Thường', important: 'Quan trọng', urgent: 'Khẩn' };
+
+export const PROOF_TEXT: Record<Proof, string> = { note: 'Ghi chú', photo: 'Ảnh', both: 'Ảnh + ghi chú' };
+export const proofNeedsNote = (proof?: Proof): boolean => proof === 'note' || proof === 'both';
+export const proofNeedsPhoto = (proof?: Proof): boolean => proof === 'photo' || proof === 'both';
+
+// ---------- Bộ phận của máy ----------
+
+/** Bộ phận có sẵn để chọn; file Google Sheet ghi bộ phận khác thì cũng chọn được */
+export const DEFAULT_DEPARTMENTS = ['Kho', 'Thu ngân', 'Quản lý'];
+
+const nameKey = (value?: string): string => (value ?? '').normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').replace(/\s+/g, ' ').trim().toLowerCase();
+/** Cùng tên, không kể dấu, hoa thường; tên trống không trùng với gì */
+export const sameName = (a?: string, b?: string): boolean => nameKey(a) !== '' && nameKey(a) === nameKey(b);
+/** Máy của quản lý: thấy việc mọi bộ phận, được báo việc quá hạn và nhân viên cần hỗ trợ */
+export const isManagerDept = (department?: string): boolean => nameKey(department) === 'quan ly';
+
+/** Máy này: bộ phận (trống là nhận mọi việc như trước) và tên người dùng máy */
+export interface MachineRole {
+    department: string;
+    performer: string;
+}
+
+/** Việc (hay checklist) nhắc trên máy này: việc chung, việc của bộ phận máy, việc giao đích danh cho người dùng máy */
+export const ringsHere = (item: { department?: string; assignee?: string }, role: MachineRole): boolean =>
+    !role.department.trim() || !item.department?.trim() || sameName(item.department, role.department) || sameName(item.assignee, role.performer);
+
+/** Việc hiện trong danh sách của máy: máy quản lý thấy hết, máy khác chỉ thấy việc nhắc trên máy */
+export const shownHere = (item: { department?: string; assignee?: string }, role: MachineRole): boolean =>
+    isManagerDept(role.department) || ringsHere(item, role);
+
+/**
+ * Việc người khác làm mà máy này phải theo dõi (báo khi quá hạn, khi cần hỗ trợ): máy quản lý theo dõi việc không nhắc trên máy
+ * mình; người giao theo dõi việc mình giao cho người khác.
+ */
+export const watchedHere = (reminder: Pick<Reminder, 'department' | 'assignee' | 'assigner'>, role: MachineRole): boolean => {
+    const assignedByMe = sameName(reminder.assigner, role.performer) && !sameName(reminder.assignee, role.performer) && Boolean(reminder.assignee?.trim() || reminder.department?.trim());
+    return assignedByMe || (isManagerDept(role.department) && !ringsHere(reminder, role));
+};
+
+/** Việc quá hạn bao lâu chưa xong thì báo quản lý, người giao */
+export const OVERDUE_ALERT_AFTER = 15 * MINUTE;
 
 /** Còn bao lâu hoặc trễ bao lâu, dạng "còn 15 phút", "trễ 2 giờ". */
 export const relativeText = (target: number, now: number): string => {
@@ -520,6 +593,42 @@ export const checklistAlerts = (templates: ChecklistTemplate[], runs: ChecklistR
 };
 
 // ---------- Thống kê ----------
+
+export interface PersonStat {
+    name: string;
+    /** Số lần hạn đã đến trong khoảng */
+    total: number;
+    acked: number;
+    onTime: number;
+    late: number;
+    /** Đã qua hạn mà chưa xong */
+    open: number;
+    help: number;
+}
+
+/**
+ * Thống kê theo người: mỗi lần hạn đã đến tính cho người xử lý; việc không giao đích danh thì tính cho người bấm Đã xong, chưa ai
+ * xong thì tính cho bộ phận (hoặc Việc chung).
+ */
+export const personStats = (reminders: Reminder[], from: number, to: number): PersonStat[] => {
+    const byName = new Map<string, PersonStat>();
+    for (const reminder of reminders) {
+        for (const occ of occurrencesBetween(reminder, Math.max(from, reminder.createdAt), to)) {
+            const key = String(occ);
+            const name = reminder.assignee?.trim() || reminder.doneInfo?.[key]?.by.trim() || (reminder.department?.trim() ? `Bộ phận ${reminder.department.trim()}` : 'Việc chung');
+            const stat = byName.get(nameKey(name)) ?? { name, total: 0, acked: 0, onTime: 0, late: 0, open: 0, help: 0 };
+            stat.total += 1;
+            if (reminder.acks?.[key]) stat.acked += 1;
+            if (reminder.helps?.[key]) stat.help += 1;
+            const doneAt = reminder.done[key];
+            if (doneAt === undefined) stat.open += 1;
+            else if (doneAt <= occ) stat.onTime += 1;
+            else stat.late += 1;
+            byName.set(nameKey(name), stat);
+        }
+    }
+    return [...byName.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'vi'));
+};
 
 export interface Stats {
     runs: number;

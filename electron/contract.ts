@@ -106,7 +106,8 @@ export type ReminderSound =
 export interface ReminderPopupData {
   /** Khoá lần nhắc: mỗi khoá chỉ có một cửa sổ */
   key: string;
-  kind: 'reminder' | 'checklist' | 'missed' | 'new';
+  /** alert: báo quản lý, người giao (việc quá hạn, nhân viên cần hỗ trợ), chỉ kêu một lượt */
+  kind: 'reminder' | 'checklist' | 'missed' | 'new' | 'alert';
   title: string;
   content: string;
   /** Hạn của lần này (ms) */
@@ -124,6 +125,14 @@ export interface ReminderPopupData {
   /** Việc giao từ Google Sheet */
   assignee?: string;
   assigner?: string;
+  /** Bộ phận nhận việc */
+  department?: string;
+  /** Bấm Đã xong phải kèm ghi chú, ảnh (mở app để ghi) */
+  proof?: 'note' | 'photo' | 'both';
+  /** Hiện nút Đã nhận (việc nhắc, việc mới) */
+  canAck?: boolean;
+  /** Hiện nút Cần hỗ trợ */
+  canHelp?: boolean;
 }
 
 /** Kết quả tải file Google Sheet: cả file dạng .xlsx (base64) để đọc được mọi trang */
@@ -140,7 +149,8 @@ export type BridgeResponse =
 
 export interface ReminderAction {
   key: string;
-  action: 'done' | 'snooze' | 'open' | 'dismiss';
+  /** ack: Đã nhận; help: Cần hỗ trợ (mở app để ghi lý do) */
+  action: 'done' | 'snooze' | 'open' | 'dismiss' | 'ack' | 'help';
   minutes?: number;
 }
 

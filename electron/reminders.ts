@@ -33,6 +33,8 @@ interface StoredSettings {
 const DEFAULTS: StoredSettings = { runInBackground: true, openAtLogin: true, keepAwake: true, maxVolume: true };
 const LOGIN_ARG = '--khoi-dong-cung-may';
 const SHEET_PATTERN = /^https:\/\/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9_-]{20,})(?:[/?#].*)?$/;
+/** Ảnh nhân viên gửi kèm (cầu nối lưu trong Google Drive của file) */
+const DRIVE_FILE_PATTERN = /^https:\/\/drive\.google\.com\/file\/d\/[a-zA-Z0-9_-]{10,}(?:[/?#].*)?$/;
 /** Link kết nối: ứng dụng web của script cầu nối trong file, kèm mã bí mật */
 const BRIDGE_PATTERN = /^https:\/\/script\.google\.com\/(?:a\/macros\/[^/\s]+|macros)\/s\/[A-Za-z0-9_-]{10,}\/exec\?k=[A-Za-z0-9]{16,}$/;
 /** Bài kiểm thử dùng cầu nối giả trên máy */
@@ -402,7 +404,7 @@ export class ReminderHost {
   }
 
   private forward(action: ReminderAction): void {
-    if (action.action === 'open') this.options.showMainWindow();
+    if (action.action === 'open' || action.action === 'help') this.options.showMainWindow();
     this.options.getMainWindow()?.webContents.send('reminder:action', action);
   }
 
@@ -424,7 +426,9 @@ export class ReminderHost {
       const item = this.items.find(entry => entry.key === action?.key);
       if (!item) return;
       const minutes = typeof action.minutes === 'number' ? action.minutes : undefined;
-      if (!['done', 'snooze', 'open', 'dismiss'].includes(action.action)) return;
+      if (!['done', 'snooze', 'open', 'dismiss', 'ack', 'help'].includes(action.action)) return;
+      // Việc phải kèm ghi chú, ảnh khi xong: mở app để ghi
+      if (action.action === 'done' && item.proof) this.options.showMainWindow();
       this.forward({ key: item.key, action: action.action, minutes });
       this.closePopup(item.key);
     });
@@ -480,8 +484,8 @@ export class ReminderHost {
     });
     ipcMain.handle('sheet:open', (event, url: string) => {
       this.assertMain(event);
-      // Chỉ mở link Google Sheet
-      if (SHEET_PATTERN.test(String(url)) && !this.options.isTest) void shell.openExternal(String(url));
+      // Chỉ mở link Google Sheet và ảnh trong Google Drive
+      if ((SHEET_PATTERN.test(String(url)) || DRIVE_FILE_PATTERN.test(String(url))) && !this.options.isTest) void shell.openExternal(String(url));
     });
 
     const recheck = () => this.options.getMainWindow()?.webContents.send('reminder:recheck');

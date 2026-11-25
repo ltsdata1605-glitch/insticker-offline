@@ -20,27 +20,30 @@ export interface Data {
   viec: { tieuDe: string[]; dong: string[][] };
   nhatKy: { dong: Cell[][] };
   baoCao: { dong: Cell[][] };
+  checklist: { tieuDe: string[]; dong: string[][] } | null;
 }
 export interface Outcome {
-  ghi: { trang: string; dong: number; cot: number; giaTri: Cell }[];
+  ghi: { trang: string; dong: number; cot: number; giaTri: Cell | boolean }[];
   them: { trang: string; giaTri: Cell[] }[];
   ketQua: { ref: string; id: string; loi?: string }[];
 }
 export interface BridgeCore {
   cnXuLy_(du: Data, ops: unknown[], by: string, now: number, nho: Memory): Outcome;
   cnLanXong_(rows: Cell[][], from: number): { id: string; occ: number; by: string }[];
+  cnSuKien_(rows: Cell[][], from: number): { id: string; occ: number; loai: string; by: string; at: number; note: string; anh: string[] }[];
   cnGonBang_(rows: string[][], keyColumn: number): string[][];
   cnCot_(header: string[], name: string): number;
-  cnHienThi_(value: Cell): string;
+  cnHienThi_(value: Cell | boolean): string;
   cnDongTuForm_(form: Record<string, string>): Record<string, Cell>;
 }
 
 /** Nạp phần Lõi của script cầu nối (không gọi dịch vụ nào của Google) */
 export const loadBridgeCore = (): BridgeCore =>
-  vm.runInNewContext(`${fs.readFileSync(SCRIPT, 'utf8')}\n;({ cnXuLy_, cnLanXong_, cnGonBang_, cnCot_, cnHienThi_, cnDongTuForm_ })`, {}) as BridgeCore;
+  vm.runInNewContext(`${fs.readFileSync(SCRIPT, 'utf8')}\n;({ cnXuLy_, cnLanXong_, cnSuKien_, cnGonBang_, cnCot_, cnHienThi_, cnDongTuForm_ })`, {}) as BridgeCore;
 
-export const TASK_HEADER = ['Mã việc', 'Tiêu đề', 'Nội dung', 'Ngày hạn', 'Giờ hạn', 'Người xử lý', 'Mức độ', 'Nhắc trước', 'Lặp lại', 'Âm thanh', 'Câu đọc', 'Checklist', 'Trạng thái', 'Người giao', 'Người xong', 'Xong lúc'];
-export const CHECKLIST_HEADER = ['Tên checklist', 'Việc', 'Hướng dẫn', 'Bắt buộc', 'Cần ảnh', 'Cần ghi chú', 'Lịch làm', 'Giờ bắt đầu', 'Giờ hạn', 'Người làm', 'Trạng thái'];
+export const TASK_HEADER = ['Mã việc', 'Tiêu đề', 'Nội dung', 'Ngày hạn', 'Giờ hạn', 'Người xử lý', 'Mức độ', 'Nhắc trước', 'Lặp lại', 'Âm thanh', 'Câu đọc', 'Checklist', 'Trạng thái', 'Người giao', 'Người xong', 'Xong lúc',
+  'Bộ phận', 'Khi xong cần', 'Đã nhận', 'Cần hỗ trợ'];
+export const CHECKLIST_HEADER = ['Tên checklist', 'Việc', 'Hướng dẫn', 'Bắt buộc', 'Cần ảnh', 'Cần ghi chú', 'Lịch làm', 'Giờ bắt đầu', 'Giờ hạn', 'Người làm', 'Trạng thái', 'Bộ phận'];
 
 export class FakeBridge {
   readonly core = loadBridgeCore();
@@ -55,6 +58,10 @@ export class FakeBridge {
   posts: { by: string; ops: { op: string; ref: string; id?: string }[] }[] = [];
   /** Mất mạng: cắt kết nối mọi yêu cầu */
   down = false;
+  /** Phiên bản script trong file: 1 là bản cũ (chưa có Đã nhận, Cần hỗ trợ, checklist từ app) */
+  scriptVersion = 2;
+  /** Ảnh app gửi kèm (như lưu vào Drive) */
+  photos: { name: string; bytes: number }[] = [];
   link = '';
   private readonly memory = new Map<string, string>();
   private server?: http.Server;
@@ -92,6 +99,7 @@ export class FakeBridge {
         { name: 'Checklist', rows: this.core.cnGonBang_(this.checklist, 0) },
       ],
       doneLog: this.core.cnLanXong_(this.nhatKy, Date.now() - 40 * 86_400_000),
+      ...(this.scriptVersion >= 2 ? { events: this.core.cnSuKien_(this.nhatKy, Date.now() - 40 * 86_400_000) } : {}),
       staff: this.staff,
       assigners: this.assigners,
     };
@@ -100,9 +108,9 @@ export class FakeBridge {
   get(params: URLSearchParams): object {
     if (params.get('k') !== this.key) return { ok: false, error: 'key', message: 'Link kết nối không đúng hoặc đã đổi mã.' };
     const doc = this.doc();
-    const version = crypto.createHash('md5').update(JSON.stringify([doc.tables, doc.doneLog, doc.staff, doc.assigners])).digest('hex');
-    if (params.get('since') === version) return { ok: true, v: 1, unchanged: true, version };
-    return { ok: true, v: 1, version, ...doc };
+    const version = crypto.createHash('md5').update(JSON.stringify([this.scriptVersion, doc.tables, doc.doneLog, doc.events ?? [], doc.staff, doc.assigners])).digest('hex');
+    if (params.get('since') === version) return { ok: true, v: this.scriptVersion, unchanged: true, version };
+    return { ok: true, v: this.scriptVersion, version, ...doc };
   }
 
   /** Như doPost của script: áp thay đổi bằng phần Lõi rồi ghi vào bảng (như trang tính hiện giá trị) */
@@ -111,14 +119,26 @@ export class FakeBridge {
       viec: { tieuDe: this.viec[0], dong: this.viec.slice(1).map(row => [...row]) },
       nhatKy: { dong: this.nhatKy.map(row => [...row]) },
       baoCao: { dong: this.baoCao.map(row => [...row]) },
+      checklist: { tieuDe: this.checklist[0], dong: this.checklist.slice(1).map(row => [...row]) },
     };
+    // Như doPost: ảnh lưu vào Drive, thao tác giữ link ảnh
+    for (const op of ops as { photos?: { name: string; data: string }[]; anh?: string[] }[]) {
+      if (!op.photos?.length) continue;
+      op.anh = op.photos.map((photo, n) => {
+        this.photos.push({ name: photo.name, bytes: Buffer.from(photo.data, 'base64').length });
+        return `https://drive.google.com/file/d/anh${this.photos.length}${n}/view`;
+      });
+      delete op.photos;
+    }
     const outcome = this.core.cnXuLy_(data, ops, by, now, {
       lay: ref => this.memory.get(ref) ?? null,
       dat: (ref, id) => void this.memory.set(ref, id),
     });
     for (const write of outcome.ghi) {
-      while (this.viec.length < write.dong) this.viec.push(TASK_HEADER.map(() => ''));
-      this.viec[write.dong - 1][write.cot - 1] = this.core.cnHienThi_(write.giaTri);
+      const table = write.trang === 'checklist' ? this.checklist : this.viec;
+      const header = write.trang === 'checklist' ? CHECKLIST_HEADER : TASK_HEADER;
+      while (table.length < write.dong) table.push(header.map(() => ''));
+      table[write.dong - 1][write.cot - 1] = this.core.cnHienThi_(write.giaTri);
     }
     for (const row of outcome.them) {
       const values = row.giaTri.map(value => this.core.cnHienThi_(value));
@@ -131,7 +151,7 @@ export class FakeBridge {
     if (params.get('k') !== this.key) return { ok: false, error: 'key', message: 'Link kết nối không đúng hoặc đã đổi mã.' };
     const by = String(body.by ?? '').trim() || 'Máy chưa đặt tên';
     this.posts.push({ by, ops: body.ops ?? [] });
-    return { ok: true, v: 1, results: this.apply(body.ops ?? [], by).ketQua };
+    return { ok: true, v: this.scriptVersion, results: this.apply(body.ops ?? [], by).ketQua };
   }
 
   async listen(): Promise<string> {
