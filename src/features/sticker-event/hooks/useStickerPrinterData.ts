@@ -210,6 +210,11 @@ export function useStickerPrinterData() {
         if (batchItems.length > 0) return batchItems.filter(item => item.selected).length + listCopies;
         return manualPages.length > 0 ? listCopies : editorQuantity;
     }, [manualPages, batchItems, editorQuantity]);
+    /** Số bản khi bấm In tất cả: mọi sticker trong danh sách, kể cả sticker đang bỏ chọn. */
+    const stickerPrintAllCount = useMemo(
+        () => batchItems.length + manualPages.reduce((sum, page) => sum + pageQuantity(page), 0),
+        [manualPages, batchItems],
+    );
     const [printHistory, setPrintHistory] = useState<PrintHistoryEntry[]>([]);
     const [showHistory, setShowHistory] = useState(false);
     const [savedLists, setSavedLists] = useState<SavedStickerList[]>([]);
@@ -1127,6 +1132,12 @@ export function useStickerPrinterData() {
         setManualPages(prev => prev.map(p => ({ ...p, selected: select })));
     };
 
+    /** Chọn hoặc bỏ chọn một nhóm sticker (các sticker đang hiện ở dải ảnh khi lọc bằng ô tìm). */
+    const setPagesSelection = (ids: string[], select: boolean) => {
+        const wanted = new Set(ids);
+        setManualPages(prev => prev.map(p => (wanted.has(p.id) ? { ...p, selected: select } : p)));
+    };
+
     const saveCurrentList = () => {
         if (manualPages.length === 0) return;
         setIsSaveListModalOpen(true);
@@ -1311,7 +1322,9 @@ export function useStickerPrinterData() {
             : { tagPreviewProducts: [stickerPageToTagProduct(editorPage, priceSource)] };
     }, [stickerMode, batchItems, batchItemToPage, editorPage, priceSource]);
 
-    const handlePrint = () => {
+    /** In các sticker đang chọn; `all` thì in mọi sticker trong danh sách, không đổi ô chọn. */
+    const handlePrint = (options?: { all?: boolean }) => {
+        const all = options?.all === true;
         if (stickerType === 'draw') {
             const totalPages = Math.ceil((drawTickets?.length || 0) / 4);
             if (totalPages === 0) {
@@ -1466,8 +1479,9 @@ export function useStickerPrinterData() {
         }
 
         // Mỗi sticker in đúng số bản của nó; sticker đang soạn (danh sách trống) in theo ô số lượng
-        const previewPageCount = batchItems.length > 0 ? batchItems.filter(i => i.selected).length : (manualPages.length === 0 ? editorQuantity : 0);
-        const selectedManualPages = manualPages.filter(p => p.selected !== false);
+        const chosenBatchItems = all ? batchItems : batchItems.filter(i => i.selected);
+        const previewPageCount = batchItems.length > 0 ? chosenBatchItems.length : (manualPages.length === 0 ? editorQuantity : 0);
+        const selectedManualPages = all ? manualPages : manualPages.filter(p => p.selected !== false);
         const totalPages = previewPageCount + selectedManualPages.reduce((sum, page) => sum + pageQuantity(page), 0);
 
         if (totalPages === 0) {
@@ -1496,7 +1510,7 @@ export function useStickerPrinterData() {
             const historyEntry: PrintHistoryEntry = {
                 id: `history_${Date.now()}`,
                 timestamp: Date.now(),
-                label: autoListName([...batchItems.filter(item => item.selected).map(item => item.name), ...savedPages.map(page => page.label)], headerTextContent),
+                label: autoListName([...chosenBatchItems.map(item => item.name), ...savedPages.map(page => page.label)], headerTextContent),
                 printedAs: stickerMode === 'tag' ? 'tag' : undefined,
                 pageCount: totalPages,
                 stickerType,
@@ -1536,7 +1550,7 @@ export function useStickerPrinterData() {
         if (stickerMode === 'tag') {
             const pages = [
                 ...(batchItems.length > 0
-                    ? batchItems.filter(i => i.selected).map(batchItemToPage)
+                    ? chosenBatchItems.map(batchItemToPage)
                     : (manualPages.length === 0 ? [editorPage] : [])),
                 ...selectedManualPages.map(page => resolveQueuePage(page, tagQueueContext(queueContext))),
             ];
@@ -1572,7 +1586,7 @@ export function useStickerPrinterData() {
         // Lấy nội dung ngay lúc bấm in (sticker đang soạn chép từ khung xem trước), rồi mới hỏi số sticker mỗi tờ
         const stickers: string[] = [];
         if (batchItems.length > 0) {
-            batchItems.filter(i => i.selected).forEach(item => {
+            chosenBatchItems.forEach(item => {
                 stickers.push(generatePageHtml(batchItemToPage(item), priceSource, stickerType, effectiveBg, discountDisplayMode));
             });
         } else if (manualPages.length === 0) {
@@ -1655,7 +1669,7 @@ export function useStickerPrinterData() {
         barcodeImei, setBarcodeImei,
         manualPages, setManualPages,
         printHistory, setPrintHistory,
-        editorQuantity, setEditorQuantity, setPageQuantity, stickerPrintCount,
+        editorQuantity, setEditorQuantity, setPageQuantity, stickerPrintCount, stickerPrintAllCount,
         showHistory, setShowHistory,
         savedLists, setSavedLists,
         showSavedLists, setShowSavedLists: toggleShowSavedLists,
@@ -1689,6 +1703,7 @@ export function useStickerPrinterData() {
         clearManualPages,
         togglePageSelection,
         toggleAllPagesSelection,
+        setPagesSelection,
         saveCurrentList,
         handleSaveCurrentList,
         loadSavedList,

@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { AppIcon } from '../../../components/shared/ui/icon/AppIcon';
+import { Checkbox } from '../../../components/shared/ui/Checkbox';
 import type { StickerPage } from './types';
 import { generatePageHtml, resolveQueuePage, tagQueueContext } from './pageHtmlUtils';
 import type { QueuePageContext } from './pageHtmlUtils';
@@ -23,25 +24,31 @@ interface StickerQueueStripProps extends QueuePageContext {
   onRemove: (id: string) => void;
   /** Đổi số bản in của một sticker. */
   onQuantity: (id: string, quantity: number) => void;
+  /** Bật tắt ô chọn in của một sticker (nút In đã chọn chỉ in sticker có dấu tick). */
+  onToggle: (id: string) => void;
+  /** Chọn hoặc bỏ chọn cả nhóm sticker đang hiện (ô Chọn hết, theo ô tìm nếu đang lọc). */
+  onSelectMany: (ids: string[], select: boolean) => void;
   /** Tab Sticker: ảnh là tem giá theo kiểu đang chọn thay cho sticker Giá Sốc. */
   tagView?: { settings: PrintSettings; employeeName: string };
   /** Ô tìm sticker: chỉ hiện sticker khớp tên hoặc mã, số thứ tự vẫn theo danh sách. */
   query?: string;
 }
 
-interface ThumbnailProps extends Omit<StickerQueueStripProps, 'pages' | 'activeId' | 'onSelect' | 'onRemove' | 'onQuantity' | 'query'> {
+interface ThumbnailProps extends Omit<StickerQueueStripProps, 'pages' | 'activeId' | 'onSelect' | 'onRemove' | 'onQuantity' | 'onToggle' | 'onSelectMany' | 'query'> {
   page: StickerPage;
   index: number;
   active: boolean;
   onSelect: (page: StickerPage) => void;
   onRemove: (id: string) => void;
   onQuantity: (id: string, quantity: number) => void;
+  onToggle: (id: string) => void;
 }
 
 // Nội dung lấy qua đúng hàm dựng trang in, trong đó mọi trường đều đã escape, nên thấy sao in ra vậy.
 const Thumbnail: React.FC<ThumbnailProps> = React.memo(({
-  page, index, active, onSelect, onRemove, onQuantity, bgImage, priceSource, discountDisplayMode, tagView, ...context
+  page, index, active, onSelect, onRemove, onQuantity, onToggle, bgImage, priceSource, discountDisplayMode, tagView, ...context
 }) => {
+  const chosen = page.selected !== false;
   const { stickerType, headerTextContent, subHeaderTextContent, footerTextContent } = context;
   const tagProducts = useMemo(() => (tagView
     ? [stickerPageToTagProduct(resolveQueuePage(page, tagQueueContext({ stickerType, headerTextContent, subHeaderTextContent, footerTextContent })), priceSource)]
@@ -73,7 +80,7 @@ const Thumbnail: React.FC<ThumbnailProps> = React.memo(({
         }}
         className={`relative w-full cursor-pointer bg-white rounded-sm overflow-hidden outline-none ring-2 transition-shadow focus-visible:ring-sky-400 ${
           active ? 'ring-sky-600' : 'ring-slate-200 hover:ring-sky-300'
-        } ${page.selected === false ? 'opacity-50' : ''}`}
+        } ${chosen ? '' : 'opacity-50'}`}
       >
         {tagView && tagProducts ? (
           <TagRender products={tagProducts} settings={tagView.settings} employeeName={tagView.employeeName} width={104} className="pointer-events-none select-none" />
@@ -94,29 +101,57 @@ const Thumbnail: React.FC<ThumbnailProps> = React.memo(({
       >
         <AppIcon name="close" size="xs" />
       </button>
-      {/* Số bản in ngay dưới góc phải ảnh */}
-      <QuantityStepper
-        value={page.quantity ?? 1}
-        onChange={(quantity) => onQuantity(page.id, quantity)}
-        label={`Số bản in của sticker ${index + 1}: ${page.label}`}
-      />
+      {/* Dưới ảnh: ô chọn in bên trái, số bản in bên phải (không che giá) */}
+      <div className="flex w-full items-center justify-between gap-1">
+        <Checkbox
+          checked={chosen}
+          onChange={() => onToggle(page.id)}
+          aria-label={`Chọn in sticker ${index + 1}: ${page.label}`}
+          title={chosen ? 'Bỏ chọn: In đã chọn không in sticker này' : 'Chọn để In đã chọn in sticker này'}
+          data-testid="sticker-thumbnail-check"
+          wrapperClassName="shrink-0 pl-0.5"
+        />
+        <QuantityStepper
+          value={page.quantity ?? 1}
+          onChange={(quantity) => onQuantity(page.id, quantity)}
+          label={`Số bản in của sticker ${index + 1}: ${page.label}`}
+        />
+      </div>
     </div>
   );
 });
 
 /** Dải ảnh thu nhỏ bên trái bản xem trước: thấy đủ mọi sticker trong danh sách, bấm vào ảnh để mở và sửa, bấm x để xoá. */
-export const StickerQueueStrip: React.FC<StickerQueueStripProps> = ({ pages, activeId, onSelect, onRemove, onQuantity, query = '', ...rest }) => {
+export const StickerQueueStrip: React.FC<StickerQueueStripProps> = ({ pages, activeId, onSelect, onRemove, onQuantity, onToggle, onSelectMany, query = '', ...rest }) => {
+  const filtering = query.trim() !== '';
   const shown = useMemo(() => {
     const indexed = pages.map((page, index) => ({ page, index }));
-    return query.trim() ? indexed.filter(({ page }) => matchesSticker(page, query)) : indexed;
-  }, [pages, query]);
+    return filtering ? indexed.filter(({ page }) => matchesSticker(page, query)) : indexed;
+  }, [pages, query, filtering]);
   if (pages.length === 0) return null;
+  const chosenShown = shown.filter(({ page }) => page.selected !== false).length;
+  const allShown = shown.length > 0 && chosenShown === shown.length;
   return (
     <div
       data-testid="sticker-strip"
       aria-label="Các sticker trong danh sách"
       className="no-print hidden lg:flex flex-col gap-2.5 shrink-0 w-[112px] lg:h-[max(556px,82%)] overflow-y-auto p-1 scrollbar-thin"
     >
+      {/* Chọn hết hoặc bỏ chọn hết các sticker đang hiện; đang lọc bằng ô tìm thì chỉ các sticker khớp */}
+      {shown.length > 0 && (
+        <div className="sticky top-0 z-10 -mx-1 -mt-1 flex items-center justify-between gap-1 bg-slate-100 px-1.5 py-1">
+          <Checkbox
+            checked={allShown}
+            ref={(element) => { if (element) element.indeterminate = chosenShown > 0 && !allShown; }}
+            onChange={() => onSelectMany(shown.map(({ page }) => page.id), !allShown)}
+            label="Chọn hết"
+            title={filtering ? 'Chọn hoặc bỏ chọn các sticker khớp ô tìm' : 'Chọn hoặc bỏ chọn mọi sticker'}
+            labelClassName="text-[11px] font-semibold text-slate-600"
+            wrapperClassName="gap-1"
+          />
+          <span data-testid="sticker-strip-chosen" className="text-[10px] font-semibold tabular-nums text-slate-500">{chosenShown}/{shown.length}</span>
+        </div>
+      )}
       {shown.length === 0 && (
         <p className="pt-2 text-[11px] leading-snug text-slate-500 text-center">Không có sticker nào khớp ô tìm</p>
       )}
@@ -129,6 +164,7 @@ export const StickerQueueStrip: React.FC<StickerQueueStripProps> = ({ pages, act
           onSelect={onSelect}
           onRemove={onRemove}
           onQuantity={onQuantity}
+          onToggle={onToggle}
           {...rest}
         />
       ))}

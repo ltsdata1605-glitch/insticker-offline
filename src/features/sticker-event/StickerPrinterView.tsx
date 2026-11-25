@@ -97,10 +97,11 @@ export default function StickerPrinterView() {
         editFooterText,
         editBarcode,
         removeManualPage,
-        editorQuantity, setEditorQuantity, setPageQuantity, stickerPrintCount,
+        editorQuantity, setEditorQuantity, setPageQuantity, stickerPrintCount, stickerPrintAllCount,
         clearManualPages,
         togglePageSelection,
         toggleAllPagesSelection,
+        setPagesSelection,
         saveCurrentList,
         handleSaveCurrentList,
         loadSavedList,
@@ -186,6 +187,8 @@ export default function StickerPrinterView() {
                         onSelect={selectQueuePage}
                         onRemove={removeManualPage}
                         onQuantity={setPageQuantity}
+                        onToggle={togglePageSelection}
+                        onSelectMany={setPagesSelection}
                         stickerType={stickerType}
                         bgImage={bgImage}
                         priceSource={priceSource}
@@ -293,6 +296,7 @@ export default function StickerPrinterView() {
                     removeManualPage={removeManualPage}
                     setPageQuantity={setPageQuantity}
                     stickerPrintCount={stickerPrintCount}
+                    stickerPrintAllCount={stickerPrintAllCount}
                     loadSavedList={loadSavedList}
                     deleteSavedList={deleteSavedList}
                     togglePageSelection={togglePageSelection}

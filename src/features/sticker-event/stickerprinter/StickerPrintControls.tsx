@@ -16,7 +16,8 @@ interface StickerPrintControlsProps {
     printHistory: PrintHistoryEntry[];
     showHistory: boolean;
     setShowHistory: (show: boolean) => void;
-    handlePrint: () => void;
+    /** In sticker đang chọn; `all` thì in cả danh sách. */
+    handlePrint: (options?: { all?: boolean }) => void;
     addCurrentPage: () => void;
     handleTemplateUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
     downloadTemplate: () => void;
@@ -39,6 +40,8 @@ interface StickerPrintControlsProps {
     setPageQuantity: (id: string, quantity: number) => void;
     /** Tổng số bản sẽ in (mỗi sticker nhân số bản của nó). */
     stickerPrintCount: number;
+    /** Số bản khi In tất cả (kể cả sticker bỏ chọn). */
+    stickerPrintAllCount: number;
     loadSavedList: (list: SavedStickerList) => void;
     deleteSavedList: (list: SavedStickerList) => void;
     togglePageSelection: (id: string) => void;
@@ -94,6 +97,7 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
     removeManualPage,
     setPageQuantity,
     stickerPrintCount,
+    stickerPrintAllCount,
     loadSavedList,
     deleteSavedList,
     togglePageSelection,
@@ -166,7 +170,7 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
     const guideItems: { lead: string; text: React.ReactNode }[] = choosesLayoutOnPrint ? [
         { lead: 'Khi bấm in', text: <>Chọn <strong>kiểu</strong> và <strong>bố cục</strong> (1 đến 24 tem mỗi trang A4 hoặc máy in bill 80mm), xem trước rồi bấm <strong>In ngay</strong>. Danh sách <strong>tự lưu vào Lịch sử</strong>.</> },
         { lead: 'Nhập file giá', text: <><strong>Nhập file mẫu</strong> nhận cả bảng giá ERP mẫu 81 của tab Event (nhiều file một lần): <strong>mọi sản phẩm</strong> thành sticker, mã đã có thì cập nhật giá.</> },
-        { lead: 'Tìm sticker', text: 'Gõ tên hoặc mã ở ô cạnh Kiểu sticker để lọc ảnh bên trái; Enter mở sticker đầu tiên.' },
+        { lead: 'Tìm và chọn', text: 'Gõ tên hoặc mã ở ô cạnh Kiểu sticker để lọc ảnh bên trái, tick ô dưới ảnh rồi bấm In đã chọn.' },
         { lead: 'Kiểu sticker', text: 'Chọn ngay trên khung xem trước. Kiểu giá to và Kiểu phiếu giảm giá in trắng đen ít tốn mực.' },
         { lead: 'Sửa và thêm', text: 'Sửa ở các ô dưới tem, có mã thì tem in QR. Bấm Thêm để đưa vào danh sách, các ô để trống cho sticker sau.' },
     ] : stickerType === 'draw' ? [
@@ -186,23 +190,50 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
         { id: 'history', label: 'Lịch sử', badge: filteredHistory.length },
     ];
 
+    const hasList = stickerType !== 'draw' && (manualPages.length > 0 || batchItems.length > 0);
+    const printButton = '!bg-amber-400 hover:!bg-amber-500 !text-slate-950 font-bold text-sm py-2 rounded-control flex items-center justify-center gap-1.5 active:scale-95 transition-transform shadow-sm border-transparent';
+
     return (
         <SectionCard className="w-full max-w-sm lg:max-w-[480px] lg:flex-1 lg:min-w-0 lg:h-[max(556px,82%)] min-h-[460px] p-3 lg:p-6 no-print flex flex-col overflow-hidden">
-            {/* Primary Action Buttons */}
-            <div className="flex gap-2 mb-3 shrink-0">
-                <Button 
-                    onClick={handlePrint}
-                    className="flex-1 !bg-amber-400 hover:!bg-amber-500 !text-slate-950 font-bold text-sm py-2 rounded-control flex items-center justify-center gap-1.5 active:scale-95 transition-transform shadow-sm border-transparent"
-                    leftIcon={<AppIcon name="print" size="md" />}
-                >
-                    {/* Vàng = màu nút IN của chủ dự án (giữ); chữ viết như câu thay IN HOA (GĐ7) */}
-                    Bấm để in ({stickerType === 'draw' ? Math.ceil(drawTotalTickets / 4) : stickerPrintCount})
-                </Button>
+            {/* Primary Action Buttons. Hai nút in (có danh sách) chiếm cả hàng; Thêm và Cỡ chữ gốc (Giá Sốc, Giờ Vàng) xuống hàng
+                dưới, kẻo tràn khung ở cửa sổ nhỏ. */}
+            <div className="flex flex-wrap gap-2 mb-3 shrink-0">
+                {/* Vàng = màu nút IN của chủ dự án (giữ); chữ viết như câu thay IN HOA (GĐ7). Có danh sách sticker thì hai nút:
+                    In tất cả (cả sticker bỏ chọn) và In đã chọn (chỉ sticker có dấu tick ở dải ảnh hoặc tab D.Sách). */}
+                {hasList ? (
+                    <div className="flex basis-full gap-2">
+                        <Button
+                            onClick={() => handlePrint({ all: true })}
+                            className={`${printButton} flex-1`}
+                            title="In mọi sticker trong danh sách, kể cả sticker đang bỏ chọn"
+                            leftIcon={<AppIcon name="print" size="md" />}
+                        >
+                            In tất cả ({stickerPrintAllCount})
+                        </Button>
+                        <Button
+                            onClick={() => handlePrint()}
+                            disabled={stickerPrintCount === 0}
+                            className={`${printButton} flex-1 disabled:!opacity-50`}
+                            title={stickerPrintCount === 0 ? 'Chưa chọn sticker nào: tick ô dưới ảnh sticker bên trái' : 'Chỉ in các sticker có dấu tick'}
+                            leftIcon={<AppIcon name="print" size="md" />}
+                        >
+                            In đã chọn ({stickerPrintCount})
+                        </Button>
+                    </div>
+                ) : (
+                    <Button
+                        onClick={() => handlePrint()}
+                        className={`${printButton} flex-1`}
+                        leftIcon={<AppIcon name="print" size="md" />}
+                    >
+                        Bấm để in ({stickerType === 'draw' ? Math.ceil(drawTotalTickets / 4) : stickerPrintCount})
+                    </Button>
+                )}
                 {/* Tab Sticker đặt nút Thêm ngay trên các ô sửa ở khung xem trước */}
                 {stickerType !== 'draw' && !choosesLayoutOnPrint && (
                     <Button
                         onClick={addCurrentPage}
-                        className="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs py-2 px-3 rounded-control flex items-center justify-center gap-1 shrink-0"
+                        className={`bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs py-2 px-3 rounded-control flex items-center justify-center gap-1 shrink-0 ${hasList ? 'flex-1' : ''}`}
                         title="Thêm sticker đang hiện trên bản xem trước vào danh sách in"
                         leftIcon={<AppIcon name="add" size="md" />}
                     >

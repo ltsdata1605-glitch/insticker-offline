@@ -56,7 +56,7 @@ Kiểu giá to và Kiểu phiếu giảm giá chỉ dùng chữ và đường vi
 
 Trang in (A4, 1 đến 24 tem mỗi trang) có **đường cắt** nét đứt màu xám chạy giữa khe giữa các tem và quanh khối tem; cắt theo đường là tách được từng tem. Trang cuối ít tem thì đường cắt chỉ chạy quanh các tem có in. Máy in bill không có đường cắt. Cả sáu dùng được ở mọi bố cục và máy in bill; không có giá gốc thì tem chỉ in giá bán. Tem hiện theo bố cục lần in trước.
 - **Sửa nội dung** ở các ô dưới tem: Tên sản phẩm, Mã QR, Giá cũ, Giá mới (nghìn đồng, như Giá Sốc) và Khuyến mãi. Gõ giá mới đủ số (từ 100.000) thì app tự đổi ra nghìn đồng.
-- **Bấm để in** hiện hộp **Chọn Kiểu & Bố Cục In**: đổi kiểu nếu cần, rồi chọn 1, 2, 4, 8, 16 hoặc 24 sticker mỗi trang A4, hoặc **Máy in bill (80mm)**. Chọn xong là mở màn xem trước bản in. Đóng hộp thì không in.
+- **Bấm để in** (có danh sách thì **In tất cả** hoặc **In đã chọn**) hiện hộp **Chọn Kiểu & Bố Cục In**: đổi kiểu nếu cần, rồi chọn 1, 2, 4, 8, 16 hoặc 24 sticker mỗi trang A4, hoặc **Máy in bill (80mm)**. Chọn xong là mở màn xem trước bản in. Đóng hộp thì không in.
 - Tem luôn có ngày giờ in cạnh mã QR, kèm người in nếu đã nhập.
 
 Mỗi sticker in thành một tem giá như tab Event: tên sản phẩm, giá cũ là giá gạch, giá mới là giá bán, dòng khuyến mãi. Sticker có mã thì tem luôn có mã QR; xoá trống ô Mã QR nếu không muốn in QR. Tem không in thưởng. **Người in** nhập ở ô cạnh Kiểu sticker, riêng với tab Event; để trống thì tem chỉ in giờ in.
@@ -89,11 +89,11 @@ Gõ mã hoặc tên vào ô tìm kiếm, dùng phím mũi tên lên, xuống đ�
 - Nhóm **Nhập từ file mẫu** có ba nút: **Nhập file mẫu**, **Tải file mẫu** (file trống để điền) và **Đặt lại** (xoá dữ liệu đã nhập, về mẫu ban đầu).
 - **Nhập file mẫu**: mọi sản phẩm hiện thành ảnh nhỏ bên trái bản xem trước. Bấm vào ảnh để mở sticker đó lên và sửa; thay đổi được lưu ngay và in đúng theo đó.
 - Nút **x** ở góc trên bên phải mỗi ảnh xoá ngay sticker đó khỏi danh sách.
-- **Số bản in:** mỗi sticker có ô số bản ở góc dưới bên phải ảnh nhỏ và ở cuối mỗi dòng tab D.Sách (bấm − / + hoặc gõ số, tối đa 500). Ở tab Sticker còn có ô **Số bản in** cạnh ô Khuyến mãi: đang mở sticker nào thì là số bản của sticker đó, đang soạn sticker mới thì áp dụng khi bấm Thêm. Bấm in thì mỗi sticker in đúng số bản của nó; nút **Bấm để in (n)** đếm tổng số bản. File mẫu có thêm cột **SỐ BẢN IN** (để trống là 1 bản; file mẫu cũ không có cột này vẫn nhập được).
+- **Số bản in:** mỗi sticker có ô số bản ở góc dưới bên phải ảnh nhỏ và ở cuối mỗi dòng tab D.Sách (bấm − / + hoặc gõ số, tối đa 500). Ở tab Sticker còn có ô **Số bản in** cạnh ô Khuyến mãi: đang mở sticker nào thì là số bản của sticker đó, đang soạn sticker mới thì áp dụng khi bấm Thêm. Bấm in thì mỗi sticker in đúng số bản của nó; nút in đếm tổng số bản. File mẫu có thêm cột **SỐ BẢN IN** (để trống là 1 bản; file mẫu cũ không có cột này vẫn nhập được).
 - Ở Giá Sốc và Giờ Vàng, bấm vào dòng mã vạch trên đầu sticker để gõ hoặc sửa mã, Enter để xong, Esc để thôi. Sticker chưa có mã có chỗ "Bấm để nhập mã vạch"; chỗ này không in ra.
 - Ở Giá Sốc và Giờ Vàng, sticker có mã luôn hiện và in mã vạch ở đầu sticker, không còn nút bật tắt. Mã lấy từ cột **CODE** của file mẫu.
 - **Thêm**: đưa sticker đang hiện trên bản xem trước vào danh sách, sau đó soạn tiếp sticker mới mà không làm đổi sticker vừa thêm. Dòng chữ dưới bản xem trước cho biết bạn đang sửa sticker nào trong danh sách hay đang soạn sticker mới.
-- Khi danh sách có sticker, **Bấm để in** in các sticker đang được chọn trong danh sách. Sticker đang soạn chưa bấm Thêm thì không được in.
+- Khi danh sách có sticker, nút in tách làm hai: **In tất cả (n)** in mọi sticker trong danh sách; **In đã chọn (n)** chỉ in sticker có dấu tick. Ô tick nằm dưới góc trái mỗi ảnh nhỏ (và đầu mỗi dòng tab D.Sách); sticker bỏ tick thì ảnh mờ đi. Ô **Chọn hết** trên cùng dải ảnh chọn hoặc bỏ chọn mọi sticker đang hiện. Muốn in vài sticker lẻ trong danh sách dài: bỏ tick Chọn hết, gõ tên hoặc mã ở ô tìm (tab Sticker), tick sticker cần in, rồi bấm **In đã chọn**. Sticker đang soạn chưa bấm Thêm thì không được in.
 
 ## In nhiều sticker trên 1 trang A4 (Giá Sốc, Giờ Vàng)
 

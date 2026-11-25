@@ -225,7 +225,7 @@ test('Đang mở màn in khi có bản mới: chờ đóng màn in rồi mới k
   await chooseMode(win, 'Phiếu');
   await win.locator('input[type="number"]:visible').nth(1).fill('4');
   await win.waitForTimeout(500);
-  await win.getByRole('button', { name: /Bấm để in/ }).first().click();
+  await win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first().click();
   await win.getByTestId('print-summary').waitFor({ timeout: 60_000 });
   await feed.close();
 

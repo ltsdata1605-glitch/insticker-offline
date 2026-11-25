@@ -20,7 +20,7 @@ test('Sửa trực tiếp trên tem: giá đổi thì % tự tính, thêm vào h
   await chooseSubTab(win, /D\.Sách/);
   await expect(win.getByText('Số lượng: 1')).toBeVisible();
 
-  await win.getByRole('button', { name: /Bấm để in/ }).first().click();
+  await win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first().click();
   await chooseStickersPerPage(win);
   expect(await printSummary(win)).toContain('A4 dọc');
   const header = await evalInPrintDoc<string>(s, `document.querySelector('.header-text').textContent`);
@@ -63,7 +63,7 @@ test('Không còn nhập file giá ĐSD - TBBM và file in giá từ ERP; nút �
   // Lời giới thiệu nút đổi kiểu giảm giá chỉ hiện ở lần đầu, che nút bên cạnh (bản web cũng vậy)
   await win.getByRole('button', { name: 'Đã hiểu' }).click();
   await win.getByPlaceholder('% Giảm').fill('35');
-  await win.getByRole('button', { name: /Bấm để in/ }).first().click();
+  await win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first().click();
   await chooseStickersPerPage(win);
   expect(await printSummary(win)).toContain('Số trang | 1');
   expect(await evalInPrintDoc<string>(s, `document.querySelector('.header-text').textContent`)).toBe('TỦ LẠNH');
@@ -85,7 +85,7 @@ test('Chế độ số tiền giảm: bản in khớp xem trước', async () =>
   await expect(win.getByText('Số lượng: 2')).toBeVisible();
   await win.locator('button[title^="Hiển thị: % Giảm"]').first().click();
 
-  await win.getByRole('button', { name: /Bấm để in/ }).first().click();
+  await win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first().click();
   await chooseStickersPerPage(win);
   await printSummary(win);
   const amounts = await evalInPrintDoc<string[]>(s, `[...document.querySelectorAll('.extra1')].map((e) => e.textContent)`);
@@ -121,7 +121,7 @@ test('Mã vạch luôn hiện và in khi sticker có mã, không còn nút bật
   await thumbnails.nth(1).click();
   await expect(win.locator('#print-section .barcode')).toHaveCount(0);
 
-  await win.getByRole('button', { name: /Bấm để in/ }).first().click();
+  await win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first().click();
   await chooseStickersPerPage(win);
   await printSummary(win);
   expect(await evalInPrintDoc<string[]>(s, `[...document.querySelectorAll('.barcode img')].map((img) => img.alt)`)).toEqual(['ABC123']);
@@ -166,7 +166,7 @@ test('Lưu danh sách, tải lại, xoá; lịch sử in khôi phục được; 
   await win.getByRole('dialog').getByRole('button', { name: /Lưu/ }).click();
   await expect(win.getByText(/Đã lưu danh sách "Danh sách quạt"/)).toBeVisible();
 
-  await win.getByRole('button', { name: /Bấm để in/ }).first().click();
+  await win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first().click();
   await chooseStickersPerPage(win);
   await printSummary(win);
   await closePreview(win);
@@ -222,7 +222,7 @@ test('Mở lại màn xem trước: không còn hiện bản in lần trước',
   const s = await openApp();
   const { win } = s;
   await chooseMode(win, 'Giá Sốc');
-  const button = win.getByRole('button', { name: /Bấm để in/ }).first();
+  const button = win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first();
   await button.click();
   await chooseStickersPerPage(win);
   await printSummary(win);
@@ -253,7 +253,7 @@ test('Giờ Vàng: dùng nền và tiêu đề riêng, không lẫn với Giá S
   const { win } = s;
   await chooseMode(win, 'Giờ Vàng');
   await expect(win.locator('#print-section .sub-header')).toBeVisible();
-  await win.getByRole('button', { name: /Bấm để in/ }).first().click();
+  await win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first().click();
   await chooseStickersPerPage(win);
   await printSummary(win);
   const type = await evalInPrintDoc<string>(s, `document.querySelector('.sticker-container').dataset.type`);
@@ -275,7 +275,7 @@ test('Danh sách sticker: nhập 2 sản phẩm thấy đủ 2 ảnh, bấm ản
   const thumbnails = win.getByTestId('sticker-thumbnail');
   const bigName = win.locator('#print-section .name');
   const note = win.getByTestId('sticker-editing-note');
-  const printButton = win.getByRole('button', { name: /Bấm để in/ }).first();
+  const printButton = win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first();
 
   // Chưa có danh sách thì không có dải ảnh
   await expect(win.getByTestId('sticker-strip')).toHaveCount(0);
@@ -357,7 +357,7 @@ test('Thêm khi chưa có danh sách: thấy ngay ảnh sticker và có thông b
   await win.getByRole('button', { name: 'Thêm', exact: true }).click();
   await expect(win.getByText('Đã thêm vào danh sách, hiện có 1 sticker')).toBeVisible();
   await expect(win.getByTestId('sticker-thumbnail')).toHaveCount(1);
-  await expect(win.getByRole('button', { name: /Bấm để in/ }).first()).toContainText('(1)');
+  await expect(win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first()).toContainText('(1)');
   await s.close();
 });
 
@@ -369,7 +369,7 @@ test('Nút x trên ảnh sticker: xoá nhanh đúng sticker đó, không mở st
   const thumbnails = win.getByTestId('sticker-thumbnail');
   const removeButtons = win.getByTestId('sticker-thumbnail-remove');
   const bigName = win.locator('#print-section .name');
-  const printButton = win.getByRole('button', { name: /Bấm để in/ }).first();
+  const printButton = win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first();
 
   for (const name of ['Sticker A', 'Sticker B', 'Sticker C']) {
     await bigName.click();
@@ -407,7 +407,7 @@ test('Nút x trên ảnh sticker: xoá nhanh đúng sticker đó, không mở st
   // Xoá hết thì không còn dải ảnh, nút in quay về in sticker đang soạn
   await win.getByTestId('sticker-thumbnail-remove').click();
   await expect(win.getByTestId('sticker-strip')).toHaveCount(0);
-  await expect(win.getByRole('button', { name: /Bấm để in/ }).first()).toContainText('(1)');
+  await expect(win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first()).toContainText('(1)');
   await s.close();
 });
 
@@ -422,7 +422,7 @@ test('In nhiều sticker trên 1 trang A4: chọn lúc bấm in, đúng số tra
   ]));
   await expect(win.getByTestId('sticker-thumbnail')).toHaveCount(5);
 
-  const printButton = () => win.getByRole('button', { name: /Bấm để in/ }).first();
+  const printButton = () => win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first();
   // Tìm theo cửa sổ hiện tại, vì giữa bài app được mở lại
   const dialog = () => win.getByRole('dialog', { name: 'Chọn số sticker trên 1 trang A4' });
   const option = (perPage: number) => dialog().getByRole('button', { name: new RegExp(`^${perPage} sticker / trang`) });
@@ -523,7 +523,7 @@ test('Xoá mã vạch của sticker đang soạn: hiện chỗ bấm để nhậ
   await section.getByLabel('Mã vạch').fill('');
   await win.keyboard.press('Enter');
   await expect(section.getByRole('button', { name: 'Bấm để nhập mã vạch' })).toBeVisible();
-  await win.getByRole('button', { name: /Bấm để in/ }).first().click();
+  await win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first().click();
   await chooseStickersPerPage(win);
   await printSummary(win);
   expect(await evalInPrintDoc<number>(s, `document.querySelectorAll('.barcode, [data-print-skip]').length`)).toBe(0);
@@ -548,7 +548,7 @@ test('Số bản in cho từng sticker: đọc từ file mẫu, sửa trên ản
   // Cột SỐ BẢN IN trống thì 1 bản
   await expect(thumbQty(0)).toHaveValue('2');
   await expect(thumbQty(1)).toHaveValue('1');
-  const printButton = win.getByRole('button', { name: /Bấm để in/ }).first();
+  const printButton = win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first();
   await expect(printButton).toContainText('(3)');
 
   // Bấm + trên ảnh nhỏ không mở sticker; D.Sách thấy cùng số bản và sửa được
@@ -611,6 +611,6 @@ test('Số bản in cho từng sticker: đọc từ file mẫu, sửa trên ản
   await chooseMode(win, 'Giá Sốc');
   await expect(win.getByTestId('sticker-thumbnail')).toHaveCount(4);
   await expect(win.getByLabel(/^Số bản in của sticker 4:/).locator('input')).toHaveValue('4');
-  await expect(win.getByRole('button', { name: /Bấm để in/ }).first()).toContainText('(12)');
+  await expect(win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first()).toContainText('(12)');
   await s.close();
 });

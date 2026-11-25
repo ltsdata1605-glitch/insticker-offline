@@ -129,7 +129,7 @@ test('Tem: thanh định dạng hiện đúng cỡ của mọi ô, tăng giảm 
   await clearSelection(win);
 
   // Bản in nhận đúng cỡ đã chỉnh
-  await win.getByRole('button', { name: /Bấm để in/ }).first().click();
+  await win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first().click();
   await chooseStickersPerPage(win);
   await printSummary(win);
   const printed = await evalInPrintDoc<number>(s, `(() => {
@@ -273,7 +273,7 @@ test('Phiếu: chọn nhiều dòng vẫn đổi được, chọn một từ kh�
 
   // Bản in và các phiếu sau cùng nhận
   await win.waitForTimeout(400);
-  await win.getByRole('button', { name: /Bấm để in/ }).first().click();
+  await win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first().click();
   await printSummary(win);
   const printed = await evalInPrintDoc<{ html: string; title: string; second: string }>(s, `({
     html: document.querySelector('.input-content-bottom-left').innerHTML,

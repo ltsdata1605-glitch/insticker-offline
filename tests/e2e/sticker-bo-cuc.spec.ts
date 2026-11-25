@@ -7,7 +7,7 @@ import { chooseMode, chooseStickersPerPage, chooseSubTab, closePreview, evalInPr
  * Giá Sốc) và bấm in thì chọn kiểu tem và bố cục trang.
  */
 const layoutDialog = (win: Page) => win.getByRole('dialog', { name: 'Chọn Kiểu & Bố Cục In' });
-const pressPrint = (win: Page) => win.getByRole('button', { name: /Bấm để in/ }).first().click();
+const pressPrint = (win: Page) => win.getByRole('button', { name: /Bấm để in|In đã chọn/ }).first().click();
 const tagPreview = (win: Page) => win.getByTestId('tag-preview');
 // Tem xem trước nằm trong shadow DOM; bộ chọn CSS của Playwright đi xuyên qua được
 const previewTags = (win: Page) => tagPreview(win).getByTestId('tag-render').locator('.price-tag');
@@ -202,7 +202,7 @@ test('Tab Sticker: nhập file bảng giá ERP của tab Event thì mọi sản 
   // Nhập file giá mới: mã đã có thì cập nhật giá, giữ số bản in; mã mới thì thêm
   await win.getByRole('button', { name: 'Mở sticker 2: Nồi chiên không dầu Sunhouse' }).click();
   await win.getByTestId('tag-editor').getByRole('button', { name: 'Thêm một bản' }).click();
-  await expect(win.getByRole('button', { name: /Bấm để in \(4\)/ })).toBeVisible();
+  await expect(win.getByRole('button', { name: /In đã chọn \(4\)/ })).toBeVisible();
   // Nhập xong thì khung phải sang tab D.Sách; nút nhập ở tab Dữ liệu
   await chooseSubTab(win, /Dữ liệu/);
   await input.setInputFiles(writeWorkbook(dirs, 'gia-moi.xlsx', [
@@ -211,7 +211,7 @@ test('Tab Sticker: nhập file bảng giá ERP của tab Event thì mọi sản 
   ]));
   await expect(win.getByText('Bảng giá: tạo 1 sticker, cập nhật giá 1 sticker đã có')).toBeVisible();
   await expect(win.getByTestId('sticker-thumbnail')).toHaveCount(4);
-  await expect(win.getByRole('button', { name: /Bấm để in \(5\)/ })).toBeVisible();
+  await expect(win.getByRole('button', { name: /In đã chọn \(5\)/ })).toBeVisible();
   await win.getByRole('button', { name: 'Mở sticker 2: Nồi chiên không dầu Sunhouse' }).click();
   await expect(win.getByLabel('Giá mới (nghìn đồng)')).toHaveValue('1.990');
   // Nhập lại chỉ đổi giá sticker đang mở: các ô sửa hiện ngay giá mới
@@ -227,6 +227,79 @@ test('Tab Sticker: nhập file bảng giá ERP của tab Event thì mọi sản 
   await input.setInputFiles(writeWorkbook(dirs, 'gia-gs.xlsx', [erpRow('9', 'Quạt', '100000', '90000')]));
   await expect(win.getByText('gia-gs.xlsx là file bảng giá ERP. Nhập ở tab Sticker để tạo sticker cho mọi sản phẩm.')).toBeVisible();
   await expect(win.getByTestId('sticker-thumbnail')).toHaveCount(4);
+  await s.close();
+});
+
+test('Tab Sticker: ô tick dưới mỗi ảnh và Chọn hết; tìm rồi tick sticker lẻ; In đã chọn chỉ in sticker có tick, In tất cả in cả danh sách', async () => {
+  const dirs = newDirs();
+  const s = await openApp(dirs);
+  const { win } = s;
+  await chooseMode(win, 'Sticker');
+  const erpRow = (msp: string, name: string, goc: string, giam: string) =>
+    rowWith({ 0: name, 1: '', 4: goc, 5: giam, 30: 'Ngày in: 04/11/2026', 31: '40A', 32: msp });
+  await win.locator('label:has-text("Nhập file mẫu") input[type="file"]').setInputFiles(writeWorkbook(dirs, 'gia-chon.xlsx', [
+    ['BẢNG GIÁ SẢN PHẨM'],
+    erpRow('1751099000213', 'Máy giặt Aqua AW11', '9490000', '3000000'),
+    erpRow('3001002', 'Nồi chiên Sunhouse', '2900000', '2390000'),
+    erpRow('3001003', 'Ấm siêu tốc Philips', '890000', '690000'),
+  ]));
+  const thumbs = win.getByTestId('sticker-thumbnail');
+  await expect(thumbs).toHaveCount(3);
+  const printAll = win.getByRole('button', { name: /^In tất cả/ });
+  const printChosen = win.getByRole('button', { name: /^In đã chọn/ });
+  await expect(printAll).toHaveText(/In tất cả \(3\)/);
+  await expect(printChosen).toHaveText(/In đã chọn \(3\)/);
+  const chosenCount = win.getByTestId('sticker-strip-chosen');
+  await expect(chosenCount).toHaveText('3/3');
+
+  // Bỏ tick một sticker: ảnh mờ đi, In đã chọn bớt một, In tất cả giữ nguyên
+  await win.getByLabel('Chọn in sticker 2: Nồi chiên Sunhouse').uncheck();
+  await expect(printChosen).toHaveText(/\(2\)/);
+  await expect(printAll).toHaveText(/\(3\)/);
+  await expect(chosenCount).toHaveText('2/3');
+  await expect(thumbs.nth(1)).toHaveClass(/opacity-50/);
+
+  // Chọn hết: chưa chọn hết thì bấm là chọn hết, bấm lần nữa là bỏ chọn hết
+  const all = win.getByRole('checkbox', { name: 'Chọn hết' });
+  await all.click();
+  await expect(printChosen).toHaveText(/\(3\)/);
+  await all.click();
+  await expect(printChosen).toHaveText(/\(0\)/);
+  await expect(printChosen).toBeDisabled();
+
+  // Tìm sticker rồi tick sticker cần in
+  const search = win.getByLabel('Tìm sticker trong danh sách');
+  await search.fill('am sieu toc');
+  await expect(thumbs).toHaveCount(1);
+  await win.getByLabel('Chọn in sticker 3: Ấm siêu tốc Philips').check();
+  await search.press('Escape');
+  await expect(thumbs).toHaveCount(3);
+  await expect(printChosen).toHaveText(/\(1\)/);
+
+  // In đã chọn: chỉ sticker có tick
+  await printChosen.click();
+  await layoutDialog(win).getByRole('button', { name: /^4 Sticker/ }).click();
+  expect(await evalInPrintDoc<number>(s, `document.querySelectorAll('.price-tag').length`)).toBe(1);
+  const chosenText = await evalInPrintDoc<string>(s, `document.body.textContent`);
+  expect(chosenText).toContain('Ấm siêu tốc Philips');
+  expect(chosenText).not.toContain('Máy giặt Aqua');
+  await closePreview(win);
+
+  // In tất cả: đủ ba tem, ô tick giữ nguyên
+  await printAll.click();
+  await layoutDialog(win).getByRole('button', { name: /^4 Sticker/ }).click();
+  expect(await evalInPrintDoc<number>(s, `document.querySelectorAll('.price-tag').length`)).toBe(3);
+  await closePreview(win);
+  await expect(printChosen).toHaveText(/\(1\)/);
+
+  // Đang lọc bằng ô tìm thì Chọn hết chỉ chọn các sticker khớp
+  await search.fill('sunhouse');
+  await expect(thumbs).toHaveCount(1);
+  await all.click();
+  await search.press('Escape');
+  await expect(printChosen).toHaveText(/\(2\)/);
+  await expect(chosenCount).toHaveText('2/3');
+  await expect(win.getByLabel('Chọn in sticker 1: Máy giặt Aqua AW11')).not.toBeChecked();
   await s.close();
 });
 
