@@ -604,8 +604,9 @@ test('Máy in bill 80mm: cả bốn kiểu tem nằm gọn giữa khổ giấy, 
 test('Tab Sticker: khung xem trước to, mã QR trên tem đủ to và sắc nét để quét, tem không bị khung cắt', async () => {
   const s = await openApp();
   const { win } = s;
-  // Cỡ cửa sổ cố định để số đo không tuỳ màn hình của máy chạy test (máy CI Windows chỉ có màn 1024 x 768)
-  await s.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 860));
+  // Vùng nhìn cố định để số đo không tuỳ màn hình của máy chạy test. Không đổi cỡ cửa sổ: máy CI Mac không cho cửa sổ cao
+  // hơn màn hình (chỉ còn 648px), máy CI Windows màn 1024 x 768.
+  await win.setViewportSize({ width: 1440, height: 860 });
   await expect.poll(() => win.evaluate(() => [innerWidth, innerHeight])).toEqual([1440, 860]);
   await chooseMode(win, 'Sticker');
   await win.getByLabel('Tên sản phẩm').fill('Máy giặt Aqua AW11-BP4657M B');
