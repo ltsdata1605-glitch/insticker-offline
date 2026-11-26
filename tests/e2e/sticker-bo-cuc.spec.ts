@@ -604,6 +604,9 @@ test('Máy in bill 80mm: cả bốn kiểu tem nằm gọn giữa khổ giấy, 
 test('Tab Sticker: khung xem trước to, mã QR trên tem đủ to và sắc nét để quét, tem không bị khung cắt', async () => {
   const s = await openApp();
   const { win } = s;
+  // Cỡ cửa sổ cố định để số đo không tuỳ màn hình của máy chạy test (máy CI Windows chỉ có màn 1024 x 768)
+  await s.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 860));
+  await expect.poll(() => win.evaluate(() => [innerWidth, innerHeight])).toEqual([1440, 860]);
   await chooseMode(win, 'Sticker');
   await win.getByLabel('Tên sản phẩm').fill('Máy giặt Aqua AW11-BP4657M B');
   await win.getByLabel('Mã QR').fill('1751099000213');
@@ -628,14 +631,14 @@ test('Tab Sticker: khung xem trước to, mã QR trên tem đủ to và sắc n�
       svg: qr.src.startsWith('data:image/svg+xml'),
     };
   });
-  // Cửa sổ mặc định 1440 x 900: tem rộng hơn 600px (trước 2026-11-26 khung tối đa 560px, tem chừng 400px), QR cỡ 55px trở lên
-  // (trước chừng 27px ở kiểu hiện đại, không quét được trên màn hình)
-  const minQr: Record<string, number> = { 'Kiểu có sẵn': 80, 'Kiểu hiện đại': 55, 'Kiểu giá to': 48, 'Kiểu phiếu giảm giá': 52 };
+  // Cửa sổ 1440 x 860 có dải ảnh: tem rộng chừng 640px (trước 2026-11-26 khung tối đa 560px, tem chừng 350px), QR kiểu hiện
+  // đại chừng 58px (trước chừng 25px, không quét được trên màn hình). Ngưỡng chừa chỗ cho phông chữ khác nhau giữa các máy.
+  const minQr: Record<string, number> = { 'Kiểu có sẵn': 70, 'Kiểu hiện đại': 48, 'Kiểu giá to': 42, 'Kiểu phiếu giảm giá': 46 };
   for (const [style, qr] of Object.entries(minQr)) {
     await tagPreview(win).getByRole('button', { name: style }).click();
     await expect.poll(measure).toMatchObject({ inside: true, svg: true });
     const size = await measure();
-    expect({ style, wide: size.tagWidth >= 600, qrBig: size.qr >= qr }, JSON.stringify(size)).toEqual({ style, wide: true, qrBig: true });
+    expect({ style, wide: size.tagWidth >= 560, qrBig: size.qr >= qr }, JSON.stringify(size)).toEqual({ style, wide: true, qrBig: true });
   }
 
   // Ô sửa xếp 2 hàng khi khung rộng: tên và mã QR cùng hàng, giá cũ, giá mới, khuyến mãi, số bản in cùng hàng
