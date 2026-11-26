@@ -600,3 +600,50 @@ test('Máy in bill 80mm: cả bốn kiểu tem nằm gọn giữa khổ giấy, 
   }
   await s.close();
 });
+
+test('Tab Sticker: khung xem trước to, mã QR trên tem đủ to và sắc nét để quét, tem không bị khung cắt', async () => {
+  const s = await openApp();
+  const { win } = s;
+  await chooseMode(win, 'Sticker');
+  await win.getByLabel('Tên sản phẩm').fill('Máy giặt Aqua AW11-BP4657M B');
+  await win.getByLabel('Mã QR').fill('1751099000213');
+  await win.getByLabel('Giá cũ').fill('9.490.000');
+  await win.getByLabel('Giá mới (nghìn đồng)').fill('3.000');
+  await win.getByLabel('Khuyến mãi').fill('DUY NHẤT CHỈ CÓ 1 SUẤT');
+  // Có sticker trong danh sách thì dải ảnh bên trái chiếm thêm chỗ: vẫn phải to
+  await tagPreview(win).getByRole('button', { name: 'Thêm', exact: true }).click();
+  await expect(win.getByTestId('sticker-thumbnail')).toHaveCount(1);
+  await win.getByTestId('sticker-thumbnail').click();
+  await expect(win.getByLabel('Mã QR')).toHaveValue('1751099000213');
+
+  const measure = () => tagPreview(win).getByTestId('tag-render').evaluate((host) => {
+    const root = host.shadowRoot!;
+    const box = host.getBoundingClientRect();
+    const tag = root.querySelector('.price-tag')!.getBoundingClientRect();
+    const qr = root.querySelector('img[alt^="QR"]') as HTMLImageElement;
+    return {
+      tagWidth: Math.round(tag.width),
+      qr: Math.round(qr.getBoundingClientRect().width),
+      inside: tag.top >= box.top - 1 && tag.bottom <= box.bottom + 1 && tag.left >= box.left - 1 && tag.right <= box.right + 1,
+      svg: qr.src.startsWith('data:image/svg+xml'),
+    };
+  });
+  // Cửa sổ mặc định 1440 x 900: tem rộng hơn 600px (trước 2026-11-26 khung tối đa 560px, tem chừng 400px), QR cỡ 55px trở lên
+  // (trước chừng 27px ở kiểu hiện đại, không quét được trên màn hình)
+  const minQr: Record<string, number> = { 'Kiểu có sẵn': 80, 'Kiểu hiện đại': 55, 'Kiểu giá to': 48, 'Kiểu phiếu giảm giá': 52 };
+  for (const [style, qr] of Object.entries(minQr)) {
+    await tagPreview(win).getByRole('button', { name: style }).click();
+    await expect.poll(measure).toMatchObject({ inside: true, svg: true });
+    const size = await measure();
+    expect({ style, wide: size.tagWidth >= 600, qrBig: size.qr >= qr }, JSON.stringify(size)).toEqual({ style, wide: true, qrBig: true });
+  }
+
+  // Ô sửa xếp 2 hàng khi khung rộng: tên và mã QR cùng hàng, giá cũ, giá mới, khuyến mãi, số bản in cùng hàng
+  const rowOf = (label: string) => win.getByTestId('tag-editor').getByLabel(label).evaluate((el) => Math.round(el.getBoundingClientRect().top));
+  const nameRow = await rowOf('Tên sản phẩm');
+  expect(await rowOf('Mã QR')).toBe(nameRow);
+  const priceRow = await rowOf('Giá cũ');
+  expect(priceRow).toBeGreaterThan(nameRow);
+  expect([await rowOf('Giá mới (nghìn đồng)'), await rowOf('Khuyến mãi')]).toEqual([priceRow, priceRow]);
+  await s.close();
+});

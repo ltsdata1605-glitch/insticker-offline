@@ -131,6 +131,9 @@ export default function StickerPrinterView() {
         if ((hiddenTabs as readonly string[]).includes(currentSub)) applySubTab(currentSub);
     }, [hiddenTabs, currentSub, applySubTab]);
 
+    // Tab Sticker: cả ba cột cao hết cửa sổ (các tab khác chừa lại một phần cho thoáng) để tem xem trước to, thấy rõ mã QR
+    const tagColumnHeight = isTagMode ? 'lg:h-[max(556px,100%)]' : undefined;
+
     const editingNote = stickerType !== 'draw' && batchItems.length === 0 && manualPages.length > 0 && (
         <p data-testid="sticker-editing-note" className="no-print shrink-0 text-xs text-slate-500 text-center">
             {activeQueuePageId
@@ -198,11 +201,13 @@ export default function StickerPrinterView() {
                         footerTextContent={footerTextContent}
                         tagView={isTagMode ? { settings: tag.settings, employeeName: tag.employeeName } : undefined}
                         query={stripSearchActive ? stripQuery : ''}
+                        className={tagColumnHeight}
                     />
                 )}
-                {/* Tab Sticker: tem giá theo kiểu đang chọn và các ô sửa, không dùng sticker nền Giá Sốc */}
+                {/* Tab Sticker: tem giá theo kiểu đang chọn và các ô sửa, không dùng sticker nền Giá Sốc. Màn rộng: khung xem trước
+                    chia bề ngang với khung điều khiển theo tỉ lệ 1,6 : 1 (trước cố định 44%, tối đa 560px) */}
                 {isTagMode ? (
-                    <div className="flex flex-col gap-2 w-full max-w-xl shrink-0 lg:w-[44%] lg:max-w-[560px] lg:h-[max(556px,82%)] lg:overflow-hidden">
+                    <div className="flex flex-col gap-2 w-full max-w-2xl shrink-0 lg:flex-[1.6_1_0%] lg:min-w-0 lg:max-w-[880px] lg:h-[max(556px,100%)] lg:overflow-hidden">
                         <TagPreviewPanel
                             products={tagPreviewProducts}
                             ghostAlternative={tagPreviewGhost}
@@ -337,6 +342,7 @@ export default function StickerPrinterView() {
                     bgImage={bgImage}
                     setBgImage={setBgImage}
                     choosesLayoutOnPrint={stickerMode === 'tag'}
+                    className={isTagMode ? `${tagColumnHeight} lg:min-w-[340px]` : undefined}
                 />
             </div>
             </div>

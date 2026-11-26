@@ -185,13 +185,23 @@ export const closePreview = async (win: Page) => {
   await win.waitForTimeout(200);
 };
 
-/** Chạy biểu thức trong tài liệu in đang mở ở cửa sổ ẩn. */
-export const evalInPrintDoc = <T>(session: AppSession, expression: string): Promise<T> =>
+const evalInHiddenWindow = <T>(session: AppSession, expression: string): Promise<T> =>
   session.app.evaluate(({ BrowserWindow }, code) => {
     const hidden = BrowserWindow.getAllWindows().find((w) => !w.isVisible());
     if (!hidden) throw new Error('Không có cửa sổ in ẩn');
     return hidden.webContents.executeJavaScript(code);
   }, expression) as Promise<T>;
+
+/** Chạy biểu thức trong tài liệu in đang mở ở cửa sổ ẩn. */
+export const evalInPrintDoc = async <T>(session: AppSession, expression: string): Promise<T> => {
+  // Bấm chọn bố cục xong, app còn dựng HTML rồi mới mở cửa sổ in ẩn (vài ms tới vài chục ms): chờ có cửa sổ rồi mới hỏi,
+  // kẻo test gọi ngay sau cú bấm báo "Không có cửa sổ in ẩn" tuỳ máy nhanh hay chậm.
+  await expect.poll(
+    () => session.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some((w) => !w.isVisible())),
+    { timeout: 15_000 },
+  ).toBe(true);
+  return evalInHiddenWindow<T>(session, expression);
+};
 
 /** Đo ảnh bằng chính Electron: kích thước và tỉ lệ điểm ảnh khác nền trắng. */
 export const inspectImage = (session: AppSession, file: string) =>

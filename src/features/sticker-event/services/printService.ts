@@ -1,6 +1,6 @@
 import { Product } from '../types';
 import { parseCurrency } from './fileParser';
-import QRCode from 'qrcode';
+import { qrSvg } from '../../tao-ma/maCode';
 import { openPrintPreview } from '../../../platform/printPreview';
 import { calculateDiscountPercent, normalizeTagQuantity } from '../utils/format';
 import { escapeHtml } from './batchImageExportService';
@@ -308,17 +308,13 @@ const generateModernPriceTagHTML = (product: Product, employeeName: string, sett
                             })()}
                         </div>
                         
-                        <!-- QR Code and Metadata Area -->
-                        <div class="w-24 border-l-2 border-black flex flex-col items-center justify-center shrink-0 p-1 bg-white h-full box-border overflow-hidden">
-                            ${settings.showQrCode && qrCodeUrl ? `
-                            <div class="w-14 h-14 mb-1 shrink-0 flex items-center justify-center">
-                                <img alt="QR" class="max-w-full max-h-full object-contain block" src="${qrCodeUrl}"/>
+                        <!-- Mã QR cao gần hết chân tem cho dễ quét; tên người in và giờ in nằm bên trái QR -->
+                        <div class="modern-qr-cell border-l-2 border-black flex items-center justify-end shrink-0 bg-white h-full box-border overflow-hidden">
+                            <div class="modern-meta uppercase leading-none shrink-0">
+                                ${employeeInfoString ? `<p class="m-0">${employeeInfoString}</p>` : ''}
+                                <p class="m-0 opacity-70">${timestamp}</p>
                             </div>
-                            ` : ''}
-                            <div class="text-[8px] uppercase text-center leading-none shrink-0 w-full overflow-hidden whitespace-nowrap text-ellipsis">
-                                <p class="m-0 overflow-hidden text-ellipsis">${employeeInfoString}</p>
-                                <p class="m-0 mt-0-5 opacity-70">${timestamp}</p>
-                            </div>
+                            ${settings.showQrCode && qrCodeUrl ? `<img alt="QR" class="modern-qr block shrink-0" src="${qrCodeUrl}"/>` : ''}
                         </div>
                     </footer>
                 </div>
@@ -618,11 +614,14 @@ const getPrintStyles = (settings: PrintSettings): string => {
       .modern-primary-font {
         font-family: ${primaryFontFamily};
       }
-      /* Kiểu hiện đại: chân tem 88px (trước 112px), cột QR 96px, QR 56px; giá bán to tới 15rem mà không tràn ngang
-         (trừ chỗ cho phần ".000đ" bên phải). */
+      /* Kiểu hiện đại: chân tem 88px (trước 112px); giá bán to tới 15rem mà không tràn ngang (trừ chỗ cho phần ".000đ"
+         bên phải). QR 76px gần cao bằng chân tem (trước 56px trong cột 96px, chữ giờ in nằm dưới QR) cho dễ quét. */
       .h-modern-footer { height: 5.5rem; }
-      .w-14 { width: 3.5rem; }
-      .h-14 { height: 3.5rem; }
+      .modern-qr-cell { gap: 6px; padding: 4px 5px 4px 8px; }
+      .modern-qr { width: 76px; height: 76px; object-fit: contain; }
+      .modern-meta { max-width: 72px; font-size: 9px; text-align: right; }
+      .modern-meta p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .modern-meta p + p { margin-top: 3px; }
       .text-lg { font-size: 1.125rem; line-height: 1.75rem; }
       .modern-price { container-type: inline-size; }
       .modern-big-price { font-size: min(15rem, calc((100cqw - 9.5rem) / var(--em, 3))); }
@@ -1373,6 +1372,15 @@ const getPrintStyles = (settings: PrintSettings): string => {
     `;
 }
 
+/**
+ * Ảnh mã QR trên tem: SVG ô vuông sắc nét ở mọi cỡ, cả trên khung xem trước (thu phóng theo cửa sổ) lẫn trên giấy. Ảnh PNG
+ * 150px trước đây nhoè khi thu nhỏ nên QR trên màn hình mờ, khó quét. Dùng hàm vẽ QR của Tạo mã (hình tô kín); SVG của thư
+ * viện qrcode vẽ bằng nét nên ở 16, 24 tem mỗi trang bản PDF in ra thành các vạch kẻ. Viền trắng 1 ô như ảnh cũ để QR to
+ * nhất trong góc tem; width giữ cỡ gốc 150px như ảnh cũ ở chỗ nào không đặt cỡ cho ảnh.
+ */
+export const qrSvgDataUrl = (text: string): string =>
+  `data:image/svg+xml;charset=utf-8,${encodeURIComponent(qrSvg(text, { margin: 1, width: 150 }))}`;
+
 /** Ảnh mã QR theo mã sản phẩm, tạo ngay trên máy. Lỗi hoặc không có mã thì không có ảnh. */
 const makeQrCodeUrls = async (products: Product[], settings: PrintSettings): Promise<Map<string, string>> => {
   const qrCodeUrls = new Map<string, string>();
@@ -1380,7 +1388,7 @@ const makeQrCodeUrls = async (products: Product[], settings: PrintSettings): Pro
   for (const p of products) {
     if (p.msp && !qrCodeUrls.has(p.msp)) {
       try {
-        qrCodeUrls.set(p.msp, await QRCode.toDataURL(p.msp, { margin: 1, width: 150, color: { dark: '#000000', light: '#ffffff' } }));
+        qrCodeUrls.set(p.msp, qrSvgDataUrl(p.msp));
       } catch (err) {
         console.error(`Error generating QR code for ${p.msp}:`, err);
         qrCodeUrls.set(p.msp, '');

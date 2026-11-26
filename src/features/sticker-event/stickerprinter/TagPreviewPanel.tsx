@@ -82,8 +82,9 @@ export const TagPreviewPanel: React.FC<TagPreviewPanelProps> = ({
         if (editor?.onAdd()) nameRef.current?.focus();
     };
     return (
-        // Màn rộng: thẻ cao bằng cột, tem tự thu nhỏ cho vừa phần còn lại nên không phải cuộn
-        <SectionCard className="w-full p-3 lg:p-4 flex flex-col gap-2.5 no-print lg:flex-1 lg:min-h-0" data-testid="tag-preview">
+        // Màn rộng: thẻ cao bằng cột, tem tự thu nhỏ cho vừa phần còn lại nên không phải cuộn. @container: các ô sửa xếp theo
+        // bề rộng của thẻ chứ không theo cửa sổ.
+        <SectionCard className="@container w-full p-3 lg:p-4 flex flex-col gap-2.5 no-print lg:flex-1 lg:min-h-0" data-testid="tag-preview">
             {/* Tám kiểu cần cả bề ngang, nên ô Người in nằm trên cùng hàng với nhãn Kiểu sticker */}
             <div className="shrink-0 flex flex-col gap-1.5">
                 <div className="flex items-center justify-between gap-3">
@@ -161,9 +162,14 @@ export const TagPreviewPanel: React.FC<TagPreviewPanelProps> = ({
                 )}
             </div>
 
+            {/* Thẻ rộng (từ 600px) thì các ô xếp 2 hàng thay cho 3 để tem xem trước cao thêm: tên và mã QR, rồi giá cũ, giá
+                mới, khuyến mãi, số bản in. Thứ tự Tab giữa các ô không đổi. */}
             {editor && (
-                <div className="shrink-0 grid grid-cols-2 gap-x-3 gap-y-1.5" data-testid="tag-editor">
-                    <label className="flex flex-col gap-0.5" htmlFor={`${id}-name`}>
+                <div
+                    className="shrink-0 grid grid-cols-2 @min-[600px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_9rem] gap-x-3 @min-[600px]:gap-x-2 gap-y-1.5"
+                    data-testid="tag-editor"
+                >
+                    <label className="flex flex-col gap-0.5 @min-[600px]:col-span-3" htmlFor={`${id}-name`}>
                         <span className="text-xs font-semibold text-slate-600">Tên sản phẩm</span>
                         <Input ref={nameRef} id={`${id}-name`} value={editor.name} onChange={(e) => editor.onName(e.target.value)} placeholder="VD: Quạt điều hoà Daikiosan" />
                     </label>
@@ -203,14 +209,20 @@ export const TagPreviewPanel: React.FC<TagPreviewPanelProps> = ({
                             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">.000 ₫</span>
                         </div>
                     </label>
-                    <div className="col-span-2 flex items-end gap-3">
+                    <div className="col-span-2 flex items-end gap-3 @min-[600px]:contents">
                         <label className="flex-1 min-w-0 flex flex-col gap-0.5" htmlFor={`${id}-promo`}>
                             <span className="text-xs font-semibold text-slate-600">Khuyến mãi</span>
                             <Input id={`${id}-promo`} value={editor.promotion} onChange={(e) => editor.onPromotion(e.target.value)} placeholder="VD: Tặng quạt mini" />
                         </label>
                         <div className="shrink-0 flex flex-col gap-0.5">
                             <span className="text-xs font-semibold text-slate-600">Số bản in</span>
-                            <QuantityStepper value={editor.quantity} onChange={editor.onQuantity} label="Số bản in" size="md" />
+                            <QuantityStepper
+                                value={editor.quantity}
+                                onChange={editor.onQuantity}
+                                label="Số bản in"
+                                size="md"
+                                className="@min-[600px]:w-full @min-[600px]:[&>input]:flex-1"
+                            />
                         </div>
                     </div>
                 </div>

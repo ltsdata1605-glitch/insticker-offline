@@ -44,7 +44,7 @@ Tab Sticker nằm giữa Giờ Vàng và Phiếu. Cách nhập giống tab Giá 
 
 Khác Giá Sốc ở khung xem trước và lúc in:
 
-- **Khung xem trước** hiện đúng tem giá sẽ in, không có nền Giá Sốc. Chọn một trong bốn kiểu ở đầu khung. App nhớ kiểu đã chọn (dùng chung với tab Event, tab Event cũng có đủ bốn kiểu).
+- **Khung xem trước** hiện đúng tem giá sẽ in, không có nền Giá Sốc. Chọn một trong bốn kiểu ở đầu khung. App nhớ kiểu đã chọn (dùng chung với tab Event, tab Event cũng có đủ bốn kiểu). Khung cao hết cửa sổ và rộng hơn khung bên phải, tem to theo cửa sổ; mã QR trên tem sắc nét, đưa điện thoại quét ngay trên màn hình được để kiểm tra mã trước khi in.
 
 | Kiểu | Trông thế nào |
 |---|---|
@@ -55,9 +55,9 @@ Khác Giá Sốc ở khung xem trước và lúc in:
 Kiểu giá to và Kiểu phiếu giảm giá chỉ dùng chữ và đường viền trên nền trắng, không có nền đen, nên in trắng đen ít tốn mực. Ai đang chọn một mẫu thử đã bỏ ở các bản trước thì app về Kiểu có sẵn.
 
 Trang in (A4, 1 đến 24 tem mỗi trang) có **đường cắt** nét đứt màu xám chạy giữa khe giữa các tem và quanh khối tem; cắt theo đường là tách được từng tem. Trang cuối ít tem thì đường cắt chỉ chạy quanh các tem có in. Máy in bill không có đường cắt. Cả sáu dùng được ở mọi bố cục và máy in bill; không có giá gốc thì tem chỉ in giá bán. Tem hiện theo bố cục lần in trước.
-- **Sửa nội dung** ở các ô dưới tem: Tên sản phẩm, Mã QR, Giá cũ, Giá mới (nghìn đồng, như Giá Sốc) và Khuyến mãi. Gõ giá mới đủ số (từ 100.000) thì app tự đổi ra nghìn đồng.
+- **Sửa nội dung** ở các ô dưới tem: Tên sản phẩm, Mã QR, Giá cũ, Giá mới (nghìn đồng, như Giá Sốc) và Khuyến mãi. Gõ giá mới đủ số (từ 100.000) thì app tự đổi ra nghìn đồng. Khung đủ rộng thì các ô xếp hai hàng để tem xem trước cao thêm.
 - **Bấm để in** (có danh sách thì **In tất cả** hoặc **In đã chọn**) hiện hộp **Chọn Kiểu & Bố Cục In**: đổi kiểu nếu cần, rồi chọn 1, 2, 4, 8, 16 hoặc 24 sticker mỗi trang A4, hoặc **Máy in bill (80mm)**. Chọn xong là mở màn xem trước bản in. Đóng hộp thì không in.
-- Tem luôn có ngày giờ in cạnh mã QR, kèm người in nếu đã nhập.
+- Tem luôn có ngày giờ in cạnh mã QR (bên trái QR), kèm người in nếu đã nhập. Ở Kiểu hiện đại, Kiểu giá to và Kiểu phiếu giảm giá, QR cao gần bằng chân tem cho dễ quét, kể cả khi in 16 hay 24 tem mỗi trang.
 
 Mỗi sticker in thành một tem giá như tab Event: tên sản phẩm, giá cũ là giá gạch, giá mới là giá bán, dòng khuyến mãi. Sticker có mã thì tem luôn có mã QR; xoá trống ô Mã QR nếu không muốn in QR. Tem không in thưởng. **Người in** nhập ở ô cạnh Kiểu sticker, riêng với tab Event; để trống thì tem chỉ in giờ in.
 

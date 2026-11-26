@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { AppIcon } from '../../../components/shared/ui/icon/AppIcon';
 import { Checkbox } from '../../../components/shared/ui/Checkbox';
+import { cn } from '../../../components/shared/ui/utils';
 import type { StickerPage } from './types';
 import { generatePageHtml, resolveQueuePage, tagQueueContext } from './pageHtmlUtils';
 import type { QueuePageContext } from './pageHtmlUtils';
@@ -32,9 +33,11 @@ interface StickerQueueStripProps extends QueuePageContext {
   tagView?: { settings: PrintSettings; employeeName: string };
   /** Ô tìm sticker: chỉ hiện sticker khớp tên hoặc mã, số thứ tự vẫn theo danh sách. */
   query?: string;
+  /** Lớp thêm cho dải ảnh (đè chiều cao). */
+  className?: string;
 }
 
-interface ThumbnailProps extends Omit<StickerQueueStripProps, 'pages' | 'activeId' | 'onSelect' | 'onRemove' | 'onQuantity' | 'onToggle' | 'onSelectMany' | 'query'> {
+interface ThumbnailProps extends Omit<StickerQueueStripProps, 'pages' | 'activeId' | 'onSelect' | 'onRemove' | 'onQuantity' | 'onToggle' | 'onSelectMany' | 'query' | 'className'> {
   page: StickerPage;
   index: number;
   active: boolean;
@@ -122,7 +125,7 @@ const Thumbnail: React.FC<ThumbnailProps> = React.memo(({
 });
 
 /** Dải ảnh thu nhỏ bên trái bản xem trước: thấy đủ mọi sticker trong danh sách, bấm vào ảnh để mở và sửa, bấm x để xoá. */
-export const StickerQueueStrip: React.FC<StickerQueueStripProps> = ({ pages, activeId, onSelect, onRemove, onQuantity, onToggle, onSelectMany, query = '', ...rest }) => {
+export const StickerQueueStrip: React.FC<StickerQueueStripProps> = ({ pages, activeId, onSelect, onRemove, onQuantity, onToggle, onSelectMany, query = '', className, ...rest }) => {
   const filtering = query.trim() !== '';
   const shown = useMemo(() => {
     const indexed = pages.map((page, index) => ({ page, index }));
@@ -135,7 +138,7 @@ export const StickerQueueStrip: React.FC<StickerQueueStripProps> = ({ pages, act
     <div
       data-testid="sticker-strip"
       aria-label="Các sticker trong danh sách"
-      className="no-print hidden lg:flex flex-col gap-2.5 shrink-0 w-[112px] lg:h-[max(556px,82%)] overflow-y-auto p-1 scrollbar-thin"
+      className={cn('no-print hidden lg:flex flex-col gap-2.5 shrink-0 w-[112px] lg:h-[max(556px,82%)] overflow-y-auto p-1 scrollbar-thin', className)}
     >
       {/* Chọn hết hoặc bỏ chọn hết các sticker đang hiện; đang lọc bằng ô tìm thì chỉ các sticker khớp */}
       {shown.length > 0 && (

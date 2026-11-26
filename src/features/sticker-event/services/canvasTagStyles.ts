@@ -73,11 +73,14 @@ const promoHtml = (promotion: string, widthPx: number, heightPx: number, maxPx: 
 const nameHtml = (name: string, widthPx: number, heightPx: number, maxPx: number): string =>
     `<h1 class="ct-name" style="font-size:${twoLinePx(name, widthPx, heightPx, maxPx)}px">${name}</h1>`;
 
+/** Góc chân tem: mã QR cao gần bằng chân tem cho dễ quét, tên người in và giờ in xếp bên trái QR. */
 const infoBlock = (data: CanvasTagData): string => `
     <div class="ct-info">
+        <div class="ct-meta-col">
+            ${data.employeeInfo ? `<p class="ct-meta">${data.employeeInfo}</p>` : ''}
+            <p class="ct-meta ct-time">${data.timestamp}</p>
+        </div>
         ${data.qrCodeUrl ? `<img alt="QR" class="ct-qr" src="${data.qrCodeUrl}"/>` : ''}
-        ${data.employeeInfo ? `<p class="ct-meta">${data.employeeInfo}</p>` : ''}
-        <p class="ct-meta ct-time">${data.timestamp}</p>
     </div>`;
 
 const wrap = (style: CanvasTagStyle, data: CanvasTagData, inner: string): string => {
@@ -169,9 +172,10 @@ export const canvasTagCss = (): string => `
     .ct-price-small { font-weight: 900; line-height: 1; }
     .ct-promo { flex: 1; min-width: 0; padding: 0 16px; font-weight: 700; text-transform: uppercase; line-height: 1.25; text-align: center; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .ct-foot { display: flex; align-items: center; flex-shrink: 0; }
-    .ct-info { width: 112px; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 3px; overflow: hidden; flex-shrink: 0; }
-    .ct-qr { width: 50px; height: 50px; object-fit: contain; display: block; flex-shrink: 0; }
-    .ct-meta { font-size: 11px; line-height: 1.15; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; font-weight: 700; }
+    .ct-info { height: 100%; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 3px 4px 3px 10px; overflow: hidden; flex-shrink: 0; }
+    .ct-meta-col { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; max-width: 96px; min-width: 0; }
+    .ct-qr { width: 70px; height: 70px; object-fit: contain; display: block; flex-shrink: 0; }
+    .ct-meta { font-size: 11px; line-height: 1.15; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; font-weight: 700; }
     .ct-time { font-weight: 400; opacity: 0.75; }
     .ct-badge-label { font-size: 30px; font-weight: 900; letter-spacing: 0.12em; line-height: 1; }
     .ct-badge-value { font-weight: 900; line-height: 0.95; text-align: center; }
@@ -184,7 +188,7 @@ export const canvasTagCss = (): string => `
     .ctg-price { flex: 1; min-height: 0; overflow: hidden; }
     .ctg-foot { height: 76px; border-top: 3px solid #000; }
     .ctg-foot .ct-info { border-left: 3px solid #000; }
-    .ctg-foot .ct-qr { width: 44px; height: 44px; }
+    .ctg-foot .ct-qr { width: 66px; height: 66px; }
 
     /* Phiếu giảm giá */
     .ctp { border: 5px dashed #000; border-radius: 26px; flex-direction: row; }
@@ -198,6 +202,9 @@ export const canvasTagCss = (): string => `
     .ctp-name { height: 108px; flex-shrink: 0; }
     .ctp-price { flex: 1; min-height: 0; overflow: hidden; gap: 2px; }
     .ctp-foot { height: 82px; border-top: 3px dashed #000; margin-right: -18px; }
+    /* Chừa góc bo của viền phiếu */
+    .ctp-foot .ct-info { padding-right: 14px; }
+    .ctp-foot .ct-qr { width: 72px; height: 72px; }
     .ctp-foot .ct-promo { padding-left: 0; text-align: left; }
 
 `;

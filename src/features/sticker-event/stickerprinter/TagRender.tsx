@@ -168,12 +168,12 @@ export const TagRender: React.FC<TagRenderProps> = ({ products, settings, employ
         if (!stack) return;
         let zoom = widthZoom;
         if (boxHeight > 0) {
-            // Đo chiều cao thật của tem ở cỡ gốc rồi thu nhỏ thêm nếu khung thấp hơn. Bỏ qua chênh lệch nhỏ do làm tròn để
-            // khung cao theo nội dung (màn hẹp) không bị thu nhỏ dần qua mỗi lần đo.
+            // Đo chiều cao thật của tem ở cỡ gốc rồi thu nhỏ thêm nếu khung thấp hơn. Bỏ qua chênh lệch dưới 1px do làm tròn
+            // để khung cao theo nội dung (màn hẹp) không bị thu nhỏ dần qua mỗi lần đo. Trước đây bỏ qua tới 2% nên tem to
+            // có thể bị khung cắt mất viền dưới (tem cao 452px trong khung 445px).
             stack.style.zoom = '1';
             const naturalHeight = stack.getBoundingClientRect().height;
-            const heightZoom = naturalHeight > 0 ? boxHeight / naturalHeight : widthZoom;
-            if (heightZoom < widthZoom * 0.98) zoom = heightZoom;
+            if (naturalHeight > 0 && naturalHeight * widthZoom > boxHeight + 1) zoom = boxHeight / naturalHeight;
         }
         stack.style.zoom = String(zoom);
     }, [preview, shownWidth, boxHeight]);

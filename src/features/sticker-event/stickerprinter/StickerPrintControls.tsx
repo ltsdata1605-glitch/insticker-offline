@@ -7,6 +7,7 @@ import { searchKey } from './listSearch';
 import { Button, Input, Tabs, EmptyState, SectionCard, Switch } from '../../../components/shared/ui';
 import type { TabItem } from '../../../components/shared/ui';
 import { Checkbox } from '../../../components/shared/ui/Checkbox';
+import { cn } from '../../../components/shared/ui/utils';
 
 interface StickerPrintControlsProps {
     manualPages: StickerPage[];
@@ -66,6 +67,8 @@ interface StickerPrintControlsProps {
     onResetFontSizes: () => void;
     /** Tab Sticker: bấm in thì chọn kiểu tem và bố cục trang thay cho in A4 một sticker mỗi trang. */
     choosesLayoutOnPrint?: boolean;
+    /** Lớp thêm cho khung (đè chiều cao, bề ngang tối thiểu của khung). */
+    className?: string;
 }
 
 export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
@@ -121,6 +124,7 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
     setBgImage,
     onResetFontSizes,
     choosesLayoutOnPrint = false,
+    className,
 }) => {
     const selectedCount = batchItems.filter(i => i.selected).length;
     const selectedManualPagesCount = manualPages.filter(p => p.selected !== false).length;
@@ -194,7 +198,7 @@ export const StickerPrintControls: React.FC<StickerPrintControlsProps> = ({
     const printButton = '!bg-amber-400 hover:!bg-amber-500 !text-slate-950 font-bold text-sm py-2 rounded-control flex items-center justify-center gap-1.5 active:scale-95 transition-transform shadow-sm border-transparent';
 
     return (
-        <SectionCard className="w-full max-w-sm lg:max-w-[480px] lg:flex-1 lg:min-w-0 lg:h-[max(556px,82%)] min-h-[460px] p-3 lg:p-6 no-print flex flex-col overflow-hidden">
+        <SectionCard className={cn('w-full max-w-sm lg:max-w-[480px] lg:flex-1 lg:min-w-0 lg:h-[max(556px,82%)] min-h-[460px] p-3 lg:p-6 no-print flex flex-col overflow-hidden', className)}>
             {/* Primary Action Buttons. Hai nút in (có danh sách) chiếm cả hàng; Thêm và Cỡ chữ gốc (Giá Sốc, Giờ Vàng) xuống hàng
                 dưới, kẻo tràn khung ở cửa sổ nhỏ. */}
             <div className="flex flex-wrap gap-2 mb-3 shrink-0">

@@ -132,10 +132,14 @@ export const qrProblem = (text: string): string => {
     }
 };
 
-/** Mã QR dạng SVG, có viền trắng 4 ô theo chuẩn */
-export const qrSvg = (text: string): string => {
+/**
+ * Mã QR dạng SVG, có viền trắng 4 ô theo chuẩn. Ô đen vẽ bằng một hình tô kín (không dùng nét vẽ): ô nhỏ hơn 1pt thì bản PDF
+ * của Chromium vẽ nét thành sợi tóc. `margin` nhỏ hơn cho chỗ chật như góc tem giá (In sticker dùng 1 ô); `width` đặt cỡ gốc
+ * cho ảnh khi dùng SVG làm nguồn thẻ img.
+ */
+export const qrSvg = (text: string, { margin = 4, width }: { margin?: number; width?: number } = {}): string => {
     const matrix = qrMatrix(text);
-    const size = matrix.length + 8;
+    const size = matrix.length + margin * 2;
     let path = '';
     matrix.forEach((row, y) => {
         let x = 0;
@@ -146,10 +150,11 @@ export const qrSvg = (text: string): string => {
             }
             const start = x;
             while (x < row.length && row[x]) x += 1;
-            path += `M${start + 4} ${y + 4}h${x - start}v1h-${x - start}z`;
+            path += `M${start + margin} ${y + margin}h${x - start}v1h-${x - start}z`;
         }
     });
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges" role="img"><rect width="${size}" height="${size}" fill="#fff"/><path d="${path}" fill="#000"/></svg>`;
+    const box = width ? ` width="${width}" height="${width}"` : '';
+    return `<svg xmlns="http://www.w3.org/2000/svg"${box} viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges" role="img"><rect width="${size}" height="${size}" fill="#fff"/><path d="${path}" fill="#000"/></svg>`;
 };
 
 // ---------- Danh sách mã ----------
