@@ -1,8 +1,15 @@
-# Build và kiểm thử trên máy thật. Chạy tay: chỉ Windows. Đẩy tag v*: cả Windows và Mac.
+# Build và kiểm thử trên máy thật. Chạy tay: chỉ Windows. Đẩy tag v*, hoặc chạy tay có chọn ban_nhap: cả Windows và Mac, bộ
+# cài cất vào bản nháp v<phiên bản>. Chạy tay có ban_nhap mà cả hai xanh thì CI gắn (dời) tag v<phiên bản> vào commit vừa
+# build; workflow phat-hanh chạy trên tag đó để đưa bản mới tới mọi máy.
 name: build
 
 on:
   workflow_dispatch:
+    inputs:
+      ban_nhap:
+        description: Build cả Windows và Mac, cất bộ cài vào bản nháp v<phiên bản>, xanh thì gắn tag
+        type: boolean
+        default: false
   push:
     tags: ['v*']
 
@@ -47,7 +54,7 @@ jobs:
           BAN_CU: 1.5.0
         run: node scripts/thu-cap-nhat.mjs
       - name: Cất bộ cài vào bản phát hành nháp
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.ban_nhap
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -75,7 +82,7 @@ jobs:
         run: exit 1
 
   mac:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || inputs.ban_nhap
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
@@ -123,3 +130,18 @@ jobs:
       - name: Báo đỏ nếu thử cập nhật lỗi
         if: steps.tu_160.outcome == 'failure'
         run: exit 1
+
+  # Chạy tay có ban_nhap, cả Windows và Mac xanh: gắn (dời) tag v<phiên bản> vào commit vừa build. Tag đẩy bằng GITHUB_TOKEN
+  # không kích hoạt thêm lượt build nào.
+  gan-tag:
+    if: github.event_name == 'workflow_dispatch' && inputs.ban_nhap
+    needs: [windows, mac]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gắn tag v<phiên bản>
+        run: |
+          v="v$(node -p "require('./package.json').version")"
+          git tag -f "$v" "$GITHUB_SHA"
+          git push -f origin "refs/tags/$v"
+          echo "Đã gắn $v vào $GITHUB_SHA"

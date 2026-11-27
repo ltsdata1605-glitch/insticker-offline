@@ -1,0 +1,55 @@
+# Phát hành lên repo công khai insticker-offline-releases: mọi máy tự tải bản mới và bị KHOÁ tới khi cập nhật.
+# Chạy tay trên tag v<phiên bản> (workflow build chạy tay có ban_nhap tự gắn tag này khi xanh). Chỉ phát hành khi lượt build
+# của đúng commit đó xanh cả Windows và Mac.
+# Cần secret RELEASES_TOKEN của repo này: token GitHub có quyền Contents: Read and write trên repo insticker-offline-releases
+# (GITHUB_TOKEN của repo này không ghi được sang repo khác).
+name: phat-hanh
+
+on:
+  workflow_dispatch:
+
+# Đọc được bản nháp cần quyền ghi nội dung; quyền đọc Actions để xem lượt build
+permissions:
+  contents: write
+  actions: read
+
+concurrency: phat-hanh
+
+jobs:
+  phat-hanh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Kiểm tra tag và lượt build xanh cả Windows và Mac
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF" != "refs/tags/$v" ]; then
+            echo "::error::Phải chạy trên tag $v (đang chạy trên $GITHUB_REF)"; exit 1
+          fi
+          xanh=""
+          for id in $(gh run list --workflow build.yml --commit "$GITHUB_SHA" --status success --limit 20 --json databaseId --jq '.[].databaseId'); do
+            n=$(gh run view "$id" --json jobs --jq '[.jobs[] | select((.name == "windows" or .name == "mac") and .conclusion == "success")] | length')
+            if [ "$n" = "2" ]; then xanh="$id"; break; fi
+          done
+          if [ -z "$xanh" ]; then
+            echo "::error::Chưa có lượt build nào của $GITHUB_SHA xanh cả Windows và Mac"; exit 1
+          fi
+          echo "Lượt build xanh: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$xanh"
+      - name: Tải bộ cài từ bản nháp
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "$GITHUB_REF_NAME" --dir ban-phat-hanh && ls -l ban-phat-hanh
+      - name: Phát hành lên insticker-offline-releases
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Chưa có secret RELEASES_TOKEN (Settings → Secrets and variables → Actions)"; exit 1
+          fi
+          node scripts/phat-hanh.mjs ban-phat-hanh ban-phat-hanh
